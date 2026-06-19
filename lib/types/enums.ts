@@ -122,6 +122,13 @@ export type EligibilityStatus = ValueOf<typeof ELIGIBILITY_STATUSES>;
 export const REGISTRATION_STATUSES = ["pending", "approved", "rejected"] as const;
 export type RegistrationStatus = ValueOf<typeof REGISTRATION_STATUSES>;
 
+/**
+ * Record state of an approved beneficiary (owner §4.6 suspend/block controls).
+ * `active` = redeemable; `suspended` = temporary admin hold; `blocked` = permanent.
+ */
+export const BENEFICIARY_STATUSES = ["active", "suspended", "blocked"] as const;
+export type BeneficiaryStatus = ValueOf<typeof BENEFICIARY_STATUSES>;
+
 // --- vendors ---------------------------------------------------------------
 
 /** Vendor approval lifecycle (contract §4). */

@@ -12,6 +12,7 @@ import { z } from "zod";
 
 import {
     BENEFICIARY_CATEGORIES,
+    BENEFICIARY_STATUSES,
     CREDIT_TRANSACTION_TYPES,
     DISTRIBUTION_CHANNELS,
     DONATION_STATUSES,
@@ -44,6 +45,7 @@ export const creditTransactionTypeSchema = z.enum(CREDIT_TRANSACTION_TYPES);
 export const donationStatusSchema = z.enum(DONATION_STATUSES);
 
 export const beneficiaryCategorySchema = z.enum(BENEFICIARY_CATEGORIES);
+export const beneficiaryStatusSchema = z.enum(BENEFICIARY_STATUSES);
 export const eligibilityStatusSchema = z.enum(ELIGIBILITY_STATUSES);
 export const registrationStatusSchema = z.enum(REGISTRATION_STATUSES);
 
