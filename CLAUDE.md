@@ -17,14 +17,16 @@ This is the primary instruction file for Claude Code in this repository.
 
 Backend + admin only: database (migrations, RLS, indexes, seed, enums, Zod), all `app/api/**` route handlers, `lib/auth/**`, `lib/permissions/**`, `lib/system-config.ts`, `lib/supabase/**`, and `app/admin/**`. Do NOT generate or edit `app/donor/**` or the public donate flow — that is Developer 1's.
 
-## How to work with me
+## How to work with me (BUILD MODE — speed-oriented)
 
-- **Explain before generating.** I am learning; when you produce a migration, service, or route, briefly explain what each significant part does and why.
-- **Propose migrations; do not apply them.** The Supabase MCP here is **read-only** — use it to inspect/explain the live schema, never to mutate. I apply reviewed migrations myself (Supabase CLI / dashboard).
-- **One vertical slice at a time.** Prefer: one table + its RLS + its service + its route, fully working and reviewable, over large multi-file dumps.
-- **Foundational + logic-heavy parts go slow.** For enums, core migrations, the token state machine, and redemption validation, move carefully and let me review closely. Move faster on repetitive boilerplate once a pattern is set.
-- **Never invent values for open items** (see `ASSUMPTIONS.md`): disaster-affected proof, email provider, payment provider.
-- Don't commit secrets. `.env.local` holds Supabase keys and is git-ignored. The service-role key is server-only, never `NEXT_PUBLIC_`.
+I am building toward a deadline. Move fast. You do NOT need to explain every line. Build in larger ordered batches rather than one tiny slice at a time. BUT the following safety rules are absolute and override speed:
+
+- **PLAN FIRST, ONCE.** Before generating anything, produce a complete ordered implementation plan and let me approve it. After approval, execute the plan in dependency order without stopping for line-by-line approval — but pause and flag if you hit something that conflicts with the existing database or the docs.
+- **Propose migrations as SQL; NEVER apply them.** The Supabase MCP is **read-only** — use it only to inspect. Output migration SQL for me to apply myself. Never attempt to mutate the live database.
+- **Reconcile with the 12 existing tables; never duplicate or conflict.** This database already has tables (donors, donor_credits, payment_methods, token_types, donations, credit_transactions, token_batches, tokens, token_authorisations, token_distribution_records, scheduled_redemption_dates, notifications) with data and RLS. Inspect them first. Build ON them where they fit; explicitly flag and propose a resolution where they conflict with our spec/token-flow. Do not drop or overwrite existing data without flagging it first.
+- **Never invent values for open items** (`ASSUMPTIONS.md`): disaster-affected proof, email provider, payment provider, and the `max_tokens_per_volunteer` numeric default. Use a clearly-marked placeholder and note it.
+- Don't commit secrets. `.env.local` is git-ignored; the service-role key is server-only, never `NEXT_PUBLIC_`.
+- Build order still applies (auth foundation first, since existing RLS needs a users table + user_role enum).
 
 ## Build order (current)
 

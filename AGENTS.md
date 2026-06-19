@@ -73,12 +73,15 @@ The full flow lives in `docs/token-flow.md`. That document is authoritative; rea
 
 Leave schema seams but do NOT build: event-campaign donations (`donations.event_campaign_id`), micro-donation pooling (`credit_transactions.transaction_type` includes `pooling_supplement`), lost-token replacement (`tokens.replacement_for_token_id`), training module, multi-language translations, GPS-spoofing/advanced fraud analytics. If asked to build one of these, remind the developer it is Phase 2.
 
-## How to work with me (the developer)
+## How to work with me (the developer) — BUILD MODE
 
-- I am learning. **Explain before you generate.** When you produce a migration, service, or route, briefly say what each significant part does.
-- **Propose, don't auto-apply.** Especially for migrations: the Supabase MCP is read-only; I apply migrations myself after reviewing them.
-- For the foundational enums/migrations and the redemption validation logic, go slowly and let me write or review closely — these are high-risk. Move faster on repetitive boilerplate once a pattern is established.
-- Prefer small, reviewable changes (one vertical slice: one table + its service + its route) over large multi-file generations.
+Working toward a deadline; prioritise speed. Do not explain every line. Build in ordered batches. The following are non-negotiable regardless of speed:
+
+- **Plan first, once, and get approval.** Then execute in dependency order without per-line approval; pause only to flag a genuine conflict.
+- **Propose migrations as SQL; never apply.** The Supabase MCP is read-only. I apply migrations myself.
+- **Reconcile with the existing 12 tables.** Inspect before building; build on them where they fit; flag conflicts and propose resolutions; never drop/overwrite data without flagging.
+- **Never invent open-item values** (ASSUMPTIONS.md). Use marked placeholders.
+- Auth foundation (users + user_role enum) comes first, because existing RLS needs it.
 
 ## Stack
 
