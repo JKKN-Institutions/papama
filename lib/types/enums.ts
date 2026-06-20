@@ -139,6 +139,13 @@ export type VendorStatus = ValueOf<typeof VENDOR_STATUSES>;
 export const KYC_STATUSES = ["pending", "verified", "failed"] as const;
 export type KycStatus = ValueOf<typeof KYC_STATUSES>;
 
+/**
+ * Vendor escalation / appeal thread lifecycle (contract §4 "Vendor suspension /
+ * Vendor appeals"). Tracks a support/dispute ticket raised against or by a vendor.
+ */
+export const ESCALATION_STATUSES = ["open", "in_progress", "resolved", "closed"] as const;
+export type EscalationStatus = ValueOf<typeof ESCALATION_STATUSES>;
+
 // --- settlement & payment --------------------------------------------------
 
 /** Configurable settlement cycles (F-2). No instant settlement by design. */
@@ -210,3 +217,19 @@ export type NotificationChannel = ValueOf<typeof NOTIFICATION_CHANNELS>;
 /** Read state for a notification. */
 export const NOTIFICATION_STATUSES = ["unread", "read"] as const;
 export type NotificationStatus = ValueOf<typeof NOTIFICATION_STATUSES>;
+
+// --- reports & compliance --------------------------------------------------
+
+/**
+ * Generated report categories (contract §10 "Reports & Compliance"). Drives the
+ * report generator + export routes; `audit` exports the append-only audit trail.
+ */
+export const REPORT_TYPES = [
+    "csr",
+    "donation",
+    "redemption",
+    "settlement",
+    "compliance",
+    "audit",
+] as const;
+export type ReportType = ValueOf<typeof REPORT_TYPES>;

@@ -17,6 +17,7 @@ import {
     DISTRIBUTION_CHANNELS,
     DONATION_STATUSES,
     ELIGIBILITY_STATUSES,
+    ESCALATION_STATUSES,
     FRAUD_DETECTION_METHODS,
     FRAUD_FLAG_TYPES,
     FRAUD_SEVERITIES,
@@ -26,6 +27,7 @@ import {
     NOTIFICATION_STATUSES,
     PAYMENT_STATUSES,
     REGISTRATION_STATUSES,
+    REPORT_TYPES,
     SETTLEMENT_CYCLES,
     SETTLEMENT_STATUSES,
     TOKEN_STATUSES,
@@ -51,6 +53,7 @@ export const registrationStatusSchema = z.enum(REGISTRATION_STATUSES);
 
 export const vendorStatusSchema = z.enum(VENDOR_STATUSES);
 export const kycStatusSchema = z.enum(KYC_STATUSES);
+export const escalationStatusSchema = z.enum(ESCALATION_STATUSES);
 
 export const settlementCycleSchema = z.enum(SETTLEMENT_CYCLES);
 export const settlementStatusSchema = z.enum(SETTLEMENT_STATUSES);
@@ -63,3 +66,5 @@ export const fraudDetectionMethodSchema = z.enum(FRAUD_DETECTION_METHODS);
 
 export const notificationChannelSchema = z.enum(NOTIFICATION_CHANNELS);
 export const notificationStatusSchema = z.enum(NOTIFICATION_STATUSES);
+
+export const reportTypeSchema = z.enum(REPORT_TYPES);
