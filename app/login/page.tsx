@@ -9,12 +9,12 @@ import { createClient } from "@/lib/supabase/client";
  * Admin login — Supabase Auth email/password. On success the session is stored
  * in cookies (browser client), the middleware then lets /admin through and the
  * API routes read the same session server-side. Redirects to ?redirect or
- * /admin/vendors.
+ * the /admin dashboard.
  */
 export default function LoginPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const redirectTo = searchParams.get("redirect") || "/admin/vendors";
+    const redirectTo = searchParams.get("redirect") || "/admin";
 
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
