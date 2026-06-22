@@ -49,7 +49,7 @@ export default function ImpactPage() {
           <h1 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-zinc-50">
             Your Social Impact
           </h1>
-          <p className="mt-1.5 text-sm text-zinc-550 dark:text-zinc-455 max-w-2xl leading-relaxed">
+          <p className="mt-1.5 text-sm text-zinc-500 dark:text-zinc-400 max-w-2xl leading-relaxed">
             Every token voucher you purchase is redeemed directly for fresh, hot meals. See exactly who your contributions helped and where.
           </p>
         </div>
@@ -64,14 +64,14 @@ export default function ImpactPage() {
             <div className="grid gap-6 md:grid-cols-3">
               <div className="rounded-2xl border border-zinc-200/50 bg-gradient-to-br from-emerald-50 to-teal-50/50 p-6 shadow-md dark:border-zinc-800/40 dark:from-emerald-950/20 dark:to-teal-900/10 md:col-span-1 flex flex-col justify-between">
                 <div>
-                  <span className="text-[10px] font-black uppercase tracking-wider text-emerald-650 dark:text-emerald-400">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
                     Total Sponsored Meals
                   </span>
                   <div className="mt-2 text-5xl font-black text-emerald-700 dark:text-emerald-300">
                     {mealsSponsored}
                   </div>
                 </div>
-                <p className="mt-4 text-xs font-semibold text-zinc-550 dark:text-zinc-400 leading-normal">
+                <p className="mt-4 text-xs font-semibold text-zinc-500 dark:text-zinc-400 leading-normal">
                   Your direct funding has provided nutritious, wholesome food packages to Chennai communities.
                 </p>
               </div>
@@ -85,7 +85,7 @@ export default function ImpactPage() {
                   {Object.entries(CATEGORY_MAP).map(([key, config]) => {
                     const count = redemptions.filter((r) => r.beneficiary_category === key).length;
                     return (
-                      <div key={key} className="rounded-xl border border-zinc-100 p-4 text-center dark:border-zinc-850">
+                      <div key={key} className="rounded-xl border border-zinc-100 p-4 text-center dark:border-zinc-800">
                         <span className="text-3xl block mb-2">{config.icon}</span>
                         <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100 block">
                           {config.label}
@@ -120,14 +120,14 @@ export default function ImpactPage() {
                     return (
                       <div
                         key={red.token_id}
-                        className="rounded-2xl border border-zinc-200/60 bg-white p-5 shadow-sm dark:border-zinc-850 dark:bg-zinc-900 flex flex-col justify-between relative overflow-hidden transition hover:shadow-md"
+                        className="rounded-2xl border border-zinc-200/60 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 flex flex-col justify-between relative overflow-hidden transition hover:shadow-md"
                       >
                         {/* Ribbon marker */}
                         <div className="absolute top-0 right-0 w-2.5 h-full bg-emerald-500/20" />
 
                         <div className="space-y-4">
                           {/* Beneficiary Header */}
-                          <div className="flex items-center justify-between gap-2 border-b border-zinc-100 pb-3 dark:border-zinc-850">
+                          <div className="flex items-center justify-between gap-2 border-b border-zinc-100 pb-3 dark:border-zinc-800">
                             <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase ${category.color}`}>
                               <span>{category.icon}</span>
                               {category.label}
@@ -138,12 +138,12 @@ export default function ImpactPage() {
                           </div>
 
                           {/* Heartwarming Thank-You quote */}
-                          <div className="italic text-zinc-600 dark:text-zinc-350 text-xs font-semibold leading-relaxed">
+                          <div className="italic text-zinc-600 dark:text-zinc-300 text-xs font-semibold leading-relaxed">
                             "A hot plate of {red.meal_info} was served. Thank you for your care and support!"
                           </div>
 
                           {/* Details */}
-                          <div className="text-[11px] text-zinc-550 dark:text-zinc-400 space-y-1">
+                          <div className="text-[11px] text-zinc-500 dark:text-zinc-400 space-y-1">
                             <p className="flex justify-between">
                               <span className="text-zinc-400 font-semibold">Canteen Point:</span>
                               <strong className="font-bold text-zinc-800 dark:text-zinc-100">{red.vendor_name}</strong>
@@ -159,8 +159,8 @@ export default function ImpactPage() {
                           </div>
                         </div>
 
-                        <div className="mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-850 text-center">
-                          <span className="text-[9px] font-bold text-emerald-650 dark:text-emerald-450 uppercase flex items-center justify-center gap-1">
+                        <div className="mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-800 text-center">
+                          <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 uppercase flex items-center justify-center gap-1">
                             ❤ MEAL FULLY REDEEMED
                           </span>
                         </div>
@@ -174,7 +174,7 @@ export default function ImpactPage() {
                   <h3 className="mt-4 text-sm font-bold text-zinc-900 dark:text-zinc-50">
                     No Meal Redemptions Yet
                   </h3>
-                  <p className="mt-1 text-xs text-zinc-550">
+                  <p className="mt-1 text-xs text-zinc-500">
                     Once you convert credits to tokens and they are redeemed in partner canteens, thank-you cards will appear here.
                   </p>
                 </div>

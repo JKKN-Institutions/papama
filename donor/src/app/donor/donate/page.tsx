@@ -121,7 +121,7 @@ export default function DonatePage() {
                 <input
                   type="number"
                   placeholder="Enter custom amount"
-                  className="h-14 w-full rounded-xl border border-zinc-200 pl-10 pr-4 text-lg font-bold text-zinc-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 dark:border-zinc-800 dark:bg-zinc-850 dark:text-zinc-100"
+                  className="h-14 w-full rounded-xl border border-zinc-200 pl-10 pr-4 text-lg font-bold text-zinc-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-100"
                   {...register("amount", { valueAsNumber: true })}
                 />
               </div>
@@ -139,7 +139,7 @@ export default function DonatePage() {
                     className={`rounded-xl py-2.5 text-xs font-bold border transition ${
                       selectedAmount === amt
                         ? "border-emerald-600 bg-emerald-50 text-emerald-700 dark:border-emerald-500 dark:bg-emerald-950/20 dark:text-emerald-400"
-                        : "border-zinc-200 bg-white hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-850"
+                        : "border-zinc-200 bg-white hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800"
                     }`}
                   >
                     ₹{amt}
@@ -163,8 +163,8 @@ export default function DonatePage() {
                       onClick={() => setValue("payment_method", method.id, { shouldValidate: true })}
                       className={`flex items-center gap-3 rounded-xl border p-4 text-left transition ${
                         isSelected
-                          ? "border-emerald-600 bg-emerald-505/5 text-emerald-955 dark:border-emerald-500 dark:bg-emerald-950/10 dark:text-emerald-300"
-                          : "border-zinc-200 bg-white hover:bg-zinc-50 dark:border-zinc-850 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+                          ? "border-emerald-600 bg-emerald-50 text-emerald-900 dark:border-emerald-500 dark:bg-emerald-950/10 dark:text-emerald-300"
+                          : "border-zinc-200 bg-white hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800"
                       }`}
                     >
                       <span className="text-2xl">{method.icon}</span>

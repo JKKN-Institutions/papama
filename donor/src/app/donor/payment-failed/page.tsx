@@ -34,7 +34,7 @@ function FailureCard() {
 
       {/* Error Details */}
       <div className="mt-6 rounded-xl bg-red-500/5 border border-red-500/10 p-4 text-left">
-        <span className="text-[10px] font-bold text-red-550 uppercase tracking-wider block">Error Reference</span>
+        <span className="text-[10px] font-bold text-red-600 uppercase tracking-wider block">Error Reference</span>
         <p className="mt-1 text-xs font-semibold text-red-800 dark:text-red-400 leading-relaxed break-words">
           {error}
         </p>
@@ -60,7 +60,7 @@ function FailureCard() {
         </Link>
         <Link
           href="/donor/dashboard"
-          className="flex-1 rounded-xl bg-zinc-900 py-3 text-xs font-bold text-white transition hover:bg-zinc-850 active:scale-95 text-center dark:bg-zinc-800 dark:hover:bg-zinc-750"
+          className="flex-1 rounded-xl bg-zinc-900 py-3 text-xs font-bold text-white transition hover:bg-zinc-800 active:scale-95 text-center dark:bg-zinc-800 dark:hover:bg-zinc-700"
         >
           Return to Dashboard
         </Link>

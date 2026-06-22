@@ -82,10 +82,19 @@ export default function TokenDetailPage({
   const { timeLeft, isClose } = useCountdown(token?.expires_at, token?.status === "active");
 
   const statusColors = {
-    active: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/50",
-    redeemed: "bg-zinc-100 text-zinc-650 border-zinc-200 dark:bg-zinc-900 dark:text-zinc-400 dark:border-zinc-800/60",
+    // New statuses (from token_flow.md)
+    generated: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-900/50",
+    live: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/50",
+    in_admin_pool: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-900/50",
+    assigned_to_volunteer: "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/30 dark:text-purple-400 dark:border-purple-900/50",
+    distributed: "bg-cyan-50 text-cyan-700 border-cyan-200 dark:bg-cyan-950/30 dark:text-cyan-400 dark:border-cyan-900/50",
+    redeemed: "bg-zinc-100 text-zinc-600 border-zinc-200 dark:bg-zinc-900 dark:text-zinc-400 dark:border-zinc-800/60",
     expired: "bg-red-50 text-red-700 border-red-200 dark:bg-red-950/30 dark:text-red-400 dark:border-red-900/50",
-    invalidated: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-450 dark:border-rose-900/50",
+    // Legacy statuses (for backward compatibility)
+    active: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/50",
+    unused: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/50",
+    invalidated: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-900/50",
+    cancelled: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-900/50",
   };
 
   return (
@@ -133,13 +142,13 @@ export default function TokenDetailPage({
                   <h1 className="text-2xl font-black tracking-wider text-zinc-900 dark:text-zinc-50 font-mono mt-1">
                     {token.token_id.substring(0, 18).toUpperCase()}...
                   </h1>
-                  <p className="mt-1 text-sm font-semibold text-zinc-700 dark:text-zinc-350">
+                  <p className="mt-1 text-sm font-semibold text-zinc-700 dark:text-zinc-300">
                     Type: <span className="uppercase text-emerald-600 dark:text-emerald-400">{token.type.replace("_", " ")}</span>
                   </p>
                 </div>
                 <div className="self-start sm:self-center flex flex-wrap items-center gap-2">
                   {token.type === "special_care" && (
-                    <span className="inline-flex rounded-full bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-450 dark:border-rose-900/50 px-3 py-1 text-xs font-bold border">
+                    <span className="inline-flex rounded-full bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-900/50 px-3 py-1 text-xs font-bold border">
                       SPECIAL CARE
                     </span>
                   )}
@@ -152,7 +161,7 @@ export default function TokenDetailPage({
 
             {/* Expiry Warning Banner (Active Timer) */}
             {isClose && timeLeft && (
-              <div className="rounded-2xl border border-amber-200 bg-amber-500/5 p-6 shadow-sm dark:border-amber-800/30 dark:bg-amber-950/20 text-amber-850 dark:text-amber-400 animate-pulse">
+              <div className="rounded-2xl border border-amber-200 bg-amber-500/5 p-6 shadow-sm dark:border-amber-800/30 dark:bg-amber-950/20 text-amber-800 dark:text-amber-400 animate-pulse">
                 <h3 className="text-sm font-bold flex items-center gap-1.5">
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="h-4.5 w-4.5">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
@@ -187,7 +196,7 @@ export default function TokenDetailPage({
                 <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-50">
                   Token Lifecycle Path
                 </h2>
-                <p className="text-zinc-450 text-xs mt-0.5">
+                <p className="text-zinc-400 text-xs mt-0.5">
                   Audit logs representing the lifecycle of this food token.
                 </p>
 
@@ -197,13 +206,13 @@ export default function TokenDetailPage({
                   {/* Step 1: Minted */}
                   <div className="relative pl-10 flex items-start gap-4">
                     <div className="absolute left-1.5 h-6.5 w-6.5 rounded-full border-2 border-emerald-500 bg-emerald-100 dark:bg-emerald-950 flex items-center justify-center -translate-x-1/2">
-                      <div className="h-2 w-2 rounded-full bg-emerald-600 dark:bg-emerald-450" />
+                      <div className="h-2 w-2 rounded-full bg-emerald-600 dark:bg-emerald-400" />
                     </div>
                     <div>
                       <h4 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
                         Token Generated
                       </h4>
-                      <p className="mt-1 text-xs text-zinc-550 dark:text-zinc-400">
+                      <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
                         Voucher created from credit conversion. Cryptographic token and value verified.
                       </p>
                       <span className="mt-2 inline-block font-mono text-[10px] text-zinc-400 bg-zinc-50 px-2 py-0.5 rounded dark:bg-zinc-800">
@@ -239,21 +248,21 @@ export default function TokenDetailPage({
                           <h4 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
                             Token Redeemed
                           </h4>
-                          <p className="mt-1 text-xs text-zinc-550 dark:text-zinc-400">
+                          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
                             Voucher scanned and redeemed for meal:{" "}
                             <strong className="font-semibold text-zinc-700 dark:text-zinc-200">
                               {token.meal_info || "Lunch — Wholesome Meal"}
                             </strong>.
                           </p>
-                          <p className="mt-1 text-xs text-zinc-550 dark:text-zinc-400">
+                          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
                             Vendor: <strong className="font-bold text-zinc-700 dark:text-zinc-200">{token.vendor_name}</strong> ({token.location})
                           </p>
                           {token.beneficiary_category && (
-                            <p className="mt-1 text-xs text-zinc-550 dark:text-zinc-400">
-                              Beneficiary Category: <span className="uppercase text-[10px] font-bold text-amber-650">{token.beneficiary_category.replace("_", " ")}</span>
+                            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                              Beneficiary Category: <span className="uppercase text-[10px] font-bold text-amber-600">{token.beneficiary_category.replace("_", " ")}</span>
                             </p>
                           )}
-                          <span className="mt-2 inline-block font-mono text-[10px] text-zinc-455 bg-zinc-50 px-2 py-0.5 rounded dark:bg-zinc-800">
+                          <span className="mt-2 inline-block font-mono text-[10px] text-zinc-400 bg-zinc-50 px-2 py-0.5 rounded dark:bg-zinc-800">
                             Redeemed At: {new Date(token.redeemed_at || "").toLocaleString()}
                           </span>
                         </>
@@ -264,10 +273,10 @@ export default function TokenDetailPage({
                           <h4 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
                             Token Expired
                           </h4>
-                          <p className="mt-1 text-xs text-zinc-550 dark:text-zinc-400">
+                          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
                             Voucher reached expiration threshold. In accordance with program terms, unused expired voucher credits are automatically pooled to support emergency response meal hubs.
                           </p>
-                          <span className="mt-2 inline-block font-mono text-[10px] text-zinc-455 bg-zinc-50 px-2 py-0.5 rounded dark:bg-zinc-800">
+                          <span className="mt-2 inline-block font-mono text-[10px] text-zinc-400 bg-zinc-50 px-2 py-0.5 rounded dark:bg-zinc-800">
                             Expired At: {new Date(token.expires_at).toLocaleString()}
                           </span>
                         </>
@@ -278,10 +287,10 @@ export default function TokenDetailPage({
                           <h4 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
                             Token Invalidated
                           </h4>
-                          <p className="mt-1 text-xs text-zinc-550 dark:text-zinc-400">
+                          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
                             This token voucher was voided due to transaction adjustments or account audits.
                           </p>
-                          <span className="mt-2 inline-block font-mono text-[10px] text-zinc-455 bg-zinc-50 px-2 py-0.5 rounded dark:bg-zinc-800">
+                          <span className="mt-2 inline-block font-mono text-[10px] text-zinc-400 bg-zinc-50 px-2 py-0.5 rounded dark:bg-zinc-800">
                             Invalidated
                           </span>
                         </>
@@ -292,10 +301,10 @@ export default function TokenDetailPage({
                           <h4 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
                             Active / Awaiting Scan
                           </h4>
-                          <p className="mt-1 text-xs text-zinc-550 dark:text-zinc-400">
+                          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
                             Voucher is active and ready to be presented at any participating Anna Canteen or kitchen counter.
                           </p>
-                          <span className="mt-2 inline-block font-mono text-[10px] text-blue-650 bg-blue-50/50 px-2 py-0.5 rounded dark:bg-blue-950/20 dark:text-blue-400 font-bold">
+                          <span className="mt-2 inline-block font-mono text-[10px] text-blue-600 bg-blue-50/50 px-2 py-0.5 rounded dark:bg-blue-950/20 dark:text-blue-400 font-bold">
                             Expires On: {new Date(token.expires_at).toLocaleDateString()}
                           </span>
                         </>
@@ -371,7 +380,7 @@ export default function TokenDetailPage({
                   <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-50">
                     Trust Ledger Cert
                   </h3>
-                  <p className="text-[10px] text-zinc-450 mt-0.5">
+                  <p className="text-[10px] text-zinc-400 mt-0.5">
                     Immutable verification details.
                   </p>
 
@@ -380,7 +389,7 @@ export default function TokenDetailPage({
                       <span className="font-semibold text-zinc-400 dark:text-zinc-500">
                         Voucher Token ID
                       </span>
-                      <p className="font-mono text-[10px] text-zinc-700 dark:text-zinc-350 break-all bg-zinc-50 dark:bg-zinc-850 p-2.5 rounded mt-1 select-all">
+                      <p className="font-mono text-[10px] text-zinc-700 dark:text-zinc-300 break-all bg-zinc-50 dark:bg-zinc-800 p-2.5 rounded mt-1 select-all">
                         {token.token_id}
                       </p>
                     </div>
@@ -389,7 +398,7 @@ export default function TokenDetailPage({
                       <span className="font-semibold text-zinc-400 dark:text-zinc-500">
                         Smart Contract Address
                       </span>
-                      <p className="font-mono text-[10px] text-zinc-700 dark:text-zinc-350 break-all bg-zinc-50 dark:bg-zinc-850 p-2.5 rounded mt-1 select-all">
+                      <p className="font-mono text-[10px] text-zinc-700 dark:text-zinc-300 break-all bg-zinc-50 dark:bg-zinc-800 p-2.5 rounded mt-1 select-all">
                         0x34f9a0c7edb2e04313f89ad4f107f9c2d1b5003c
                       </p>
                     </div>
@@ -404,7 +413,7 @@ export default function TokenDetailPage({
                     </div>
 
                     <div className="border-t border-zinc-100/50 pt-4 dark:border-zinc-800/30">
-                      <div className="flex items-center gap-2 text-emerald-650 dark:text-emerald-450 font-bold text-[10px]">
+                      <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-bold text-[10px]">
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
                           viewBox="0 0 24 24"

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { DashboardResponse, TokenItem } from '@/src/types/contract';
 import { DashboardService } from '@/src/services/dashboardService';
 import { TokenService } from '@/src/services/tokenService';
-import { FoodToken, TokenStatus } from '@/src/types/token';
+import { FoodToken, TokenStatus, STATUS_MAPPING } from '@/src/types/token';
 import { ApiClient } from '@/src/services/apiClient';
 
 interface UseDashboardReturn {
@@ -13,28 +13,42 @@ interface UseDashboardReturn {
   refetch: () => Promise<void>;
 }
 
-function mapTokenStatus(status: TokenStatus): TokenItem['status'] {
-  const statusMap: Record<TokenStatus, TokenItem['status']> = {
-    unused: 'active',
-    redeemed: 'redeemed',
-    expired: 'expired',
-    cancelled: 'invalidated',
+function mapTokenStatus(status: string | TokenStatus): TokenItem['status'] {
+  // Map new statuses to contract statuses
+  const statusMap: Record<string, TokenItem['status']> = {
+    [TokenStatus.GENERATED]: 'generated',
+    [TokenStatus.LIVE]: 'live',
+    [TokenStatus.IN_ADMIN_POOL]: 'in_admin_pool',
+    [TokenStatus.ASSIGNED_TO_VOLUNTEER]: 'assigned_to_volunteer',
+    [TokenStatus.DISTRIBUTED]: 'distributed',
+    [TokenStatus.REDEEMED]: 'redeemed',
+    [TokenStatus.EXPIRED]: 'expired',
+    // Legacy status mappings
+    'unused': 'live',
+    'cancelled': 'expired',
+    'active': 'live',
+    'invalidated': 'expired',
   };
-  return statusMap[status];
+
+  return (statusMap[status] || status) as TokenItem['status'];
 }
 
 function mapFoodTokenToTokenItem(token: FoodToken): TokenItem {
   const issuedAt = token.mintedAt || new Date().toISOString();
-  const expiresAt = token.mintedAt
-    ? new Date(new Date(token.mintedAt).getTime() + 90 * 24 * 60 * 60 * 1000).toISOString()
-    : new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString();
+  const expiresAt = token.expiresAt ||
+    (token.mintedAt
+      ? new Date(new Date(token.mintedAt).getTime() + 90 * 24 * 60 * 60 * 1000).toISOString()
+      : new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString());
+
+  // Convert value from paise to INR for display (if available)
+  const valueInINR = token.value ? Math.round((token.value / 100) * 100) / 100 : 50;
 
   return {
     token_id: token.id,
-    qr_payload: `PAPAMA:TOKEN:${token.id}:sig`,
-    type: token.isSpecialCare ? 'special_care' : 'standard',
+    qr_payload: token.qrPayload || `PAPAMA:TOKEN:${token.id}:sig`,
+    type: token.tokenType === 'special_care' || token.isSpecialCare ? 'special_care' : 'standard',
     status: mapTokenStatus(token.status),
-    value: 50,
+    value: valueInINR,
     issued_at: issuedAt,
     expires_at: expiresAt,
     redeemed_at: token.redeemedAt || null,
@@ -44,6 +58,8 @@ function mapFoodTokenToTokenItem(token: FoodToken): TokenItem {
     beneficiary_category: 'patient',
     is_special_care: token.isSpecialCare,
     special_instructions: token.specialInstructions,
+    current_holder_type: token.currentHolderType,
+    current_holder_id: token.currentHolderId,
   };
 }
 

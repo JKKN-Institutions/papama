@@ -1,14 +1,14 @@
-import { FoodToken, TokenSummary } from '@/src/types/token';
+import { FoodToken, TokenSummary, TokenStatus, STATUS_MAPPING, CurrentHolderType } from '@/src/types/token';
 import { DonorNotificationService } from './donorNotificationService';
 import { isSupabaseConfigured, supabase } from './supabase';
 
 type TokenRow = {
-  id: string;
+  id: string; // UUID
   serial_number: string;
   donation_id: string;
-  token_type_id: string;
+  token_type_id: string; // UUID reference to token_types
   campaign_title: string;
-  status: FoodToken['status'];
+  status: string; // token_status enum
   minted_at: string;
   allocated_at?: string | null;
   redeemed_at?: string | null;
@@ -19,6 +19,14 @@ type TokenRow = {
   redemption_location?: string | null;
   is_special_care?: boolean;
   special_instructions?: string | null;
+  // Developer 2 Contract fields
+  value?: number | null; // Token value in paise
+  qr_payload?: string | null; // QR payload
+  expires_at?: string | null; // Expiration timestamp
+  token_type?: string | null; // token_type_enum (standard or special_care)
+  // Token Holder Support (token_flow.md)
+  current_holder_type?: string | null; // donor, pool, volunteer
+  current_holder_id?: string | null; // ID of current holder (UUID or string)
 };
 
 export const MOCK_TOKENS: FoodToken[] = [
@@ -35,6 +43,10 @@ export const MOCK_TOKENS: FoodToken[] = [
     beneficiaryName: 'Aravind K. (Std V)',
     mealType: 'Hot Rava Pongal & Sambar',
     redemptionLocation: 'Govt Primary School, Salem - Canteen A',
+    value: 5000,
+    qrPayload: 'QR_PPM_SLM_9021',
+    expiresAt: '2026-09-11T12:30:00Z',
+    tokenType: 'standard',
   },
   {
     id: 'tok_002',
@@ -44,6 +56,10 @@ export const MOCK_TOKENS: FoodToken[] = [
     campaignTitle: 'Annapoorna School Breakfast Drive',
     status: 'unused',
     mintedAt: '2026-06-11T12:30:00Z',
+    value: 5000,
+    qrPayload: 'QR_PPM_SLM_9022',
+    expiresAt: '2026-09-11T12:30:00Z',
+    tokenType: 'standard',
   },
   {
     id: 'tok_003',
@@ -58,6 +74,11 @@ export const MOCK_TOKENS: FoodToken[] = [
     beneficiaryName: 'Orphanage Child #104',
     mealType: 'Rice, Dal & Vegetable Poriyal',
     redemptionLocation: 'Mercy Home Dining Centre',
+    value: 7500,
+    qrPayload: 'QR_PPM_CBE_8140',
+    expiresAt: '2026-09-14T15:00:00Z',
+    tokenType: 'special_care',
+    isSpecialCare: true,
   },
   {
     id: 'tok_004',
@@ -68,6 +89,10 @@ export const MOCK_TOKENS: FoodToken[] = [
     status: 'expired',
     mintedAt: '2026-05-01T10:00:00Z',
     expiredAt: '2026-06-01T00:00:00Z',
+    value: 5000,
+    qrPayload: 'QR_PPM_CBE_8141',
+    expiresAt: '2026-06-01T00:00:00Z',
+    tokenType: 'standard',
   },
   {
     id: 'tok_005',
@@ -78,6 +103,10 @@ export const MOCK_TOKENS: FoodToken[] = [
     status: 'cancelled',
     mintedAt: '2026-06-14T15:00:00Z',
     cancelledAt: '2026-06-15T09:00:00Z',
+    value: 5000,
+    qrPayload: 'QR_PPM_CBE_8142',
+    expiresAt: '2026-09-14T15:00:00Z',
+    tokenType: 'standard',
   },
 ];
 
@@ -90,7 +119,7 @@ export class TokenService {
     try {
       const { data, error } = await supabase
         .from('tokens')
-        .select('*')
+        .select('*,value,qr_payload,expires_at,token_type,current_holder_type,current_holder_id')
         .order('minted_at', { ascending: false });
 
       if (error) {
@@ -113,7 +142,7 @@ export class TokenService {
     try {
       const { data, error } = await supabase
         .from('tokens')
-        .select('*')
+        .select('*,value,qr_payload,expires_at,token_type,current_holder_type,current_holder_id')
         .eq('id', id)
         .single();
 
@@ -129,17 +158,56 @@ export class TokenService {
 
   static async getTokenSummary(): Promise<TokenSummary> {
     const tokens = await this.getTokens();
+    const now = new Date();
 
-    return tokens.reduce(
+    const summary = tokens.reduce(
       (acc, t) => {
-        if (t.status === 'unused') acc.totalUnused++;
-        else if (t.status === 'redeemed') acc.totalRedeemed++;
-        else if (t.status === 'expired') acc.totalExpired++;
-        else if (t.status === 'cancelled') acc.totalCancelled++;
+        const status = t.status as string;
+
+        // New status counts (token_flow.md)
+        if (status === TokenStatus.GENERATED || status === 'generated') acc.generated!++;
+        else if (status === TokenStatus.LIVE || status === 'live' || status === 'unused') acc.live!++;
+        else if (status === TokenStatus.IN_ADMIN_POOL || status === 'in_admin_pool') acc.inAdminPool!++;
+        else if (status === TokenStatus.ASSIGNED_TO_VOLUNTEER || status === 'assigned_to_volunteer') acc.assignedToVolunteer!++;
+        else if (status === TokenStatus.DISTRIBUTED || status === 'distributed') acc.distributed!++;
+        else if (status === TokenStatus.REDEEMED || status === 'redeemed') acc.redeemed!++;
+        else if (status === TokenStatus.EXPIRED || status === 'expired' || status === 'cancelled') acc.expired!++;
+
+        // Add value tracking (Developer 2 Contract)
+        if (t.value) {
+          acc.totalValue! += t.value;
+        }
+
+        // Track expiring tokens (live tokens only)
+        if (t.expiresAt && (status === TokenStatus.LIVE || status === 'live' || status === 'unused')) {
+          const expiryDate = new Date(t.expiresAt);
+          const daysUntilExpiry = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+          if (daysUntilExpiry <= 7) {
+            acc.expiringWithin7Days!++;
+          }
+          if (daysUntilExpiry <= 30) {
+            acc.expiringWithin30Days!++;
+          }
+        }
+
         return acc;
       },
-      { totalUnused: 0, totalRedeemed: 0, totalExpired: 0, totalCancelled: 0 }
+      {
+        generated: 0,
+        live: 0,
+        inAdminPool: 0,
+        assignedToVolunteer: 0,
+        distributed: 0,
+        redeemed: 0,
+        expired: 0,
+        totalValue: 0,
+        expiringWithin7Days: 0,
+        expiringWithin30Days: 0
+      }
     );
+
+    return summary;
   }
 
   static async markTokenRedeemed(
@@ -199,13 +267,20 @@ export class TokenService {
 }
 
 function mapToken(token: TokenRow): FoodToken {
+  // Map old statuses to new statuses for backward compatibility
+  let mappedStatus = token.status;
+  if (STATUS_MAPPING[token.status]) {
+    mappedStatus = STATUS_MAPPING[token.status];
+  }
+
   return {
     id: token.id,
     serialNumber: token.serial_number,
     donationId: token.donation_id,
     campaignId: token.token_type_id,
+    tokenTypeId: token.token_type_id,
     campaignTitle: token.campaign_title,
-    status: token.status,
+    status: mappedStatus,
     mintedAt: token.minted_at,
     allocatedAt: token.allocated_at ?? undefined,
     redeemedAt: token.redeemed_at ?? undefined,
@@ -216,5 +291,13 @@ function mapToken(token: TokenRow): FoodToken {
     redemptionLocation: token.redemption_location ?? undefined,
     isSpecialCare: token.is_special_care ?? undefined,
     specialInstructions: token.special_instructions ?? undefined,
+    // Developer 2 Contract fields
+    value: token.value ?? undefined,
+    qrPayload: token.qr_payload ?? undefined,
+    expiresAt: token.expires_at ?? undefined,
+    tokenType: (token.token_type ?? undefined) as any,
+    // Token Holder Support (token_flow.md)
+    currentHolderType: token.current_holder_type ?? undefined,
+    currentHolderId: token.current_holder_id ?? undefined,
   };
 }

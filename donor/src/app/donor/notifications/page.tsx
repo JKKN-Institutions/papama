@@ -64,7 +64,7 @@ export default function NotificationsPage() {
             <h1 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-zinc-50">
               Notification Center
             </h1>
-            <p className="mt-1.5 text-sm text-zinc-550 dark:text-zinc-455">
+            <p className="mt-1.5 text-sm text-zinc-500 dark:text-zinc-400">
               Track token generation, credit balance thresholds, and meal redemption receipts in real-time.
             </p>
           </div>
@@ -86,7 +86,7 @@ export default function NotificationsPage() {
               <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent" />
             </div>
           ) : notifications.length > 0 ? (
-            <div className="rounded-2xl border border-zinc-200/50 bg-white overflow-hidden shadow-md dark:border-zinc-800/40 dark:bg-zinc-900 divide-y divide-zinc-150/60 dark:divide-zinc-850/50">
+            <div className="rounded-2xl border border-zinc-200/50 bg-white overflow-hidden shadow-md dark:border-zinc-800/40 dark:bg-zinc-900 divide-y divide-zinc-150/60 dark:divide-zinc-800/50">
               {notifications.map((notif) => {
                 const config = NOTIF_ICONS[notif.type] || { icon: "🔔", color: "bg-zinc-50 text-zinc-600" };
                 return (
@@ -122,7 +122,7 @@ export default function NotificationsPage() {
 
                       {/* Metadata block for Redemptions */}
                       {notif.type === "redemption" && notif.meta && (
-                        <div className="rounded-xl border border-zinc-100 bg-zinc-50/50 p-4 text-[11px] font-semibold text-zinc-650 dark:border-zinc-850 dark:bg-zinc-950/20 dark:text-zinc-400 space-y-1.5">
+                        <div className="rounded-xl border border-zinc-100 bg-zinc-50/50 p-4 text-[11px] font-semibold text-zinc-600 dark:border-zinc-800 dark:bg-zinc-950/20 dark:text-zinc-400 space-y-1.5">
                           <p className="flex justify-between">
                             <span className="text-zinc-400">Meal Redeemed:</span>
                             <strong className="text-zinc-800 dark:text-zinc-100">{notif.meta.meal_info}</strong>
@@ -134,7 +134,7 @@ export default function NotificationsPage() {
                           {notif.meta.beneficiary_category && (
                             <p className="flex justify-between">
                               <span className="text-zinc-400">Beneficiary Category:</span>
-                              <span className="uppercase text-[9px] font-black text-amber-650">{notif.meta.beneficiary_category.replace("_", " ")}</span>
+                              <span className="uppercase text-[9px] font-black text-amber-600">{notif.meta.beneficiary_category.replace("_", " ")}</span>
                             </p>
                           )}
                           <p className="flex justify-between text-[10px]">
@@ -148,7 +148,7 @@ export default function NotificationsPage() {
                       {!notif.read && (
                         <button
                           onClick={() => handleMarkAsRead(notif.id)}
-                          className="text-[10px] font-bold text-emerald-650 dark:text-emerald-450 hover:underline block pt-1"
+                          className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline block pt-1"
                         >
                           Mark as Read
                         </button>

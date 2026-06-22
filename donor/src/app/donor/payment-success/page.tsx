@@ -20,7 +20,7 @@ function SuccessReceipt() {
   return (
     <div className="rounded-2xl border border-zinc-200/50 bg-white p-6 shadow-xl dark:border-zinc-800/40 dark:bg-zinc-900 md:p-10 text-center">
       {/* Animated Success Badge */}
-      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-150 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400">
+      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400">
         <svg
           xmlns="http://www.w3.org/2000/svg"
           fill="none"
@@ -47,7 +47,7 @@ function SuccessReceipt() {
           <span className="font-mono text-[10px] text-zinc-400 font-bold uppercase">{id.substring(0, 8)}...</span>
         </div>
 
-        <div className="p-6 space-y-4 text-xs font-semibold text-zinc-650 dark:text-zinc-350">
+        <div className="p-6 space-y-4 text-xs font-semibold text-zinc-600 dark:text-zinc-300">
           <div className="flex justify-between">
             <span className="text-zinc-400">Amount Paid:</span>
             <span className="text-zinc-900 dark:text-zinc-50 text-sm font-bold">₹{amount}</span>
@@ -58,7 +58,7 @@ function SuccessReceipt() {
           </div>
           <div className="flex justify-between">
             <span className="text-zinc-400">Credit Added:</span>
-            <span className="text-emerald-650 dark:text-emerald-400 font-bold">+₹{added} Credits</span>
+            <span className="text-emerald-600 dark:text-emerald-400 font-bold">+₹{added} Credits</span>
           </div>
           <div className="flex justify-between border-t border-zinc-100/80 pt-4 dark:border-zinc-800/80">
             <span className="text-zinc-400">New Credit Balance:</span>
@@ -66,14 +66,14 @@ function SuccessReceipt() {
           </div>
           <div className="flex justify-between">
             <span className="text-zinc-400">Timestamp:</span>
-            <span className="font-normal text-[10px] text-zinc-455">{new Date(at).toLocaleString()}</span>
+            <span className="font-normal text-[10px] text-zinc-400">{new Date(at).toLocaleString()}</span>
           </div>
         </div>
       </div>
 
       {/* Threshold Alert Banner */}
       {reached && (
-        <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50/40 p-4 text-emerald-850 dark:border-emerald-800/30 dark:bg-emerald-950/10 dark:text-emerald-400 text-left">
+        <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50/40 p-4 text-emerald-800 dark:border-emerald-800/30 dark:bg-emerald-950/10 dark:text-emerald-400 text-left">
           <div className="flex gap-2.5">
             <span className="text-base">🚀</span>
             <div>
@@ -98,14 +98,14 @@ function SuccessReceipt() {
         ) : (
           <Link
             href="/donor/donate"
-            className="flex-1 rounded-xl border border-zinc-200 bg-white py-3 text-xs font-bold text-zinc-700 hover:bg-zinc-50 transition active:scale-95 text-center dark:border-zinc-800 dark:bg-zinc-850 dark:text-zinc-200 dark:hover:bg-zinc-800"
+            className="flex-1 rounded-xl border border-zinc-200 bg-white py-3 text-xs font-bold text-zinc-700 hover:bg-zinc-50 transition active:scale-95 text-center dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-800"
           >
             Donate More
           </Link>
         )}
         <Link
           href="/donor/dashboard"
-          className="flex-1 rounded-xl bg-zinc-900 py-3 text-xs font-bold text-white transition hover:bg-zinc-850 active:scale-95 text-center dark:bg-zinc-800 dark:hover:bg-zinc-750"
+          className="flex-1 rounded-xl bg-zinc-900 py-3 text-xs font-bold text-white transition hover:bg-zinc-700 active:scale-95 text-center dark:bg-zinc-800 dark:hover:bg-zinc-700"
         >
           Go to Dashboard
         </Link>

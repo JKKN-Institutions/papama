@@ -22,6 +22,14 @@ type TokenRow = {
   beneficiary_name: string | null;
   meal_type: string | null;
   redemption_location: string | null;
+  // Developer 2 Contract fields
+  value?: number | null;
+  token_type?: string | null;
+  expires_at?: string | null;
+  minted_at?: string | null;
+  // Token Holder Support (token_flow.md)
+  current_holder_type?: string | null;
+  current_holder_id?: string | null;
 };
 
 export class DashboardService {
@@ -59,7 +67,7 @@ export class DashboardService {
       // Fetch tokens only for this donor's donations
       const { data: tokensData, error: tokensError } = await supabase
         .from('tokens')
-        .select('id, status, redeemed_at, beneficiary_name, meal_type, redemption_location, minted_at')
+        .select('id, status, redeemed_at, beneficiary_name, meal_type, redemption_location, minted_at, value, token_type, expires_at, current_holder_type, current_holder_id')
         .in('donation_id', donationIds)
         .order('minted_at', { ascending: false });
 

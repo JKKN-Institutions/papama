@@ -126,14 +126,14 @@ export default function GuestDonatePage() {
                 <span className="text-xs uppercase tracking-wider text-zinc-400 font-bold">Guest Receipt</span>
                 <span className="font-mono text-[10px] text-zinc-400 font-bold uppercase">{receipt.donation_id.substring(0, 8)}...</span>
               </div>
-              <div className="p-6 space-y-4 text-xs font-semibold text-zinc-650 dark:text-zinc-350">
+              <div className="p-6 space-y-4 text-xs font-semibold text-zinc-600 dark:text-zinc-300">
                 <div className="flex justify-between">
                   <span className="text-zinc-400">Donation Amount:</span>
                   <span className="text-zinc-900 dark:text-zinc-50 text-sm font-bold">₹{receipt.amount}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-zinc-400">Payment Method:</span>
-                  <span className="text-zinc-955 dark:text-zinc-50 uppercase">{receipt.payment_method}</span>
+                  <span className="text-zinc-950 dark:text-zinc-50 uppercase">{receipt.payment_method}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-zinc-400">Verification Hash:</span>
@@ -141,7 +141,7 @@ export default function GuestDonatePage() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-zinc-400">Processed At:</span>
-                  <span className="font-normal text-[10px] text-zinc-455">{new Date(receipt.created_at).toLocaleString()}</span>
+                  <span className="font-normal text-[10px] text-zinc-400">{new Date(receipt.created_at).toLocaleString()}</span>
                 </div>
               </div>
             </div>
@@ -155,7 +155,7 @@ export default function GuestDonatePage() {
               </button>
               <Link
                 href="/donor/dashboard"
-                className="text-xs font-bold text-emerald-650 dark:text-emerald-400 hover:underline py-1"
+                className="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline py-1"
               >
                 Create a Donor Portal Account to track impact →
               </Link>
@@ -168,7 +168,7 @@ export default function GuestDonatePage() {
               <h1 className="text-2xl font-black text-zinc-900 dark:text-zinc-50">
                 Quick Web Donation
               </h1>
-              <p className="mt-1.5 text-xs text-zinc-550 dark:text-zinc-400 leading-relaxed">
+              <p className="mt-1.5 text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
                 Fill details below to quickly fund hot lunch boxes without signing in.
               </p>
             </div>
@@ -192,7 +192,7 @@ export default function GuestDonatePage() {
                   <input
                     type="number"
                     placeholder="Enter custom amount"
-                    className="h-12 w-full rounded-xl border border-zinc-200 pl-10 pr-4 text-sm font-bold text-zinc-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 dark:border-zinc-800 dark:bg-zinc-850 dark:text-zinc-100"
+                    className="h-12 w-full rounded-xl border border-zinc-200 pl-10 pr-4 text-sm font-bold text-zinc-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-100"
                     {...register("amount", { valueAsNumber: true })}
                   />
                 </div>
@@ -210,7 +210,7 @@ export default function GuestDonatePage() {
                       className={`rounded-lg py-2 text-xs font-bold border transition cursor-pointer ${
                         selectedAmount === amt
                           ? "border-emerald-600 bg-emerald-50 text-emerald-700 dark:border-emerald-500 dark:bg-emerald-950/20 dark:text-emerald-400"
-                          : "border-zinc-200 bg-white hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-850"
+                          : "border-zinc-200 bg-white hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800"
                       }`}
                     >
                       ₹{amt}
@@ -234,8 +234,8 @@ export default function GuestDonatePage() {
                         onClick={() => setValue("payment_method", method.id, { shouldValidate: true })}
                         className={`flex items-center gap-3.5 rounded-xl border p-3.5 text-left transition cursor-pointer ${
                           isSelected
-                            ? "border-emerald-600 bg-emerald-500/5 text-emerald-955 dark:border-emerald-500 dark:bg-emerald-950/10 dark:text-emerald-300"
-                            : "border-zinc-200 bg-white hover:bg-zinc-50 dark:border-zinc-850 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+                            ? "border-emerald-600 bg-emerald-500/5 text-emerald-900 dark:border-emerald-500 dark:bg-emerald-950/10 dark:text-emerald-300"
+                            : "border-zinc-200 bg-white hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800"
                         }`}
                       >
                         <span className="text-xl">{method.icon}</span>
@@ -253,7 +253,7 @@ export default function GuestDonatePage() {
               </div>
 
               {/* Guest flow notes */}
-              <p className="text-[10px] text-zinc-455 dark:text-zinc-500 leading-normal bg-zinc-50 dark:bg-zinc-900/35 p-3 rounded-xl border border-zinc-150/60 dark:border-zinc-800/40">
+              <p className="text-[10px] text-zinc-400 dark:text-zinc-500 leading-normal bg-zinc-50 dark:bg-zinc-900/35 p-3 rounded-xl border border-zinc-150/60 dark:border-zinc-800/40">
                 💡 <strong>Important Note:</strong> Because this is a guest checkout, you will not receive an account dashboard. To manage credits and track voucher scans in real-time, please sign in or register above.
               </p>
 
@@ -276,7 +276,7 @@ export default function GuestDonatePage() {
               <div className="text-center pt-2">
                 <Link
                   href="/donate/qr"
-                  className="text-xs font-bold text-emerald-650 dark:text-emerald-400 hover:underline"
+                  className="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline"
                 >
                   Prefer to scan a static QR code? Click here
                 </Link>

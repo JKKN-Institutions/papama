@@ -41,7 +41,7 @@ export interface ConvertTokenItem {
   token_id: string;
   type: 'standard' | 'special_care';
   qr_payload: string;
-  status: 'active' | 'redeemed' | 'expired' | 'invalidated';
+  status: 'generated' | 'live' | 'in_admin_pool' | 'assigned_to_volunteer' | 'distributed' | 'redeemed' | 'expired' | 'active' | 'invalidated' | 'unused' | 'cancelled';
   expires_at: string;
 }
 
@@ -54,12 +54,15 @@ export interface ConvertResponse {
 export interface TokenItem {
   token_id: string;
   type: 'standard' | 'special_care';
-  status: 'active' | 'redeemed' | 'expired' | 'invalidated';
+  status: 'generated' | 'live' | 'in_admin_pool' | 'assigned_to_volunteer' | 'distributed' | 'redeemed' | 'expired' | 'active' | 'invalidated' | 'unused' | 'cancelled'; // Include new and legacy statuses
   qr_payload: string;
-  value: number; // value in INR (e.g. ₹50)
+  value: number; // value in paise (e.g. 5000 = ₹50)
   issued_at: string;
   expires_at: string;
   redeemed_at: string | null;
+  // Token Holder Support (token_flow.md)
+  current_holder_type?: 'donor' | 'pool' | 'volunteer' | string;
+  current_holder_id?: string;
   // Extracted from timeline journey if redeemed or if it has details:
   vendor_name?: string;
   location?: string;

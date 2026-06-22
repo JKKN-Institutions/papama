@@ -177,7 +177,7 @@ export default function DashboardOverview({
             className="rounded-2xl border border-zinc-200/50 bg-white p-6 shadow-sm dark:border-zinc-800/40 dark:bg-zinc-900/40"
           >
             <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold text-zinc-550 dark:text-zinc-450">
+              <span className="text-sm font-semibold text-zinc-500 dark:text-zinc-450">
                 {stat.name}
               </span>
               <div className={`rounded-xl p-2.5 ${stat.color}`}>{stat.icon}</div>
@@ -282,7 +282,7 @@ export default function DashboardOverview({
                       <div className="flex items-center gap-2">
                         <Link
                           href={`/donor/tokens/${token.token_id || ''}`}
-                          className="font-mono text-xs font-bold text-zinc-700 dark:text-zinc-300 hover:text-emerald-650"
+                          className="font-mono text-xs font-bold text-zinc-700 dark:text-zinc-300 hover:text-emerald-600"
                         >
                           {token.qr_payload
                             ? token.qr_payload.substring(0, 18)
@@ -318,7 +318,7 @@ export default function DashboardOverview({
                         </p>
                       )}
                       {token.status === "active" && (
-                        <p className="mt-1 text-[11px] text-zinc-455">
+                        <p className="mt-1 text-[11px] text-zinc-400">
                           Issued on {token.issued_at ? new Date(token.issued_at).toLocaleDateString() : "Recently"} · Expires in 3 months
                         </p>
                       )}
@@ -367,16 +367,16 @@ export default function DashboardOverview({
           ) : (
             <table className="w-full text-left text-xs font-medium">
               <thead>
-                <tr className="border-b border-zinc-150/60 text-[10px] font-bold uppercase text-zinc-455 dark:border-zinc-850/30">
+                <tr className="border-b border-zinc-150/60 text-[10px] font-bold uppercase text-zinc-400 dark:border-zinc-800/30">
                   <th className="pb-3 pr-4">Donation ID</th>
                   <th className="pb-3 px-4">Amount Donated</th>
                   <th className="pb-3 px-4">Allocated Status</th>
                   <th className="pb-3 pl-4 text-right">Timestamp</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-100/50 dark:divide-zinc-850/20">
+              <tbody className="divide-y divide-zinc-100/50 dark:divide-zinc-800/20">
                 {dashboard.donation_history.slice(0, 3).map((item) => (
-                  <tr key={item.id} className="text-zinc-700 dark:text-zinc-350">
+                  <tr key={item.id} className="text-zinc-700 dark:text-zinc-300">
                     <td className="py-3 pr-4 font-mono font-bold text-zinc-500 uppercase">
                       {item.id.substring(0, 8)}...
                     </td>
@@ -388,7 +388,7 @@ export default function DashboardOverview({
                         SUCCESS
                       </span>
                     </td>
-                    <td className="py-3 pl-4 text-right text-zinc-455">
+                    <td className="py-3 pl-4 text-right text-zinc-400">
                       {new Date(item.at).toLocaleString()}
                     </td>
                   </tr>

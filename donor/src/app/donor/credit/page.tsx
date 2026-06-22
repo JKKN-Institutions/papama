@@ -164,7 +164,7 @@ function CreditContent() {
         <h1 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-zinc-50">
           Credit Registry
         </h1>
-        <p className="mt-1.5 text-sm text-zinc-550 dark:text-zinc-400 max-w-2xl leading-relaxed">
+        <p className="mt-1.5 text-sm text-zinc-500 dark:text-zinc-400 max-w-2xl leading-relaxed">
           Credits are accumulated via donations. Every ₹50 can be converted into 1 voucher token. Credits are non-withdrawable.
         </p>
       </div>
@@ -177,7 +177,7 @@ function CreditContent() {
         <>
           {/* Threshold Reached Alert Banner */}
           {credits.threshold_reached && (
-            <div className="flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-500/5 p-4 text-emerald-850 dark:border-emerald-800/30 dark:bg-emerald-950/20 dark:text-emerald-400 animate-fade-in shadow-sm">
+            <div className="flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-500/5 p-4 text-emerald-800 dark:border-emerald-800/30 dark:bg-emerald-950/20 dark:text-emerald-400 animate-fade-in shadow-sm">
               <span className="text-lg">⭐</span>
               <div>
                 <strong className="font-bold text-sm">₹50 Threshold Achieved</strong>
@@ -215,7 +215,7 @@ function CreditContent() {
                       }}
                     />
                   </div>
-                  <p className="mt-2.5 text-[10px] text-zinc-455 dark:text-zinc-500 font-semibold leading-normal">
+                  <p className="mt-2.5 text-[10px] text-zinc-400 dark:text-zinc-500 font-semibold leading-normal">
                     {credits.credit_balance < 50
                       ? `Need ₹${50 - credits.credit_balance} more to reach the next ₹50 voucher threshold.`
                       : `Sufficient balance for ${credits.convertible_tokens} voucher(s).`}
@@ -310,23 +310,23 @@ function CreditContent() {
                     <h3 className="mt-4 text-lg font-black text-zinc-900 dark:text-zinc-50">
                       Vouchers Generated!
                     </h3>
-                    <p className="mt-2 text-xs text-zinc-550 dark:text-zinc-400 leading-relaxed">
+                    <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
                       Successfully converted <strong>₹{watchAmount} Credits</strong> into <strong>{convertedTokens.length} {watchTokenType} token(s)</strong>.
                     </p>
 
                     {/* Vouchers List */}
                     <div className="mt-6 max-h-40 overflow-y-auto space-y-2.5 text-left p-1">
                       {convertedTokens.map((token) => (
-                        <div key={token.token_id} className="rounded-xl border border-zinc-150/60 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-850 p-3 text-xs font-semibold">
+                        <div key={token.token_id} className="rounded-xl border border-zinc-150/60 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800 p-3 text-xs font-semibold">
                           <div className="flex justify-between font-mono text-[10px] text-zinc-400">
                             <span>VOUCHER ID</span>
                             <span className="uppercase">{token.token_id.substring(0, 8)}...</span>
                           </div>
                           <div className="mt-1 flex justify-between text-zinc-800 dark:text-zinc-200">
                             <span>Type:</span>
-                            <span className="uppercase text-emerald-650 dark:text-emerald-400">{token.type}</span>
+                            <span className="uppercase text-emerald-600 dark:text-emerald-400">{token.type}</span>
                           </div>
-                          <div className="mt-1.5 flex justify-between text-[10px] text-zinc-455 font-normal">
+                          <div className="mt-1.5 flex justify-between text-[10px] text-zinc-400 font-normal">
                             <span>Expires On:</span>
                             <span>{new Date(token.expires_at).toLocaleDateString()}</span>
                           </div>
@@ -344,7 +344,7 @@ function CreditContent() {
                       <Link
                         href="/donor/tokens"
                         onClick={closeConvertModal}
-                        className="text-xs font-bold text-emerald-650 dark:text-emerald-400 hover:underline py-1.5"
+                        className="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline py-1.5"
                       >
                         Track Vouchers in Ledger
                       </Link>
@@ -360,7 +360,7 @@ function CreditContent() {
                       <button
                         type="button"
                         onClick={closeConvertModal}
-                        className="rounded-lg p-1 text-zinc-450 hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer"
+                        className="rounded-lg p-1 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer"
                       >
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
@@ -383,7 +383,7 @@ function CreditContent() {
 
                     {/* Amount Config */}
                     <div className="mt-4 space-y-2">
-                      <label className="text-xs font-bold text-zinc-650 dark:text-zinc-400">
+                      <label className="text-xs font-bold text-zinc-600 dark:text-zinc-400">
                         Credit Amount to Convert:
                       </label>
                       <div className="flex items-center gap-3">
@@ -414,14 +414,14 @@ function CreditContent() {
                       {errors.amount && (
                         <p className="text-xs text-rose-500 mt-1">{errors.amount.message}</p>
                       )}
-                      <p className="text-[10px] text-zinc-455 dark:text-zinc-500 text-center font-semibold">
+                      <p className="text-[10px] text-zinc-400 dark:text-zinc-500 text-center font-semibold">
                         Equals {Math.floor((watchAmount || 0) / 50)} token voucher(s) (₹50 each)
                       </p>
                     </div>
 
                     {/* Token Type Select */}
                     <div className="mt-5 space-y-2">
-                      <label className="text-xs font-bold text-zinc-650 dark:text-zinc-400">
+                      <label className="text-xs font-bold text-zinc-600 dark:text-zinc-400">
                         Token Voucher Type:
                       </label>
                       <div className="grid grid-cols-2 gap-3">
@@ -430,24 +430,24 @@ function CreditContent() {
                           onClick={() => setValue("token_type", "standard", { shouldValidate: true })}
                           className={`rounded-xl border p-3 text-left transition cursor-pointer ${
                             watchTokenType === "standard"
-                              ? "border-emerald-600 bg-emerald-500/5 text-emerald-800 dark:border-emerald-500 dark:text-emerald-450"
-                              : "border-zinc-200 bg-white hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-850"
+                              ? "border-emerald-600 bg-emerald-500/5 text-emerald-800 dark:border-emerald-500 dark:text-emerald-400"
+                              : "border-zinc-200 bg-white hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-800"
                           }`}
                         >
                           <span className="block text-xs font-bold font-sans">Standard</span>
-                          <span className="text-[9px] text-zinc-455 block mt-0.5 font-sans">Regular hot meals</span>
+                          <span className="text-[9px] text-zinc-400 block mt-0.5 font-sans">Regular hot meals</span>
                         </button>
                         <button
                           type="button"
                           onClick={() => setValue("token_type", "special_care", { shouldValidate: true })}
                           className={`rounded-xl border p-3 text-left transition cursor-pointer ${
                             watchTokenType === "special_care"
-                              ? "border-emerald-600 bg-emerald-500/5 text-emerald-800 dark:border-emerald-500 dark:text-emerald-450"
-                              : "border-zinc-200 bg-white hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-850"
+                              ? "border-emerald-600 bg-emerald-500/5 text-emerald-800 dark:border-emerald-500 dark:text-emerald-400"
+                              : "border-zinc-200 bg-white hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-800"
                           }`}
                         >
                           <span className="block text-xs font-bold text-rose-600 dark:text-rose-400 font-sans">Special Care</span>
-                          <span className="text-[9px] text-zinc-455 block mt-0.5 font-sans">Diet/medical adjustments</span>
+                          <span className="text-[9px] text-zinc-400 block mt-0.5 font-sans">Diet/medical adjustments</span>
                         </button>
                       </div>
                       {errors.token_type && (
@@ -458,13 +458,13 @@ function CreditContent() {
                     {/* Special Care Instructions */}
                     {watchTokenType === "special_care" && (
                       <div className="mt-4 space-y-1.5 animate-fade-in">
-                        <label className="text-[10px] font-bold text-zinc-555 uppercase">
+                        <label className="text-[10px] font-bold text-zinc-500 uppercase">
                           Diet requirements & Special instructions:
                         </label>
                         <textarea
                           rows={2}
                           placeholder="e.g. Nut allergies, diabetic menu, soft foods"
-                          className="w-full rounded-xl border border-zinc-200 p-2.5 text-xs text-zinc-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 dark:border-zinc-800 dark:bg-zinc-850 dark:text-zinc-100"
+                          className="w-full rounded-xl border border-zinc-200 p-2.5 text-xs text-zinc-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-100"
                           {...register("special_instructions")}
                         />
                         {errors.special_instructions && (
@@ -478,7 +478,7 @@ function CreditContent() {
                       <button
                         type="button"
                         onClick={closeConvertModal}
-                        className="w-1/3 rounded-xl border border-zinc-200 py-3 text-xs font-bold hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-805 cursor-pointer"
+                        className="w-1/3 rounded-xl border border-zinc-200 py-3 text-xs font-bold hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800 cursor-pointer"
                       >
                         Cancel
                       </button>

@@ -119,7 +119,7 @@ export default function GuestQRDonatePage() {
                 <span className="text-[10px] uppercase tracking-wider text-zinc-400 font-bold">QR Scan Receipt</span>
                 <span className="font-mono text-[9px] text-zinc-400 font-bold uppercase">{receipt.donation_id.substring(0, 8)}...</span>
               </div>
-              <div className="p-5 space-y-3.5 text-xs font-semibold text-zinc-650 dark:text-zinc-350">
+              <div className="p-5 space-y-3.5 text-xs font-semibold text-zinc-600 dark:text-zinc-300">
                 <div className="flex justify-between">
                   <span className="text-zinc-400">Amount Verified:</span>
                   <span className="text-zinc-900 dark:text-zinc-50 font-bold">₹{receipt.amount}</span>
@@ -130,11 +130,11 @@ export default function GuestQRDonatePage() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-zinc-400">Verify Status:</span>
-                  <span className="text-emerald-650 dark:text-emerald-450 uppercase text-[10px] font-black">SUCCESS</span>
+                  <span className="text-emerald-600 dark:text-emerald-400 uppercase text-[10px] font-black">SUCCESS</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-zinc-400">Processed At:</span>
-                  <span className="font-normal text-[10px] text-zinc-455">{new Date(receipt.created_at).toLocaleString()}</span>
+                  <span className="font-normal text-[10px] text-zinc-400">{new Date(receipt.created_at).toLocaleString()}</span>
                 </div>
               </div>
             </div>
@@ -151,7 +151,7 @@ export default function GuestQRDonatePage() {
               </button>
               <Link
                 href="/donor/dashboard"
-                className="text-xs font-bold text-emerald-650 dark:text-emerald-400 hover:underline py-1"
+                className="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline py-1"
               >
                 Create a Portal Account to track balance →
               </Link>
@@ -178,7 +178,7 @@ export default function GuestQRDonatePage() {
                   className="h-40 w-40"
                 />
               </div>
-              <p className="mt-2 text-[10px] text-zinc-450 dark:text-zinc-500 font-bold uppercase tracking-wider">
+              <p className="mt-2 text-[10px] text-zinc-400 dark:text-zinc-500 font-bold uppercase tracking-wider">
                 pa: papama@okaxis
               </p>
             </div>
@@ -198,7 +198,7 @@ export default function GuestQRDonatePage() {
                 <input
                   type="number"
                   placeholder="Enter scanned amount"
-                  className="h-10 w-full rounded-xl border border-zinc-200 px-3 text-xs font-bold text-zinc-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 dark:border-zinc-800 dark:bg-zinc-855 dark:text-zinc-100"
+                  className="h-10 w-full rounded-xl border border-zinc-200 px-3 text-xs font-bold text-zinc-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-100"
                   {...register("amount", { valueAsNumber: true })}
                 />
                 {errors.amount && (
@@ -214,7 +214,7 @@ export default function GuestQRDonatePage() {
                 <input
                   type="text"
                   placeholder="e.g. 614089025112"
-                  className="h-10 w-full rounded-xl border border-zinc-200 px-3 font-mono text-xs text-zinc-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 dark:border-zinc-800 dark:bg-zinc-855 dark:text-zinc-100"
+                  className="h-10 w-full rounded-xl border border-zinc-200 px-3 font-mono text-xs text-zinc-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-100"
                   {...register("refNumber")}
                 />
                 {errors.refNumber && (

@@ -64,10 +64,19 @@ export default function TokensLedgerPage() {
   const types = ["All", "Standard", "Special_Care"];
 
   const statusBadges = {
-    active: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/50",
-    redeemed: "bg-zinc-100 text-zinc-650 border-zinc-200 dark:bg-zinc-900 dark:text-zinc-400 dark:border-zinc-800/60",
+    // New statuses (from token_flow.md)
+    generated: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-900/50",
+    live: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/50",
+    in_admin_pool: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-900/50",
+    assigned_to_volunteer: "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/30 dark:text-purple-400 dark:border-purple-900/50",
+    distributed: "bg-cyan-50 text-cyan-700 border-cyan-200 dark:bg-cyan-950/30 dark:text-cyan-400 dark:border-cyan-900/50",
+    redeemed: "bg-zinc-100 text-zinc-600 border-zinc-200 dark:bg-zinc-900 dark:text-zinc-400 dark:border-zinc-800/60",
     expired: "bg-red-50 text-red-700 border-red-200 dark:bg-red-950/30 dark:text-red-400 dark:border-red-900/50",
-    invalidated: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-450 dark:border-rose-900/50",
+    // Legacy statuses (for backward compatibility)
+    active: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/50",
+    unused: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/50",
+    invalidated: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-900/50",
+    cancelled: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-900/50",
   };
 
   return (
@@ -80,13 +89,13 @@ export default function TokensLedgerPage() {
           <h1 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-zinc-50">
             Token Ledger Registry
           </h1>
-          <p className="mt-1.5 text-sm text-zinc-550 dark:text-zinc-400 max-w-2xl leading-relaxed">
+          <p className="mt-1.5 text-sm text-zinc-500 dark:text-zinc-400 max-w-2xl leading-relaxed">
             View the complete cryptographic record of all food canteen voucher tokens you have generated.
           </p>
         </div>
 
         {/* Filter Toolbar */}
-        <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-zinc-150/60 pb-6 dark:border-zinc-850/30">
+        <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-zinc-200/50 pb-6 dark:border-zinc-800/30">
           {/* Search bar */}
           <div className="relative w-full sm:max-w-md">
             <span className="absolute inset-y-0 left-3 flex items-center text-zinc-400">
@@ -127,7 +136,7 @@ export default function TokensLedgerPage() {
                     className={`rounded-xl px-3 py-1.5 text-[11px] font-bold transition ${
                       isSelected
                         ? "bg-emerald-600 text-white shadow-sm"
-                        : "bg-white border border-zinc-200/60 text-zinc-650 hover:bg-zinc-50 dark:bg-zinc-900 dark:border-zinc-800 dark:text-zinc-350 dark:hover:bg-zinc-800"
+                        : "bg-white border border-zinc-200/60 text-zinc-600 hover:bg-zinc-50 dark:bg-zinc-900 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-800"
                     }`}
                   >
                     {status}
@@ -142,7 +151,7 @@ export default function TokensLedgerPage() {
               <select
                 value={selectedType}
                 onChange={(e) => setSelectedType(e.target.value)}
-                className="rounded-xl border border-zinc-200/60 bg-white px-3 py-1.5 text-[11px] font-bold text-zinc-650 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 dark:bg-zinc-900 dark:border-zinc-800 dark:text-zinc-350"
+                className="rounded-xl border border-zinc-200/60 bg-white px-3 py-1.5 text-[11px] font-bold text-zinc-600 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 dark:bg-zinc-900 dark:border-zinc-800 dark:text-zinc-300"
               >
                 {types.map((type) => (
                   <option key={type} value={type}>
@@ -162,8 +171,8 @@ export default function TokensLedgerPage() {
             </div>
           ) : filteredTokens.length > 0 ? (
             <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-left text-xs text-zinc-550 dark:text-zinc-350 font-medium">
-                <thead className="bg-zinc-50/50 text-[10px] font-black uppercase text-zinc-400 border-b border-zinc-150/60 dark:bg-zinc-850/20 dark:border-zinc-800/50">
+              <table className="w-full border-collapse text-left text-xs text-zinc-500 dark:text-zinc-300 font-medium">
+                <thead className="bg-zinc-50/50 text-[10px] font-black uppercase text-zinc-400 border-b border-zinc-200/50 dark:bg-zinc-800/20 dark:border-zinc-800/50">
                   <tr>
                     <th scope="col" className="px-6 py-4">Token ID</th>
                     <th scope="col" className="px-6 py-4">Type</th>
@@ -178,13 +187,13 @@ export default function TokensLedgerPage() {
                   {filteredTokens.map((token) => (
                     <tr
                       key={token.token_id}
-                      className="transition-colors hover:bg-zinc-50/30 dark:hover:bg-zinc-850/10"
+                      className="transition-colors hover:bg-zinc-50/30 dark:hover:bg-zinc-800/10"
                     >
                       <td className="px-6 py-4 font-mono font-bold text-zinc-900 dark:text-zinc-50">
                         {token.token_id.substring(0, 18)}...
                       </td>
                       <td className="px-6 py-4 uppercase font-bold text-[10px]">
-                        <span className={token.type === "special_care" ? "text-rose-600 dark:text-rose-400" : "text-zinc-650"}>
+                        <span className={token.type === "special_care" ? "text-rose-600 dark:text-rose-400" : "text-zinc-600"}>
                           {token.type.replace("_", " ")}
                         </span>
                       </td>
@@ -196,10 +205,10 @@ export default function TokensLedgerPage() {
                       <td className="px-6 py-4 font-bold text-zinc-800 dark:text-zinc-200">
                         ₹{token.value}
                       </td>
-                      <td className="px-6 py-4 text-zinc-455">
+                      <td className="px-6 py-4 text-zinc-400">
                         {new Date(token.issued_at).toLocaleDateString()}
                       </td>
-                      <td className="px-6 py-4 text-zinc-455">
+                      <td className="px-6 py-4 text-zinc-400">
                         {token.status === "redeemed" && token.redeemed_at ? (
                           <div>
                             <span className="font-semibold text-emerald-600 dark:text-emerald-400">Redeemed</span>
