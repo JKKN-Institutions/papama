@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -20,12 +21,12 @@ export function AdminHeader() {
     return (
         <header className="border-b border-slate-200 bg-white">
             <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-                <div className="flex items-baseline gap-3">
+                <Link href="/admin" className="flex items-baseline gap-3 transition hover:opacity-80">
                     <span className="text-lg font-semibold tracking-tight text-slate-900">
                         pApAmA
                     </span>
                     <span className="text-sm text-slate-400">Admin</span>
-                </div>
+                </Link>
                 <button
                     onClick={signOut}
                     disabled={signingOut}
