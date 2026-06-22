@@ -18,18 +18,24 @@ import { z } from "zod";
 
 import {
     beneficiaryCategorySchema,
+    beneficiaryStatusSchema,
     donationStatusSchema,
     eligibilityStatusSchema,
+    escalationStatusSchema,
+    fraudDetectionMethodSchema,
     fraudFlagTypeSchema,
     fraudSeveritySchema,
     fraudStatusSchema,
     kycStatusSchema,
     registrationStatusSchema,
+    reportTypeSchema,
     settlementCycleSchema,
     settlementStatusSchema,
     tokenStatusSchema,
     tokenTypeSchema,
+    userRoleSchema,
     vendorStatusSchema,
+    volunteerRequestStatusSchema,
 } from "@/lib/validation/enums";
 
 // --- shared primitives -----------------------------------------------------
@@ -133,11 +139,17 @@ export const beneficiaryRegistrationRequestSchema = z.object({
 });
 export type BeneficiaryRegistrationRequest = z.infer<typeof beneficiaryRegistrationRequestSchema>;
 
-/** GET /api/admin/beneficiaries — list item (contract §6). */
+/**
+ * GET /api/admin/beneficiaries — approved-beneficiary registry item.
+ * Backed by the `beneficiaries` table, so `status` is the record-state enum
+ * (active|suspended|blocked), NOT the registration_status used by the separate
+ * `beneficiary_registrations` review queue. Privacy-first: identity columns are
+ * exposed only as booleans (`aadhaar_linked`, `face_hash_valid`), never raw hashes.
+ */
 export const beneficiaryResponseSchema = z.object({
     beneficiary_id: z.string(),
     category: beneficiaryCategorySchema,
-    status: registrationStatusSchema,
+    status: beneficiaryStatusSchema,
     eligibility: eligibilityStatusSchema,
     aadhaar_linked: z.boolean(),
     face_hash_valid: z.boolean(),
@@ -186,16 +198,21 @@ export type RedemptionHistoryEntry = z.infer<typeof redemptionHistoryEntrySchema
 // Vendor management (contract §4) — net-new
 // ===========================================================================
 
-/** GET /api/admin/vendors — list item (contract §4). */
+/**
+ * GET /api/admin/vendors — list item (contract §4).
+ * Nullable fields mirror the live `vendors` columns: licence/GST/geo/rating are
+ * captured progressively during onboarding, so they may be unset (null) for a
+ * pending vendor. `geo` composes the split `geo_lat`/`geo_lng` numeric columns.
+ */
 export const vendorResponseSchema = z.object({
     vendor_id: z.string(),
     name: z.string(),
     status: vendorStatusSchema,
     kyc_status: kycStatusSchema,
-    fssai_license: z.string(), // client Q14
-    gst_number: z.string(), // client Q14
-    geo: geoPointSchema, // client Q14
-    hygiene_rating: z.number().int().min(1).max(5),
+    fssai_license: z.string().nullable(), // client Q14; null until onboarding submits it
+    gst_number: z.string().nullable(), // client Q14
+    geo: geoPointSchema.nullable(), // client Q14; from geo_lat/geo_lng
+    hygiene_rating: z.number().int().min(1).max(5).nullable(), // null until first rated
     created_at: isoTimestampSchema,
 });
 export type VendorResponse = z.infer<typeof vendorResponseSchema>;
@@ -255,6 +272,148 @@ export const systemConfigResponseSchema = z.object({
     config: z.array(systemConfigRowSchema),
 });
 export type SystemConfigResponse = z.infer<typeof systemConfigResponseSchema>;
+
+// ===========================================================================
+// Admin-only response schemas — net-new Dev-2 tables (M07–M13). Field names &
+// nullability mirror the live columns exactly so the route handlers stay honest.
+// ===========================================================================
+
+/** GET /api/admin/audit — one append-only audit_logs row (M08, contract §10). */
+export const auditLogResponseSchema = z.object({
+    id: z.string(),
+    actor_id: z.string().nullable(), // null = system/service action
+    actor_role: userRoleSchema.nullable(), // role snapshot at action time
+    action: z.string(),
+    entity_table: z.string(),
+    entity_id: z.string().nullable(),
+    summary: z.string().nullable(),
+    metadata: z.record(z.string(), z.unknown()),
+    created_at: isoTimestampSchema,
+});
+export type AuditLogResponse = z.infer<typeof auditLogResponseSchema>;
+
+/** GET /api/admin/ngo-partners — partner NGO registry row (M13). */
+export const ngoPartnerResponseSchema = z.object({
+    id: z.string(),
+    name: z.string(),
+    registration_number: z.string().nullable(),
+    focus_area: z.string().nullable(),
+    contact_person: z.string().nullable(),
+    contact_email: z.string().nullable(),
+    contact_phone: z.string().nullable(),
+    address: z.string().nullable(),
+    city: z.string().nullable(),
+    contact_user_id: z.string().nullable(),
+    status: z.enum(["active", "inactive", "suspended"]), // text+CHECK; ngo_status enum is a later slice
+    notes: z.string().nullable(),
+    created_at: isoTimestampSchema,
+    updated_at: isoTimestampSchema,
+});
+export type NgoPartnerResponse = z.infer<typeof ngoPartnerResponseSchema>;
+
+/** GET /api/admin/vendor-escalations — vendor dispute/appeal thread (M10, contract §4). */
+export const vendorEscalationResponseSchema = z.object({
+    id: z.string(),
+    vendor_id: z.string(),
+    raised_by: z.string().nullable(),
+    assigned_to: z.string().nullable(),
+    subject: z.string(),
+    description: z.string().nullable(),
+    status: escalationStatusSchema,
+    resolution: z.string().nullable(),
+    resolved_at: isoTimestampSchema.nullable(),
+    created_at: isoTimestampSchema,
+    updated_at: isoTimestampSchema,
+});
+export type VendorEscalationResponse = z.infer<typeof vendorEscalationResponseSchema>;
+
+/** GET /api/admin/volunteers — volunteers registry row (M09). */
+export const volunteerResponseSchema = z.object({
+    id: z.string(),
+    user_id: z.string(),
+    full_name: z.string().nullable(),
+    phone: z.string().nullable(),
+    email: z.string().nullable(),
+    status: z.enum(["active", "inactive", "suspended"]), // text+CHECK; volunteer status enum is a later slice
+    created_at: isoTimestampSchema,
+    updated_at: isoTimestampSchema,
+});
+export type VolunteerResponse = z.infer<typeof volunteerResponseSchema>;
+
+/** GET /api/admin/volunteer-token-requests — allocation request queue row (M09, token-flow §3b). */
+export const volunteerTokenRequestResponseSchema = z.object({
+    id: z.string(),
+    volunteer_id: z.string(),
+    requested_count: z.number().int().nonnegative(),
+    status: volunteerRequestStatusSchema,
+    decided_by: z.string().nullable(),
+    decided_count: z.number().int().nonnegative().nullable(),
+    notes: z.string().nullable(),
+    created_at: isoTimestampSchema,
+    updated_at: isoTimestampSchema,
+});
+export type VolunteerTokenRequestResponse = z.infer<typeof volunteerTokenRequestResponseSchema>;
+
+/** GET /api/admin/reports — generated compliance/CSR report row (M11, contract §10). */
+export const complianceReportResponseSchema = z.object({
+    id: z.string(),
+    report_type: reportTypeSchema,
+    title: z.string().nullable(),
+    params: z.record(z.string(), z.unknown()), // jsonb
+    summary: z.record(z.string(), z.unknown()), // jsonb
+    file_url: z.string().nullable(),
+    period_start: z.string().nullable(), // date (YYYY-MM-DD)
+    period_end: z.string().nullable(),
+    generated_by: z.string().nullable(),
+    created_at: isoTimestampSchema,
+    updated_at: isoTimestampSchema,
+});
+export type ComplianceReportResponse = z.infer<typeof complianceReportResponseSchema>;
+
+/**
+ * Richer fraud_flags row (M12) — superset of fraudFlagResponseSchema above with
+ * the resolution + detection-method columns the admin fraud console needs.
+ */
+export const fraudFlagDetailResponseSchema = z.object({
+    id: z.string(),
+    flag_type: fraudFlagTypeSchema,
+    severity: fraudSeveritySchema,
+    status: fraudStatusSchema,
+    detection_method: fraudDetectionMethodSchema.nullable(),
+    entity: z.object({ kind: z.string(), id: z.string() }), // jsonb polymorphic target
+    blocked: z.boolean(),
+    resolved_by: z.string().nullable(),
+    resolution_notes: z.string().nullable(),
+    resolved_at: isoTimestampSchema.nullable(),
+    created_at: isoTimestampSchema,
+    updated_at: isoTimestampSchema,
+});
+export type FraudFlagDetailResponse = z.infer<typeof fraudFlagDetailResponseSchema>;
+
+// --- generic envelopes -----------------------------------------------------
+
+/**
+ * Standard mutation acknowledgement. Routes that change state return this so
+ * Developer 1 always gets a well-shaped, non-null body (contract "Never Return
+ * a Null Body"). `id` is the affected row where applicable.
+ */
+export const mutationAckSchema = z.object({
+    ok: z.literal(true),
+    id: z.string().optional(),
+});
+export type MutationAck = z.infer<typeof mutationAckSchema>;
+
+/**
+ * Build a `{ <key>: T[], total: number }` list-envelope schema. Use empty arrays
+ * as defaults so a list route never returns null (contract). e.g.
+ *   const vendorListSchema = listResponseSchema("vendors", vendorResponseSchema);
+ */
+export function listResponseSchema<T extends z.ZodTypeAny>(key: string, item: T) {
+    return z.object({
+        [key]: z.array(item).default([]),
+        total: z.number().int().nonnegative().default(0),
+    });
+}
 
 // --- standard error body (contract: never a bare null) ---------------------
 
