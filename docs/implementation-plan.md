@@ -54,7 +54,8 @@ and connecting the real UI to it.
 ### Phase B — Admin write operations (make the console functional)
 For each domain: add guarded `POST/PATCH` routes via `defineRoute` (correct
 matrix cell + `audit()`), then wire UI controls gated by `useCan()`:
-- [ ] Vendors — approve / reject / suspend, KYC (`vendor_management` + `approve`)
+- [x] Vendors — approve / reject / suspend / reinstate + KYC verify/fail
+  (`PATCH /api/admin/vendors`, state machine + audit; UI actions gated by `useCan`)
 - [ ] Vendor menu pricing — approve (`vendor_menu_pricing`)
 - [ ] Beneficiaries — register / approve / suspend / block (`beneficiary_registration`)
 - [ ] Volunteers — assign / grant tokens; **enforce `max_tokens_per_volunteer`** from `system_config` (`token_distribution`)

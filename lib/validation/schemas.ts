@@ -217,6 +217,29 @@ export const vendorResponseSchema = z.object({
 });
 export type VendorResponse = z.infer<typeof vendorResponseSchema>;
 
+/**
+ * PATCH /api/admin/vendors — a staff action on one vendor. The action drives a
+ * server-side state machine (approve/reject/suspend/reinstate operate on
+ * `status`; verify_kyc/fail_kyc operate on `kyc_status`). `reason` is recorded
+ * in the audit trail (the vendors table has no reason column).
+ */
+export const vendorActionSchema = z.enum([
+    "approve",
+    "reject",
+    "suspend",
+    "reinstate",
+    "verify_kyc",
+    "fail_kyc",
+]);
+export type VendorAction = z.infer<typeof vendorActionSchema>;
+
+export const vendorActionRequestSchema = z.object({
+    vendor_id: z.string().uuid(),
+    action: vendorActionSchema,
+    reason: z.string().trim().max(500).optional(),
+});
+export type VendorActionRequest = z.infer<typeof vendorActionRequestSchema>;
+
 // ===========================================================================
 // Settlement (contract §8, owner §4.8) — net-new
 // ===========================================================================

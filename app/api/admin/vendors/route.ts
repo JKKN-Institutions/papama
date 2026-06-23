@@ -1,6 +1,8 @@
-import { defineRoute } from "@/lib/api/handler";
+import { BadRequestError, NotFoundError, defineRoute, parseBody } from "@/lib/api/handler";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import type { VendorResponse } from "@/lib/validation/schemas";
+import type { KycStatus, VendorStatus } from "@/lib/types/enums";
+import { vendorActionRequestSchema, type VendorResponse } from "@/lib/validation/schemas";
 
 /**
  * GET /api/admin/vendors — list vendors for the admin console (contract §4).
@@ -40,3 +42,83 @@ export const GET = defineRoute({ feature: "vendor_management", action: "read" },
 
     return { vendors, total: vendors.length };
 });
+
+/**
+ * PATCH /api/admin/vendors — staff lifecycle action on one vendor (contract §4).
+ *
+ * Gated by `vendor_management/update` (admin + vendor_manager). The action drives
+ * an explicit state machine; an illegal transition (e.g. suspend a pending
+ * vendor) is a 400, a missing vendor a 404. The mutation runs on the service-role
+ * client AFTER the matrix check, and every change writes one audit row (the
+ * vendors table has no reason column, so the reason lives in the trail).
+ */
+type VendorActionRule = {
+    column: "status" | "kyc_status";
+    to: VendorStatus | KycStatus;
+    from: ReadonlyArray<VendorStatus | KycStatus>;
+    verb: string;
+};
+
+const VENDOR_ACTION_RULES: Record<string, VendorActionRule> = {
+    approve: { column: "status", to: "approved", from: ["pending"], verb: "vendor.approve" },
+    reject: { column: "status", to: "rejected", from: ["pending"], verb: "vendor.reject" },
+    suspend: { column: "status", to: "suspended", from: ["approved"], verb: "vendor.suspend" },
+    reinstate: { column: "status", to: "approved", from: ["suspended"], verb: "vendor.reinstate" },
+    verify_kyc: { column: "kyc_status", to: "verified", from: ["pending", "failed"], verb: "vendor.kyc.verify" },
+    fail_kyc: { column: "kyc_status", to: "failed", from: ["pending", "verified"], verb: "vendor.kyc.fail" },
+};
+
+export const PATCH = defineRoute(
+    { feature: "vendor_management", action: "update" },
+    async ({ req, audit }) => {
+        const body = await parseBody(req, vendorActionRequestSchema);
+        const rule = VENDOR_ACTION_RULES[body.action];
+
+        const admin = createAdminClient();
+
+        const { data, error: fetchError } = await admin
+            .from("vendors")
+            .select("id, name, status, kyc_status")
+            .eq("id", body.vendor_id)
+            .single();
+
+        if (fetchError || !data) throw new NotFoundError("vendor not found");
+        const vendor = data as {
+            id: string;
+            name: string;
+            status: VendorStatus;
+            kyc_status: KycStatus;
+        };
+
+        const current = vendor[rule.column];
+        if (!rule.from.includes(current)) {
+            throw new BadRequestError(
+                `cannot '${body.action}' a vendor whose ${rule.column} is '${current}'`
+            );
+        }
+
+        const { error: updateError } = await admin
+            .from("vendors")
+            .update({ [rule.column]: rule.to, updated_at: new Date().toISOString() })
+            .eq("id", body.vendor_id);
+
+        if (updateError) throw new Error(updateError.message);
+
+        await audit({
+            action: rule.verb,
+            entity_table: "vendors",
+            entity_id: body.vendor_id,
+            summary: `${vendor.name}: ${rule.column} ${current} → ${rule.to}${
+                body.reason ? ` (${body.reason})` : ""
+            }`,
+            metadata: {
+                column: rule.column,
+                from: current,
+                to: rule.to,
+                reason: body.reason ?? null,
+            },
+        });
+
+        return { ok: true, id: body.vendor_id, [rule.column]: rule.to };
+    }
+);
