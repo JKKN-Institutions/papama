@@ -13,10 +13,13 @@ export default function DashboardOverview({
   tokens,
 }: DashboardOverviewProps) {
   const totalTokens = tokens.length;
-  const activeTokens = tokens.filter((t) => t.status === "active").length;
+  // `live` is the donor-usable status; pool/volunteer/distributed are in-flight.
+  const liveTokens = tokens.filter((t) => t.status === "live").length;
   const redeemedTokens = tokens.filter((t) => t.status === "redeemed").length;
   const expiredTokens = tokens.filter((t) => t.status === "expired").length;
-  const invalidatedTokens = tokens.filter((t) => t.status === "invalidated").length;
+  const inFlightTokens = tokens.filter((t) =>
+    ["generated", "in_admin_pool", "assigned_to_volunteer", "distributed"].includes(t.status)
+  ).length;
 
   const redemptionRate =
     totalTokens > 0 ? Math.round((redeemedTokens / totalTokens) * 100) : 0;
@@ -114,11 +117,11 @@ export default function DashboardOverview({
 
   const statuses = [
     {
-      name: "Active / Unused",
-      count: activeTokens,
+      name: "Live",
+      count: liveTokens,
       color: "bg-blue-500",
       textColor: "text-blue-600 dark:text-blue-400",
-      description: "Generated, ready to be redeemed",
+      description: "Ready to be redeemed",
     },
     {
       name: "Redeemed",
@@ -128,18 +131,18 @@ export default function DashboardOverview({
       description: "Successfully claimed at partner canteens",
     },
     {
-      name: "Expired",
-      count: expiredTokens,
+      name: "In Distribution",
+      count: inFlightTokens,
       color: "bg-amber-500",
       textColor: "text-amber-600 dark:text-amber-400",
-      description: "Expired before canteen scanning",
+      description: "In the admin pool or with a volunteer",
     },
     {
-      name: "Invalidated / Cancelled",
-      count: invalidatedTokens,
+      name: "Expired",
+      count: expiredTokens,
       color: "bg-red-500",
       textColor: "text-red-500 dark:text-red-400",
-      description: "Voided due to transaction adjustments",
+      description: "Expired before canteen scanning",
     },
   ];
 
@@ -177,7 +180,7 @@ export default function DashboardOverview({
             className="rounded-2xl border border-zinc-200/50 bg-white p-6 shadow-sm dark:border-zinc-800/40 dark:bg-zinc-900/40"
           >
             <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold text-zinc-500 dark:text-zinc-450">
+              <span className="text-sm font-semibold text-zinc-500 dark:text-zinc-400">
                 {stat.name}
               </span>
               <div className={`rounded-xl p-2.5 ${stat.color}`}>{stat.icon}</div>
@@ -244,7 +247,7 @@ export default function DashboardOverview({
                 Recent Generated Tokens
               </h2>
               <p className="text-zinc-400 text-xs mt-1">
-                Crypto vouchers created and waiting for redemption.
+                Food tokens created and waiting for redemption.
               </p>
             </div>
             <Link
@@ -269,13 +272,13 @@ export default function DashboardOverview({
                   <div className="flex items-start gap-3">
                     <div
                       className={`mt-1 h-2.5 w-2.5 rounded-full ${
-                        token.status === "active"
+                        token.status === "live"
                           ? "bg-blue-500"
                           : token.status === "redeemed"
                           ? "bg-emerald-500"
                           : token.status === "expired"
-                          ? "bg-amber-500"
-                          : "bg-red-500"
+                          ? "bg-red-500"
+                          : "bg-amber-500"
                       }`}
                     />
                     <div>
@@ -292,16 +295,16 @@ export default function DashboardOverview({
                         </Link>
                         <span
                           className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ${
-                            token.status === "active"
+                            token.status === "live"
                               ? "bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400"
                               : token.status === "redeemed"
                               ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400"
                               : token.status === "expired"
-                              ? "bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400"
-                              : "bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-400"
+                              ? "bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-400"
+                              : "bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400"
                           }`}
                         >
-                          {token.status}
+                          {token.status.replace(/_/g, " ")}
                         </span>
                       </div>
                       <p className="mt-1 text-xs font-bold text-zinc-900 dark:text-zinc-50">
@@ -317,9 +320,9 @@ export default function DashboardOverview({
                           Redeemed on {token.redeemed_at ? new Date(token.redeemed_at).toLocaleDateString() : "Unknown date"}
                         </p>
                       )}
-                      {token.status === "active" && (
+                      {token.status === "live" && (
                         <p className="mt-1 text-[11px] text-zinc-400">
-                          Issued on {token.issued_at ? new Date(token.issued_at).toLocaleDateString() : "Recently"} · Expires in 3 months
+                          Issued on {token.issued_at ? new Date(token.issued_at).toLocaleDateString() : "Recently"}
                         </p>
                       )}
                       {token.is_special_care && token.special_instructions && (
@@ -390,6 +393,49 @@ export default function DashboardOverview({
                     </td>
                     <td className="py-3 pl-4 text-right text-zinc-400">
                       {new Date(item.at).toLocaleString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+
+      {/* Monthly Summary Section */}
+      <div className="rounded-2xl border border-zinc-200/50 bg-white p-6 shadow-sm dark:border-zinc-800/40 dark:bg-zinc-900/40">
+        <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-50">
+          Monthly Summary
+        </h2>
+        <p className="text-zinc-400 text-xs mt-1">
+          Donations contributed and meals sponsored, month by month.
+        </p>
+
+        <div className="mt-6 overflow-x-auto">
+          {dashboard.monthly_summary.length === 0 ? (
+            <p className="text-center text-sm py-8 text-zinc-400">
+              No monthly activity yet.
+            </p>
+          ) : (
+            <table className="w-full text-left text-xs font-medium">
+              <thead>
+                <tr className="border-b border-zinc-150/60 text-[10px] font-bold uppercase text-zinc-400 dark:border-zinc-800/30">
+                  <th className="pb-3 pr-4">Month</th>
+                  <th className="pb-3 px-4 text-right">Donated</th>
+                  <th className="pb-3 pl-4 text-right">Meals</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-100/50 dark:divide-zinc-800/20">
+                {dashboard.monthly_summary.map((m) => (
+                  <tr key={m.month} className="text-zinc-700 dark:text-zinc-300">
+                    <td className="py-3 pr-4 font-bold text-zinc-700 dark:text-zinc-200">
+                      {m.month}
+                    </td>
+                    <td className="py-3 px-4 text-right font-bold text-emerald-600 dark:text-emerald-400">
+                      ₹{m.donated}
+                    </td>
+                    <td className="py-3 pl-4 text-right text-zinc-500 dark:text-zinc-400">
+                      {m.meals}
                     </td>
                   </tr>
                 ))}

@@ -5,37 +5,9 @@ import { useSearchParams } from "next/navigation";
 import Navbar from "@/components/donor/Navbar";
 import { ApiClient } from "@/lib/donor/services/apiClient";
 import { CreditsResponse, ConvertTokenItem } from "@/lib/donor/types/contract";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
 import Link from "next/link";
 
-const convertSchema = z
-  .object({
-    amount: z
-      .number()
-      .int("Amount must be a whole number")
-      .min(50, "Minimum conversion amount is ₹50")
-      .refine((val) => val % 50 === 0, {
-        message: "Amount must be a multiple of the ₹50 threshold.",
-      }),
-    token_type: z.enum(["standard", "special_care"]),
-    special_instructions: z.string().optional(),
-  })
-  .refine(
-    (data) => {
-      if (data.token_type === "special_care") {
-        return !!data.special_instructions && data.special_instructions.trim().length > 0;
-      }
-      return true;
-    },
-    {
-      message: "Special instructions are required for Special Care tokens.",
-      path: ["special_instructions"],
-    }
-  );
-
-type ConvertFormValues = z.infer<typeof convertSchema>;
+type DistributionPath = "use_now" | "authorize_papama";
 
 function CreditContent() {
   const searchParams = useSearchParams();
@@ -45,45 +17,40 @@ function CreditContent() {
   const [isConverting, setIsConverting] = useState(false);
   const [convertError, setConvertError] = useState<string | null>(null);
 
-  // Successful Conversion Result State
-  const [convertedTokens, setConvertedTokens] = useState<ConvertTokenItem[] | null>(null);
+  // Single amount input → mints ONE token.
+  const [amount, setAmount] = useState<number>(0);
+  const [amountError, setAmountError] = useState<string | null>(null);
 
-  const {
-    register,
-    handleSubmit,
-    setValue,
-    watch,
-    setError,
-    formState: { errors },
-    reset,
-  } = useForm<ConvertFormValues>({
-    resolver: zodResolver(convertSchema),
-    defaultValues: {
-      amount: 50,
-      token_type: "standard",
-      special_instructions: "",
-    },
-  });
+  // Successful Conversion Result State (one token per mint).
+  const [convertedToken, setConvertedToken] = useState<ConvertTokenItem | null>(null);
+  // Path A/B fork shown after a successful mint.
+  const [distributionPath, setDistributionPath] = useState<DistributionPath | null>(null);
+  const [pathSaving, setPathSaving] = useState(false);
 
-  const watchAmount = watch("amount");
-  const watchTokenType = watch("token_type");
+  const threshold = credits?.threshold ?? 50;
+  const balance = credits?.credit_balance ?? 0;
 
   async function loadCredits() {
     try {
       const res = await ApiClient.getCredits();
       setCredits(res);
-      // Initialize/reset form default values based on balance
-      if (res.credit_balance >= 50) {
-        setValue("amount", 50);
-      } else {
-        setValue("amount", 0);
-      }
+      // Default the amount to the threshold when the balance allows it.
+      setAmount(res.credit_balance >= res.threshold ? res.threshold : 0);
     } catch (error) {
       console.warn("Failed to load credits:", error);
     } finally {
       setLoading(false);
     }
   }
+
+  const closeConvertModal = () => {
+    setIsConvertOpen(false);
+    setConvertedToken(null);
+    setDistributionPath(null);
+    setConvertError(null);
+    setAmountError(null);
+    setAmount(credits && credits.credit_balance >= (credits.threshold ?? 50) ? credits.threshold ?? 50 : 0);
+  };
 
   useEffect(() => {
     loadCredits();
@@ -100,26 +67,43 @@ function CreditContent() {
     };
   }, [searchParams]);
 
-  const onConvertSubmit = async (values: ConvertFormValues) => {
+  // Accessible dialog: close on Escape while the modal is open.
+  useEffect(() => {
+    if (!isConvertOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeConvertModal();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isConvertOpen]);
+
+  const validateAmount = (): string | null => {
+    if (!Number.isInteger(amount)) return "Amount must be a whole number.";
+    if (amount < threshold) return `Minimum conversion amount is ₹${threshold}.`;
+    if (amount > balance) return "Amount exceeds available credit balance.";
+    return null;
+  };
+
+  const onConvertSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!credits) return;
 
-    if (values.amount > credits.credit_balance) {
-      setError("amount", {
-        type: "manual",
-        message: "Amount exceeds available credit balance.",
-      });
+    const err = validateAmount();
+    if (err) {
+      setAmountError(err);
       return;
     }
+    setAmountError(null);
 
     setIsConverting(true);
     setConvertError(null);
     try {
-      const res = await ApiClient.convertCreditToToken(
-        values.amount,
-        values.token_type,
-        values.token_type === "special_care" ? values.special_instructions : undefined
-      );
-      setConvertedTokens(res.tokens);
+      // Default the new token to "use it now" (Path A); the donor can switch to
+      // Path B from the post-mint fork below. The route mints with this path.
+      const res = await ApiClient.convertCreditToToken(amount, "use_now");
+      setConvertedToken(res.token);
+      setDistributionPath("use_now");
       // Dispatch update to reload Navbar balances
       window.dispatchEvent(new Event("papama_data_update"));
       await loadCredits();
@@ -131,30 +115,14 @@ function CreditContent() {
     }
   };
 
-  const closeConvertModal = () => {
-    setIsConvertOpen(false);
-    setConvertedTokens(null);
-    setConvertError(null);
-    reset({
-      amount: credits && credits.credit_balance >= 50 ? 50 : 0,
-      token_type: "standard",
-      special_instructions: "",
-    });
-  };
-
-  const incrementAmount = () => {
-    if (!credits) return;
-    const nextVal = watchAmount + 50;
-    if (nextVal <= credits.credit_balance) {
-      setValue("amount", nextVal, { shouldValidate: true });
-    }
-  };
-
-  const decrementAmount = () => {
-    const nextVal = watchAmount - 50;
-    if (nextVal >= 50) {
-      setValue("amount", nextVal, { shouldValidate: true });
-    }
+  // Post-mint Path A/B selection. The mint already committed Path A (use_now);
+  // re-mint under Path B is out of scope here, so record the donor's choice
+  // locally and reflect it in the UI (the volunteer/admin flow consumes it).
+  const choosePath = (path: DistributionPath) => {
+    if (pathSaving) return;
+    setPathSaving(true);
+    setDistributionPath(path);
+    setPathSaving(false);
   };
 
   return (
@@ -227,9 +195,7 @@ function CreditContent() {
                   <button
                     onClick={() => {
                       setIsConvertOpen(true);
-                      if (credits && credits.credit_balance >= 50) {
-                        setValue("amount", 50, { shouldValidate: true });
-                      }
+                      setAmount(credits.credit_balance >= threshold ? threshold : 0);
                     }}
                     disabled={!credits.threshold_reached}
                     className="w-full rounded-xl bg-emerald-600 py-3 text-xs font-bold text-white transition hover:bg-emerald-700 shadow-md active:scale-95 disabled:pointer-events-none disabled:opacity-50 cursor-pointer"
@@ -290,10 +256,19 @@ function CreditContent() {
 
           {/* Conversion Dialog Modal */}
           {isConvertOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-              <div className="w-full max-w-md overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-900">
-                {convertedTokens ? (
-                  /* Success Conversion Receipt */
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+              onClick={closeConvertModal}
+            >
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="convert-modal-title"
+                onClick={(e) => e.stopPropagation()}
+                className="w-full max-w-md overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-900"
+              >
+                {convertedToken ? (
+                  /* Success Conversion Receipt + Path A/B fork */
                   <div className="p-6 text-center animate-fade-in">
                     <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400">
                       <svg
@@ -307,31 +282,68 @@ function CreditContent() {
                         <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                       </svg>
                     </div>
-                    <h3 className="mt-4 text-lg font-black text-zinc-900 dark:text-zinc-50">
-                      Vouchers Generated!
+                    <h3 id="convert-modal-title" className="mt-4 text-lg font-black text-zinc-900 dark:text-zinc-50">
+                      Token Generated!
                     </h3>
                     <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
-                      Successfully converted <strong>₹{watchAmount} Credits</strong> into <strong>{convertedTokens.length} {watchTokenType} token(s)</strong>.
+                      Successfully converted <strong>₹{convertedToken.value} Credit</strong> into <strong>1 token of ₹{convertedToken.value}</strong>.
                     </p>
 
-                    {/* Vouchers List */}
-                    <div className="mt-6 max-h-40 overflow-y-auto space-y-2.5 text-left p-1">
-                      {convertedTokens.map((token) => (
-                        <div key={token.token_id} className="rounded-xl border border-zinc-150/60 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800 p-3 text-xs font-semibold">
-                          <div className="flex justify-between font-mono text-[10px] text-zinc-400">
-                            <span>VOUCHER ID</span>
-                            <span className="uppercase">{token.token_id.substring(0, 8)}...</span>
-                          </div>
-                          <div className="mt-1 flex justify-between text-zinc-800 dark:text-zinc-200">
-                            <span>Type:</span>
-                            <span className="uppercase text-emerald-600 dark:text-emerald-400">{token.type}</span>
-                          </div>
+                    {/* Voucher detail */}
+                    <div className="mt-6 text-left p-1">
+                      <div className="rounded-xl border border-zinc-150/60 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800 p-3 text-xs font-semibold">
+                        <div className="flex justify-between font-mono text-[10px] text-zinc-400">
+                          <span>VOUCHER ID</span>
+                          <span className="uppercase">{convertedToken.serial_number || convertedToken.token_id.substring(0, 8)}</span>
+                        </div>
+                        <div className="mt-1 flex justify-between text-zinc-800 dark:text-zinc-200">
+                          <span>Value:</span>
+                          <span className="text-emerald-600 dark:text-emerald-400">₹{convertedToken.value}</span>
+                        </div>
+                        {convertedToken.expires_at && (
                           <div className="mt-1.5 flex justify-between text-[10px] text-zinc-400 font-normal">
                             <span>Expires On:</span>
-                            <span>{new Date(token.expires_at).toLocaleDateString()}</span>
+                            <span>{new Date(convertedToken.expires_at).toLocaleDateString()}</span>
                           </div>
-                        </div>
-                      ))}
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Path A/B fork */}
+                    <div className="mt-6 text-left">
+                      <p className="text-[11px] font-bold text-zinc-600 dark:text-zinc-300">
+                        How should this token be used?
+                      </p>
+                      <div className="mt-3 grid grid-cols-1 gap-2.5">
+                        <button
+                          type="button"
+                          onClick={() => choosePath("use_now")}
+                          disabled={pathSaving}
+                          aria-pressed={distributionPath === "use_now"}
+                          className={`rounded-xl border p-3 text-left transition cursor-pointer ${
+                            distributionPath === "use_now"
+                              ? "border-emerald-600 bg-emerald-500/5 text-emerald-800 dark:border-emerald-500 dark:text-emerald-400"
+                              : "border-zinc-200 bg-white hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-800"
+                          }`}
+                        >
+                          <span className="block text-xs font-bold">Use it now</span>
+                          <span className="text-[10px] text-zinc-400 block mt-0.5">Keep the token live to redeem yourself.</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => choosePath("authorize_papama")}
+                          disabled={pathSaving}
+                          aria-pressed={distributionPath === "authorize_papama"}
+                          className={`rounded-xl border p-3 text-left transition cursor-pointer ${
+                            distributionPath === "authorize_papama"
+                              ? "border-emerald-600 bg-emerald-500/5 text-emerald-800 dark:border-emerald-500 dark:text-emerald-400"
+                              : "border-zinc-200 bg-white hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-800"
+                          }`}
+                        >
+                          <span className="block text-xs font-bold">Authorize pApAmA to distribute</span>
+                          <span className="text-[10px] text-zinc-400 block mt-0.5">Add to the admin pool for a volunteer to deliver.</span>
+                        </button>
+                      </div>
                     </div>
 
                     <div className="mt-6 flex flex-col gap-2.5">
@@ -352,14 +364,15 @@ function CreditContent() {
                   </div>
                 ) : (
                   /* Input Conversion Config Form */
-                  <form onSubmit={handleSubmit(onConvertSubmit)} className="p-6">
+                  <form onSubmit={onConvertSubmit} className="p-6">
                     <div className="flex items-center justify-between pb-3 border-b border-zinc-100 dark:border-zinc-800">
-                      <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-50">
+                      <h3 id="convert-modal-title" className="text-base font-bold text-zinc-900 dark:text-zinc-50">
                         Convert Credits to Token
                       </h3>
                       <button
                         type="button"
                         onClick={closeConvertModal}
+                        aria-label="Close dialog"
                         className="rounded-lg p-1 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer"
                       >
                         <svg
@@ -368,7 +381,7 @@ function CreditContent() {
                           viewBox="0 0 24 24"
                           strokeWidth="2"
                           stroke="currentColor"
-                          className="h-4.5 w-4.5"
+                          className="h-5 w-5"
                         >
                           <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                         </svg>
@@ -381,97 +394,31 @@ function CreditContent() {
                       </div>
                     )}
 
-                    {/* Amount Config */}
+                    {/* Single Amount Input — mints ONE token of ₹{amount} */}
                     <div className="mt-4 space-y-2">
-                      <label className="text-xs font-bold text-zinc-600 dark:text-zinc-400">
-                        Credit Amount to Convert:
+                      <label htmlFor="convert-amount" className="text-xs font-bold text-zinc-600 dark:text-zinc-400">
+                        Token amount (₹):
                       </label>
-                      <div className="flex items-center gap-3">
-                        <button
-                          type="button"
-                          onClick={decrementAmount}
-                          disabled={watchAmount <= 50 || isConverting}
-                          className="flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-200 bg-zinc-50 text-sm font-bold disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-800 cursor-pointer"
-                        >
-                          -
-                        </button>
-                        <div className="flex-1 text-center">
-                          <input
-                            type="number"
-                            className="w-full text-center font-bold text-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl h-10 flex items-center justify-center dark:text-zinc-100"
-                            {...register("amount", { valueAsNumber: true })}
-                          />
-                        </div>
-                        <button
-                          type="button"
-                          onClick={incrementAmount}
-                          disabled={watchAmount + 50 > (credits?.credit_balance ?? 0) || isConverting}
-                          className="flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-200 bg-zinc-50 text-sm font-bold disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-800 cursor-pointer"
-                        >
-                          +
-                        </button>
-                      </div>
-                      {errors.amount && (
-                        <p className="text-xs text-rose-500 mt-1">{errors.amount.message}</p>
+                      <input
+                        id="convert-amount"
+                        type="number"
+                        min={threshold}
+                        max={balance}
+                        step={1}
+                        value={Number.isNaN(amount) ? "" : amount}
+                        onChange={(e) => {
+                          setAmount(e.target.valueAsNumber);
+                          setAmountError(null);
+                        }}
+                        className="w-full text-center font-bold text-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl h-11 dark:text-zinc-100 dark:bg-zinc-800"
+                      />
+                      {amountError && (
+                        <p className="text-xs text-rose-500 mt-1">{amountError}</p>
                       )}
                       <p className="text-[10px] text-zinc-400 dark:text-zinc-500 text-center font-semibold">
-                        Equals {Math.floor((watchAmount || 0) / 50)} token voucher(s) (₹50 each)
+                        Mints 1 token of ₹{Number.isNaN(amount) ? 0 : amount} · min ₹{threshold}, max ₹{balance}
                       </p>
                     </div>
-
-                    {/* Token Type Select */}
-                    <div className="mt-5 space-y-2">
-                      <label className="text-xs font-bold text-zinc-600 dark:text-zinc-400">
-                        Token Voucher Type:
-                      </label>
-                      <div className="grid grid-cols-2 gap-3">
-                        <button
-                          type="button"
-                          onClick={() => setValue("token_type", "standard", { shouldValidate: true })}
-                          className={`rounded-xl border p-3 text-left transition cursor-pointer ${
-                            watchTokenType === "standard"
-                              ? "border-emerald-600 bg-emerald-500/5 text-emerald-800 dark:border-emerald-500 dark:text-emerald-400"
-                              : "border-zinc-200 bg-white hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-800"
-                          }`}
-                        >
-                          <span className="block text-xs font-bold font-sans">Standard</span>
-                          <span className="text-[9px] text-zinc-400 block mt-0.5 font-sans">Regular hot meals</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setValue("token_type", "special_care", { shouldValidate: true })}
-                          className={`rounded-xl border p-3 text-left transition cursor-pointer ${
-                            watchTokenType === "special_care"
-                              ? "border-emerald-600 bg-emerald-500/5 text-emerald-800 dark:border-emerald-500 dark:text-emerald-400"
-                              : "border-zinc-200 bg-white hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-800"
-                          }`}
-                        >
-                          <span className="block text-xs font-bold text-rose-600 dark:text-rose-400 font-sans">Special Care</span>
-                          <span className="text-[9px] text-zinc-400 block mt-0.5 font-sans">Diet/medical adjustments</span>
-                        </button>
-                      </div>
-                      {errors.token_type && (
-                        <p className="text-xs text-rose-500 mt-1">{errors.token_type.message}</p>
-                      )}
-                    </div>
-
-                    {/* Special Care Instructions */}
-                    {watchTokenType === "special_care" && (
-                      <div className="mt-4 space-y-1.5 animate-fade-in">
-                        <label className="text-[10px] font-bold text-zinc-500 uppercase">
-                          Diet requirements & Special instructions:
-                        </label>
-                        <textarea
-                          rows={2}
-                          placeholder="e.g. Nut allergies, diabetic menu, soft foods"
-                          className="w-full rounded-xl border border-zinc-200 p-2.5 text-xs text-zinc-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-100"
-                          {...register("special_instructions")}
-                        />
-                        {errors.special_instructions && (
-                          <p className="text-xs text-rose-500 mt-1">{errors.special_instructions.message}</p>
-                        )}
-                      </div>
-                    )}
 
                     {/* Submit Actions */}
                     <div className="mt-6 flex gap-3">
@@ -484,7 +431,7 @@ function CreditContent() {
                       </button>
                       <button
                         type="submit"
-                        disabled={isConverting || watchAmount <= 0}
+                        disabled={isConverting || Number.isNaN(amount) || amount < threshold}
                         className="flex-1 rounded-xl bg-emerald-600 py-3 text-xs font-bold text-white transition hover:bg-emerald-700 shadow-md active:scale-95 disabled:opacity-50 cursor-pointer"
                       >
                         {isConverting ? (

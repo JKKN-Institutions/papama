@@ -8,13 +8,17 @@ import { DashboardDonationHistoryItem } from "@/lib/donor/types/contract";
 export default function HistoryPage() {
   const [history, setHistory] = useState<DashboardDonationHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   async function loadHistory() {
+    setLoading(true);
+    setError(null);
     try {
       const res = await ApiClient.getDashboard();
       setHistory(res.donation_history);
-    } catch (error) {
-      console.error("Error loading donation history:", error);
+    } catch (err) {
+      console.error("Error loading donation history:", err);
+      setError(err instanceof Error ? err.message : "Failed to load donation history.");
     } finally {
       setLoading(false);
     }
@@ -66,6 +70,20 @@ export default function HistoryPage() {
           {loading ? (
             <div className="flex h-64 items-center justify-center">
               <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent" />
+            </div>
+          ) : error ? (
+            <div className="text-center py-16">
+              <span className="text-3xl">⚠️</span>
+              <h3 className="mt-4 text-sm font-bold text-zinc-900 dark:text-zinc-50">
+                Couldn&apos;t load your history
+              </h3>
+              <p className="mt-1 text-xs text-zinc-500">{error}</p>
+              <button
+                onClick={loadHistory}
+                className="mt-4 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-emerald-700 active:scale-95"
+              >
+                Retry
+              </button>
             </div>
           ) : history.length > 0 ? (
             <div className="overflow-x-auto">

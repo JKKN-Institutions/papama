@@ -73,7 +73,7 @@ export const PERMISSION_MATRIX: Record<Feature, Partial<Record<UserRole, Permiss
     donor_donation_credit: {
         admin: CRUD_ALL,
         compliance: R_ALL,
-        donor: perm({ create: "own", read: "own" }),
+        donor: perm({ create: "own", read: "own", update: "own" }),
         guest: perm({ create: "all", caps: ["donate"] }), // donate via QR/web
     },
     token_generation: {

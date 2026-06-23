@@ -6,6 +6,16 @@ import { useEffect, useState } from "react";
 import { ApiClient } from "@/lib/donor/services/apiClient";
 import { NotificationItem } from "@/lib/donor/types/contract";
 import { signOutDonor } from "@/lib/donor/auth";
+import { createClient } from "@/lib/supabase/client";
+
+// Initials from the signed-in email (e.g. "roja.sundharam@x" → "RS").
+function initialsFromEmail(email: string | null): string {
+  if (!email) return "D";
+  const local = email.split("@")[0] ?? "";
+  const parts = local.split(/[._-]+/).filter(Boolean);
+  const letters = (parts.length >= 2 ? parts[0][0] + parts[1][0] : local.slice(0, 2)) || "D";
+  return letters.toUpperCase();
+}
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -13,6 +23,7 @@ export default function Navbar() {
   const [credits, setCredits] = useState<{ credit_balance: number } | null>(null);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [email, setEmail] = useState<string | null>(null);
 
   async function loadNavbarData() {
     try {
@@ -29,6 +40,12 @@ export default function Navbar() {
 
   useEffect(() => {
     loadNavbarData();
+
+    // Resolve the signed-in donor's email for the initials avatar.
+    createClient()
+      .auth.getUser()
+      .then(({ data }) => setEmail(data.user?.email ?? null))
+      .catch(() => setEmail(null));
 
     // Set up custom event listener for real-time visual updates
     window.addEventListener("papama_data_update", loadNavbarData);
@@ -89,7 +106,7 @@ export default function Navbar() {
                 className={`relative py-2 text-sm font-medium transition-colors duration-200 ${
                   isActive
                     ? "text-emerald-600 dark:text-emerald-400 font-bold"
-                    : "text-zinc-650 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
+                    : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
                 }`}
               >
                 {item.name}
@@ -106,7 +123,7 @@ export default function Navbar() {
           {credits !== null && (
             <Link
               href="/donor/credit"
-              className="flex items-center gap-1.5 rounded-full border border-emerald-200/60 bg-emerald-50/50 px-3 py-1 text-sm font-semibold text-emerald-755 hover:bg-emerald-50 dark:border-emerald-800/30 dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50"
+              className="flex items-center gap-1.5 rounded-full border border-emerald-200/60 bg-emerald-50/50 px-3 py-1 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800/30 dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -128,7 +145,7 @@ export default function Navbar() {
               type="button"
               onClick={() => setIsNotificationsOpen((open) => !open)}
               aria-label="Donor notifications"
-              className="relative flex h-9 w-9 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-600 transition hover:bg-zinc-50 hover:text-zinc-900 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-350 dark:hover:bg-zinc-800"
+              className="relative flex h-9 w-9 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-600 transition hover:bg-zinc-50 hover:text-zinc-900 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -136,7 +153,7 @@ export default function Navbar() {
                 viewBox="0 0 24 24"
                 strokeWidth="2"
                 stroke="currentColor"
-                className="h-4.5 w-4.5"
+                className="h-5 w-5"
               >
                 <path
                   strokeLinecap="round"
@@ -174,43 +191,56 @@ export default function Navbar() {
                 <div className="max-h-80 overflow-y-auto divide-y divide-zinc-100 dark:divide-zinc-800">
                   {notifications.length > 0 ? (
                     notifications.map((notification) => (
-                      <button
+                      <div
                         key={notification.id}
-                        type="button"
-                        onClick={() => {
-                          handleNotificationClick(notification.id);
-                          setIsNotificationsOpen(false);
-                        }}
-                        className={`flex w-full gap-3 px-4 py-3 text-left transition hover:bg-zinc-50 dark:hover:bg-zinc-850/30 ${
+                        className={`px-4 py-3 transition hover:bg-zinc-50 dark:hover:bg-zinc-800/30 ${
                           !notification.read
                             ? "bg-emerald-50/20 dark:bg-emerald-950/5"
                             : ""
                         }`}
                       >
-                        <span
-                          className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${
-                            !notification.read
-                              ? "bg-emerald-500"
-                              : "bg-zinc-300 dark:bg-zinc-700"
-                          }`}
-                        />
-                        <span className="min-w-0 flex-1">
-                          <span className="block text-xs font-bold text-zinc-900 dark:text-zinc-50">
-                            {notification.title}
-                          </span>
-                          <span className="mt-0.5 block text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
-                            {notification.body}
-                          </span>
-                          {notification.type === "redemption" && notification.meta && (
-                            <span className="mt-1 block rounded bg-zinc-50 px-2 py-1 text-[10px] text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
-                              Served {notification.meta.meal_info} at {notification.meta.vendor_name} ({notification.meta.location})
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleNotificationClick(notification.id);
+                            setIsNotificationsOpen(false);
+                          }}
+                          className="flex w-full gap-3 text-left"
+                        >
+                          <span
+                            className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${
+                              !notification.read
+                                ? "bg-emerald-500"
+                                : "bg-zinc-300 dark:bg-zinc-700"
+                            }`}
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-xs font-bold text-zinc-900 dark:text-zinc-50">
+                              {notification.title}
                             </span>
-                          )}
-                          <span className="mt-1 block text-[9px] font-medium text-zinc-400">
-                            {new Date(notification.created_at).toLocaleString()}
+                            <span className="mt-0.5 block text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
+                              {notification.body}
+                            </span>
+                            {notification.type === "redemption" && notification.meta && (
+                              <span className="mt-1 block rounded bg-zinc-50 px-2 py-1 text-[10px] text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+                                Served {notification.meta.meal_info} at {notification.meta.vendor_name} ({notification.meta.location})
+                              </span>
+                            )}
+                            <span className="mt-1 block text-[9px] font-medium text-zinc-400">
+                              {new Date(notification.created_at).toLocaleString()}
+                            </span>
                           </span>
-                        </span>
-                      </button>
+                        </button>
+                        {notification.type === "redemption" && (
+                          <Link
+                            href="/donor/donate"
+                            onClick={() => setIsNotificationsOpen(false)}
+                            className="mt-1.5 ml-5 inline-block text-[10px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline"
+                          >
+                            Donate again
+                          </Link>
+                        )}
+                      </div>
                     ))
                   ) : (
                     <p className="px-4 py-8 text-center text-xs text-zinc-400">
@@ -224,13 +254,13 @@ export default function Navbar() {
 
           {/* User Profile + sign out */}
           <div className="flex items-center gap-2 pl-1">
-            <div className="h-9 w-9 overflow-hidden rounded-full ring-2 ring-emerald-500/20 dark:ring-emerald-400/15">
-              <img
-                src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&h=256&q=80"
-                alt="Avatar"
-                className="h-full w-full object-cover"
-              />
-            </div>
+            <Link
+              href="/donor/profile"
+              aria-label="Your profile"
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white ring-2 ring-emerald-500/20 dark:bg-emerald-500 dark:ring-emerald-400/15"
+            >
+              {initialsFromEmail(email)}
+            </Link>
             <button
               type="button"
               onClick={handleSignOut}

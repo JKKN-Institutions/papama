@@ -8,7 +8,7 @@ import {
   TokenItem,
   CreditTransaction,
   NotificationItem,
-  RedemptionHistoryItem
+  ConvertTokenItem,
 } from '../types/contract';
 import { DashboardService } from './dashboardService';
 import { isMockMode } from './mock-mode';
@@ -41,13 +41,14 @@ const INITIAL_CREDITS: CreditsResponse = {
   transactions: [
     { id: 'tx_001', type: 'purchase', amount: 1000, at: '2026-06-10T10:00:00Z' },
     { id: 'tx_002', type: 'donation', amount: -600, at: '2026-06-11T12:30:00Z' },
-    { id: 'tx_003', type: 'donation', amount: -250, at: '2026-06-14T15:00:00Z' }
+    { id: 'tx_003', type: 'donation', amount: -250, at: '2026-06-14T15:00:00Z' },
   ],
 };
 
 const INITIAL_TOKENS: TokenItem[] = [
   {
     token_id: 'tok_001',
+    serial_number: 'PPM-STD-10001',
     type: 'standard',
     status: 'redeemed',
     qr_payload: 'PAPAMA:TOKEN:tok_001:sig',
@@ -62,8 +63,9 @@ const INITIAL_TOKENS: TokenItem[] = [
   },
   {
     token_id: 'tok_002',
+    serial_number: 'PPM-STD-10002',
     type: 'standard',
-    status: 'active',
+    status: 'live',
     qr_payload: 'PAPAMA:TOKEN:tok_002:sig',
     value: 50,
     issued_at: '2026-06-11T12:30:00Z',
@@ -72,6 +74,7 @@ const INITIAL_TOKENS: TokenItem[] = [
   },
   {
     token_id: 'tok_003',
+    serial_number: 'PPM-STD-10003',
     type: 'standard',
     status: 'redeemed',
     qr_payload: 'PAPAMA:TOKEN:tok_003:sig',
@@ -86,20 +89,20 @@ const INITIAL_TOKENS: TokenItem[] = [
   },
   {
     token_id: 'tok_004',
-    type: 'special_care',
+    serial_number: 'PPM-STD-10004',
+    type: 'standard',
     status: 'expired',
     qr_payload: 'PAPAMA:TOKEN:tok_004:sig',
     value: 50,
     issued_at: '2026-03-01T10:00:00Z',
     expires_at: '2026-06-01T00:00:00Z',
     redeemed_at: null,
-    is_special_care: true,
-    special_instructions: 'Diabetic friendly, low salt, high protein',
   },
   {
     token_id: 'tok_005',
+    serial_number: 'PPM-STD-10005',
     type: 'standard',
-    status: 'invalidated',
+    status: 'in_admin_pool',
     qr_payload: 'PAPAMA:TOKEN:tok_005:sig',
     value: 50,
     issued_at: '2026-06-14T15:00:00Z',
@@ -226,331 +229,157 @@ class MockDb {
 
 const mockDb = new MockDb();
 
-// Main Fetcher with Fallback
-async function apiRequest<T>(
-  path: string,
-  options?: RequestInit
-): Promise<T> {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || '';
-  const forceMock = process.env.NEXT_PUBLIC_USE_MOCK_API === 'true';
+// ---------------------------------------------------------------------------
+// Mock-mode handlers. These run ONLY when NEXT_PUBLIC_USE_MOCK_API === 'true'
+// (offline demo). Every default path below hits the real governed same-origin
+// routes with the session cookie.
+// ---------------------------------------------------------------------------
 
-  // Only call out to an external API server when one is actually configured.
-  // In the unified app there is no separate /api/donor/* backend, so without a
-  // base URL we go straight to the local mock path (no 404 noise).
-  if (baseUrl && !forceMock) {
-    try {
-      const res = await fetch(`${baseUrl}${path}`, options);
-      if (res.ok) {
-        return await res.json() as T;
-      }
-      console.warn(`API ${path} returned status ${res.status}. Falling back to mock database.`);
-    } catch (e) {
-      console.warn(`API ${path} request failed. Falling back to mock database.`, e);
-    }
-  }
+function mockCreateDonation(amount: number, paymentMethod: string, donorId: string | null): DonationResponse {
+  const donationId = generateUUID();
+  const now = new Date().toISOString();
 
-  // Handle Mock Requests
-  return handleMockRequest<T>(path, options);
-}
+  const credits = mockDb.getCredits();
+  const wasReached = credits.threshold_reached;
+  const newBalance = credits.credit_balance + amount;
+  const thresholdReached = newBalance >= credits.threshold;
 
-function handleMockRequest<T>(path: string, options?: RequestInit): T {
-  const method = options?.method?.toUpperCase() || 'GET';
-  const body = options?.body ? JSON.parse(options.body as string) : null;
+  credits.credit_balance = newBalance;
+  credits.threshold_reached = thresholdReached;
+  credits.convertible_tokens = Math.floor(newBalance / credits.threshold);
+  credits.transactions.unshift({ id: generateUUID(), type: 'purchase', amount, at: now });
+  mockDb.saveCredits(credits);
 
-  // Route: POST /api/donations/create
-  if (path.startsWith('/api/donations/create') && method === 'POST') {
-    const { amount, payment_method, donor_id } = body;
-    const donationId = generateUUID();
-    const now = new Date().toISOString();
-
-    const credits = mockDb.getCredits();
-    const oldBalance = credits.credit_balance;
-    const newBalance = oldBalance + amount;
-    const thresholdReached = newBalance >= 50;
-
-    // Update Credits
-    credits.credit_balance = newBalance;
-    credits.threshold_reached = thresholdReached;
-    credits.convertible_tokens = Math.floor(newBalance / credits.threshold);
-    credits.transactions.unshift({
-      id: generateUUID(),
-      type: 'purchase',
-      amount: amount,
-      at: now,
-    });
-    mockDb.saveCredits(credits);
-
-    // Update Dashboard if logged in
-    if (donor_id) {
-      const dashboard = mockDb.getDashboard();
-      dashboard.total_credit = newBalance;
-      dashboard.total_donations += amount;
-      dashboard.donation_history.unshift({
-        id: donationId,
-        amount: amount,
-        at: now,
-      });
-
-      // Update monthly summary
-      const currentMonth = now.substring(0, 7); // YYYY-MM
-      const monthlyItem = dashboard.monthly_summary.find((m) => m.month === currentMonth);
-      if (monthlyItem) {
-        monthlyItem.donated += amount;
-      } else {
-        dashboard.monthly_summary.push({
-          month: currentMonth,
-          donated: amount,
-          meals: 0,
-        });
-      }
-      mockDb.saveDashboard(dashboard);
-    }
-
-    // Add Notification
-    const notifs = mockDb.getNotifications();
-    notifs.unshift({
-      id: generateUUID(),
-      type: 'donation_success',
-      title: 'Donation Completed Successfully',
-      body: `Thank you! Your donation of ₹${amount} was processed using ${payment_method.toUpperCase()}.`,
-      read: false,
-      created_at: now,
-      meta: null,
-    });
-
-    if (!credits.threshold_reached && thresholdReached) {
-      notifs.unshift({
-        id: generateUUID(),
-        type: 'threshold',
-        title: 'Conversion Threshold Met',
-        body: `Your credit balance is ₹${newBalance}. You can now convert credits into food tokens!`,
-        read: false,
-        created_at: now,
-        meta: null,
-      });
-    }
-    mockDb.saveNotifications(notifs);
-
-    const response: DonationResponse = {
-      donation_id: donationId,
-      amount,
-      payment_method,
-      status: 'success',
-      credit_added: amount,
-      credit_balance: newBalance,
-      threshold_reached: thresholdReached,
-      created_at: now,
-    };
-    return response as unknown as T;
-  }
-
-  // Route: GET /api/donor/credits
-  if (path.startsWith('/api/donor/credits') && method === 'GET') {
-    return mockDb.getCredits() as unknown as T;
-  }
-
-  // Route: POST /api/tokens/convert
-  if (path.startsWith('/api/tokens/convert') && method === 'POST') {
-    const { amount, token_type, special_instructions } = body;
-    const now = new Date().toISOString();
-    const expiry = new Date();
-    expiry.setMonth(expiry.getMonth() + 3); // 3 months validity
-    const expiresAt = expiry.toISOString();
-
-    const credits = mockDb.getCredits();
-    if (credits.credit_balance < amount) {
-      throw new Error('Insufficient credit balance');
-    }
-
-    const tokenCount = Math.floor(amount / credits.threshold);
-    const newBalance = credits.credit_balance - amount;
-
-    // Deduct credits
-    credits.credit_balance = newBalance;
-    credits.threshold_reached = newBalance >= 50;
-    credits.convertible_tokens = Math.floor(newBalance / credits.threshold);
-    credits.transactions.unshift({
-      id: generateUUID(),
-      type: 'donation',
-      amount: -amount,
-      at: now,
-    });
-    mockDb.saveCredits(credits);
-
-    // Create new tokens
-    const tokensList = mockDb.getTokens();
-    const newTokens: TokenItem[] = Array.from({ length: tokenCount }, (_, i) => {
-      const tokenId = generateUUID();
-      const serialNum = `PPM-${token_type === 'special_care' ? 'SPC' : 'STD'}-${Math.floor(10000 + Math.random() * 90000)}`;
-      return {
-        token_id: tokenId,
-        type: token_type,
-        status: 'active',
-        qr_payload: `PAPAMA:TOKEN:${tokenId}:${Math.random().toString(36).substring(7)}`,
-        value: 50,
-        issued_at: now,
-        expires_at: expiresAt,
-        redeemed_at: null,
-        is_special_care: token_type === 'special_care',
-        special_instructions: special_instructions || undefined,
-      };
-    });
-
-    tokensList.unshift(...newTokens);
-    mockDb.saveTokens(tokensList);
-
-    // Update Dashboard
+  if (donorId) {
     const dashboard = mockDb.getDashboard();
     dashboard.total_credit = newBalance;
-    dashboard.total_tokens += tokenCount;
-    mockDb.saveDashboard(dashboard);
-
-    // Create Notification
-    const notifs = mockDb.getNotifications();
-    notifs.unshift({
-      id: generateUUID(),
-      type: 'token_generated',
-      title: 'Tokens Generated Successfully',
-      body: `Converted ₹${amount} credits into ${tokenCount} ${token_type} food tokens.`,
-      read: false,
-      created_at: now,
-      meta: null,
-    });
-    mockDb.saveNotifications(notifs);
-
-    const response: ConvertResponse = {
-      tokens: newTokens.map((t) => ({
-        token_id: t.token_id,
-        type: t.type,
-        qr_payload: t.qr_payload,
-        status: t.status,
-        expires_at: t.expires_at,
-      })),
-      credit_balance: newBalance,
-      converted: amount,
-    };
-
-    // Simulate auto-redemption of standard tokens in the background to show dynamic updates
-    if (typeof window !== 'undefined') {
-      setTimeout(() => {
-        simulateBackgroundRedemption(newTokens[0]?.token_id);
-      }, 5000);
+    dashboard.total_donations += amount;
+    dashboard.donation_history.unshift({ id: donationId, amount, at: now });
+    const currentMonth = now.substring(0, 7);
+    const monthlyItem = dashboard.monthly_summary.find((m) => m.month === currentMonth);
+    if (monthlyItem) {
+      monthlyItem.donated += amount;
+    } else {
+      dashboard.monthly_summary.push({ month: currentMonth, donated: amount, meals: 0 });
     }
-
-    return response as unknown as T;
+    mockDb.saveDashboard(dashboard);
   }
 
-  // Route: GET /api/donor/tokens
-  if (path.startsWith('/api/donor/tokens') && method === 'GET') {
-    return { tokens: mockDb.getTokens() } as unknown as T;
-  }
-
-  // Route: GET /api/donor/dashboard
-  if (path.startsWith('/api/donor/dashboard') && method === 'GET') {
-    const dashboard = mockDb.getDashboard();
-    const credits = mockDb.getCredits();
-    // Synchronize credit balance
-    dashboard.total_credit = credits.credit_balance;
-    return dashboard as unknown as T;
-  }
-
-  // Route: GET /api/donor/notifications
-  if (path.startsWith('/api/donor/notifications') && method === 'GET') {
-    return { notifications: mockDb.getNotifications() } as unknown as T;
-  }
-
-  throw new Error(`Mock endpoint not implemented: ${method} ${path}`);
-}
-
-// Background simulator to showcase dynamic trust/impact updates when a token is redeemed
-function simulateBackgroundRedemption(tokenId?: string): void {
-  if (!tokenId) return;
-
-  const tokens = mockDb.getTokens();
-  const tokenIndex = tokens.findIndex((t) => t.token_id === tokenId && t.status === 'active');
-  if (tokenIndex === -1) return;
-
-  const now = new Date().toISOString();
-  const vendors = [
-    { name: 'Anna Canteen', location: 'T. Nagar, Chennai', info: 'Lunch — Veg Thali', cat: 'pregnant_women' },
-    { name: 'Sri Sai Kitchen', location: 'Velachery, Chennai', info: 'Lunch — Sambar Rice', cat: 'disability' },
-    { name: 'Community Meals Hub', location: 'Royapettah, Chennai', info: 'Dinner — Upma', cat: 'patient' },
-  ];
-  const selectedVendor = vendors[Math.floor(Math.random() * vendors.length)];
-
-  // Update Token
-  tokens[tokenIndex].status = 'redeemed';
-  tokens[tokenIndex].redeemed_at = now;
-  tokens[tokenIndex].vendor_name = selectedVendor.name;
-  tokens[tokenIndex].location = selectedVendor.location;
-  tokens[tokenIndex].meal_info = selectedVendor.info;
-  tokens[tokenIndex].beneficiary_category = selectedVendor.cat;
-  mockDb.saveTokens(tokens);
-
-  // Update Dashboard
-  const dashboard = mockDb.getDashboard();
-  dashboard.meals_sponsored += 1;
-  dashboard.redemption_history.unshift({
-    token_id: tokenId,
-    vendor_name: selectedVendor.name,
-    location: selectedVendor.location,
-    time: now,
-    meal_info: selectedVendor.info,
-    beneficiary_category: selectedVendor.cat as RedemptionHistoryItem['beneficiary_category'],
-  });
-
-  const currentMonth = now.substring(0, 7);
-  const monthlyItem = dashboard.monthly_summary.find((m) => m.month === currentMonth);
-  if (monthlyItem) {
-    monthlyItem.meals += 1;
-  } else {
-    dashboard.monthly_summary.push({
-      month: currentMonth,
-      donated: 0,
-      meals: 1,
-    });
-  }
-  mockDb.saveDashboard(dashboard);
-
-  // Create Notification
   const notifs = mockDb.getNotifications();
   notifs.unshift({
     id: generateUUID(),
-    type: 'redemption',
-    title: 'Your meal was served',
-    body: `A meal you funded was redeemed at ${selectedVendor.name}.`,
+    type: 'donation_success',
+    title: 'Donation Completed Successfully',
+    body: `Thank you! Your donation of ₹${amount} was processed using ${paymentMethod.toUpperCase()}.`,
     read: false,
     created_at: now,
-    meta: {
-      vendor_name: selectedVendor.name,
-      location: selectedVendor.location,
-      time: now,
-      meal_info: selectedVendor.info,
-      beneficiary_category: selectedVendor.cat as RedemptionHistoryItem['beneficiary_category'],
-    },
+    meta: null,
+  });
+  if (!wasReached && thresholdReached) {
+    notifs.unshift({
+      id: generateUUID(),
+      type: 'threshold',
+      title: 'Conversion Threshold Met',
+      body: `Your credit balance is ₹${newBalance}. You can now convert credits into food tokens!`,
+      read: false,
+      created_at: now,
+      meta: null,
+    });
+  }
+  mockDb.saveNotifications(notifs);
+
+  return {
+    donation_id: donationId,
+    amount,
+    payment_method: paymentMethod as DonationResponse['payment_method'],
+    status: 'success',
+    credit_added: amount,
+    credit_balance: newBalance,
+    threshold_reached: thresholdReached,
+    created_at: now,
+  };
+}
+
+function mockConvert(amount: number, distributionPath: 'use_now' | 'authorize_papama'): ConvertResponse {
+  const now = new Date().toISOString();
+  const expiry = new Date();
+  expiry.setMonth(expiry.getMonth() + 3);
+  const expiresAt = expiry.toISOString();
+
+  const credits = mockDb.getCredits();
+  if (credits.credit_balance < amount) {
+    throw new Error('Insufficient credit balance');
+  }
+
+  const newBalance = credits.credit_balance - amount;
+  credits.credit_balance = newBalance;
+  credits.threshold_reached = newBalance >= credits.threshold;
+  credits.convertible_tokens = Math.floor(newBalance / credits.threshold);
+  credits.transactions.unshift({ id: generateUUID(), type: 'donation', amount: -amount, at: now });
+  mockDb.saveCredits(credits);
+
+  const tokenId = generateUUID();
+  const serial = `PPM-STD-${Math.floor(10000 + Math.random() * 90000)}`;
+  const status = distributionPath === 'use_now' ? 'live' : 'in_admin_pool';
+  const newToken: TokenItem = {
+    token_id: tokenId,
+    serial_number: serial,
+    type: 'standard',
+    status,
+    qr_payload: `PAPAMA:${serial}`,
+    value: amount,
+    issued_at: now,
+    expires_at: expiresAt,
+    redeemed_at: null,
+  };
+
+  const tokensList = mockDb.getTokens();
+  tokensList.unshift(newToken);
+  mockDb.saveTokens(tokensList);
+
+  const dashboard = mockDb.getDashboard();
+  dashboard.total_credit = newBalance;
+  dashboard.total_tokens += 1;
+  mockDb.saveDashboard(dashboard);
+
+  const notifs = mockDb.getNotifications();
+  notifs.unshift({
+    id: generateUUID(),
+    type: 'token_generated',
+    title: 'Token Generated Successfully',
+    body: `Converted ₹${amount} credit into 1 standard food token.`,
+    read: false,
+    created_at: now,
+    meta: null,
   });
   mockDb.saveNotifications(notifs);
 
-  // Dispatch global event for visual updates if matching components are listening
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(new Event('papama_data_update'));
-  }
+  const convertToken: ConvertTokenItem = {
+    token_id: newToken.token_id,
+    serial_number: serial,
+    type: newToken.type,
+    qr_payload: newToken.qr_payload,
+    status: newToken.status,
+    value: newToken.value,
+    expires_at: newToken.expires_at,
+  };
+
+  return { token: convertToken, credit_balance: newBalance, converted: amount };
+}
+
+async function readError(res: Response, fallback: string): Promise<string> {
+  return (await res.json().catch(() => ({}))).error ?? fallback;
 }
 
 export const ApiClient = {
-  // Section 1
-  // In mock mode every call resolves against the in-browser mock DB (offline
-  // demo). Otherwise these hit the real same-origin governed routes
+  // The real same-origin governed routes are the DEFAULT for every method
   // (POST /api/donations/create, /api/tokens/convert; GET /api/donor/credits,
-  // /api/donor/tokens) with the session cookie, and the responses are mapped
-  // into the donor contract types the UI already renders.
+  // /api/donor/tokens, /api/donor/dashboard, /api/donor/notifications). The
+  // in-browser mock DB is used ONLY when NEXT_PUBLIC_USE_MOCK_API === 'true'.
+
   async createDonation(amount: number, paymentMethod: string, donorId: string | null): Promise<DonationResponse> {
     if (isMockMode()) {
-      return apiRequest<DonationResponse>('/api/donations/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount, payment_method: paymentMethod, donor_id: donorId }),
-      });
+      return mockCreateDonation(amount, paymentMethod, donorId);
     }
     const res = await fetch('/api/donations/create', {
       method: 'POST',
@@ -558,7 +387,7 @@ export const ApiClient = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ amount_inr: amount, payment_method: paymentMethod }),
     });
-    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? `Donation failed (${res.status})`);
+    if (!res.ok) throw new Error(await readError(res, `Donation failed (${res.status})`));
     const d = await res.json();
     return {
       donation_id: d.donation_id,
@@ -574,10 +403,10 @@ export const ApiClient = {
 
   async getCredits(): Promise<CreditsResponse> {
     if (isMockMode()) {
-      return apiRequest<CreditsResponse>('/api/donor/credits', { method: 'GET' });
+      return mockDb.getCredits();
     }
     const res = await fetch('/api/donor/credits', { credentials: 'same-origin', cache: 'no-store' });
-    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? `Failed to load credits (${res.status})`);
+    if (!res.ok) throw new Error(await readError(res, `Failed to load credits (${res.status})`));
     const c = await res.json();
     const threshold: number = c.threshold ?? 0;
     return {
@@ -586,67 +415,66 @@ export const ApiClient = {
       threshold_reached: c.threshold_reached,
       convertible_tokens: threshold > 0 ? Math.floor(c.credit_balance / threshold) : 0,
       withdrawable: false,
-      transactions: (c.transactions ?? []).map((t: { id: string; type: string; amount: number; timestamp: string }) => ({
-        id: t.id,
-        type: t.type as CreditTransaction['type'],
-        amount: t.amount,
-        at: t.timestamp,
-      })),
+      transactions: (c.transactions ?? []).map(
+        (t: { id: string; type: string; amount: number; description?: string; timestamp: string }): CreditTransaction => ({
+          id: t.id,
+          type: t.type as CreditTransaction['type'],
+          amount: t.amount,
+          at: t.timestamp,
+        })
+      ),
     };
   },
 
-  async convertCreditToToken(amount: number, tokenType: 'standard' | 'special_care', specialInstructions?: string): Promise<ConvertResponse> {
+  // Mints exactly ONE standard token. `distributionPath` is the Path A/B fork:
+  // 'use_now' → live, 'authorize_papama' → in_admin_pool.
+  async convertCreditToToken(
+    amount: number,
+    distributionPath: 'use_now' | 'authorize_papama'
+  ): Promise<ConvertResponse> {
     if (isMockMode()) {
-      return apiRequest<ConvertResponse>('/api/tokens/convert', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount, token_type: tokenType, special_instructions: specialInstructions }),
-      });
+      return mockConvert(amount, distributionPath);
     }
     const res = await fetch('/api/tokens/convert', {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        token_type: tokenType,
+        token_type: 'standard',
         amount_inr: amount,
-        distribution_path: 'use_now',
-        special_instructions: specialInstructions,
+        distribution_path: distributionPath,
       }),
     });
-    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? `Conversion failed (${res.status})`);
+    if (!res.ok) throw new Error(await readError(res, `Conversion failed (${res.status})`));
     const t = await res.json();
-    return {
-      tokens: [
-        {
-          token_id: t.token_id,
-          type: t.token_type,
-          qr_payload: t.qr_payload,
-          status: t.status,
-          expires_at: t.expires_at ?? '',
-        },
-      ],
-      credit_balance: t.credit_balance,
-      converted: amount,
+    const token: ConvertTokenItem = {
+      token_id: t.token_id,
+      serial_number: t.serial_number,
+      type: t.token_type,
+      qr_payload: t.qr_payload,
+      status: t.status,
+      value: t.value,
+      expires_at: t.expires_at ?? '',
     };
+    return { token, credit_balance: t.credit_balance, converted: amount };
   },
 
-  // Section 2
   async getTokens(): Promise<TokensResponse> {
     if (isMockMode()) {
-      return apiRequest<TokensResponse>('/api/donor/tokens', { method: 'GET' });
+      return { tokens: mockDb.getTokens() };
     }
     const res = await fetch('/api/donor/tokens', { credentials: 'same-origin', cache: 'no-store' });
-    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? `Failed to load tokens (${res.status})`);
+    if (!res.ok) throw new Error(await readError(res, `Failed to load tokens (${res.status})`));
     const d = await res.json();
     return {
-      tokens: (d.tokens ?? []).map((t: Record<string, unknown>) => ({
+      tokens: (d.tokens ?? []).map((t: Record<string, unknown>): TokenItem => ({
         token_id: t.token_id as string,
+        serial_number: t.serial_number as string | undefined,
         type: t.token_type as TokenItem['type'],
         status: t.status as TokenItem['status'],
         qr_payload: t.qr_payload as string,
         value: t.value as number,
-        issued_at: t.issued_at as string,
+        issued_at: (t.issued_at as string) ?? (t.minted_at as string),
         expires_at: (t.expires_at as string | null) ?? '',
         redeemed_at: (t.redeemed_at as string | null) ?? null,
         is_special_care: t.is_special_care as boolean | undefined,
@@ -655,56 +483,58 @@ export const ApiClient = {
     };
   },
 
-  // Section 3
   async getDashboard(donorId?: string): Promise<DashboardResponse> {
-    // Only hit Supabase with a real donor id (a UUID from the session). Without
-    // one (guest), go straight to the API/mock so we never query with a bad id.
+    if (isMockMode()) {
+      const dashboard = mockDb.getDashboard();
+      dashboard.total_credit = mockDb.getCredits().credit_balance;
+      return dashboard;
+    }
+    // Prefer the real same-origin dashboard route. The Supabase service is a
+    // fallback for when a donor id is known but the route is unavailable.
+    const res = await fetch('/api/donor/dashboard', { credentials: 'same-origin', cache: 'no-store' });
+    if (res.ok) {
+      return (await res.json()) as DashboardResponse;
+    }
     if (donorId) {
       try {
         return await DashboardService.getDashboardData(donorId);
       } catch (err) {
-        console.warn('Failed to fetch dashboard from Supabase, falling back to API/mock:', err);
+        console.warn('Failed to fetch dashboard from Supabase:', err);
       }
     }
-    return apiRequest<DashboardResponse>('/api/donor/dashboard', {
-      method: 'GET',
-    });
+    throw new Error(await readError(res, `Failed to load dashboard (${res.status})`));
   },
 
-  // Section 4
   async getNotifications(): Promise<NotificationsResponse> {
-    return apiRequest<NotificationsResponse>('/api/donor/notifications', {
-      method: 'GET',
-    });
+    if (isMockMode()) {
+      return { notifications: mockDb.getNotifications() };
+    }
+    const res = await fetch('/api/donor/notifications', { credentials: 'same-origin', cache: 'no-store' });
+    if (!res.ok) throw new Error(await readError(res, `Failed to load notifications (${res.status})`));
+    return (await res.json()) as NotificationsResponse;
   },
 
   async markNotificationRead(id: string): Promise<void> {
-    // If mock mode, we update the local db
-    const notifs = mockDb.getNotifications();
-    const item = notifs.find((n) => n.id === id);
-    if (item) {
-      item.read = true;
-      mockDb.saveNotifications(notifs);
-    }
-
-    // Try posting to API if online
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || '';
-    const forceMock = process.env.NEXT_PUBLIC_USE_MOCK_API === 'true';
-    if (!forceMock) {
-      try {
-        await fetch(`${baseUrl}/api/donor/notifications/read`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id }),
-        });
-      } catch (e) {
-        // Ignored, we already processed locally
+    if (isMockMode()) {
+      const notifs = mockDb.getNotifications();
+      const item = notifs.find((n) => n.id === id);
+      if (item) {
+        item.read = true;
+        mockDb.saveNotifications(notifs);
       }
+      return;
     }
+    const res = await fetch('/api/donor/notifications/read', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    });
+    if (!res.ok) throw new Error(await readError(res, `Failed to mark notification read (${res.status})`));
   },
 
   // Developer utility to reset local db state if needed
   resetMockDb(): void {
     mockDb.resetAll();
-  }
+  },
 };

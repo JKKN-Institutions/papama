@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import Navbar from "@/components/donor/Navbar";
 import { ApiClient } from "@/lib/donor/services/apiClient";
 import { NotificationItem } from "@/lib/donor/types/contract";
@@ -16,13 +17,17 @@ const NOTIF_ICONS = {
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   async function loadNotifications() {
+    setLoading(true);
+    setError(null);
     try {
       const res = await ApiClient.getNotifications();
       setNotifications(res.notifications);
-    } catch (error) {
-      console.error("Error loading notifications:", error);
+    } catch (err) {
+      console.error("Error loading notifications:", err);
+      setError(err instanceof Error ? err.message : "Failed to load notifications.");
     } finally {
       setLoading(false);
     }
@@ -85,6 +90,20 @@ export default function NotificationsPage() {
             <div className="flex h-64 items-center justify-center">
               <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent" />
             </div>
+          ) : error ? (
+            <div className="text-center py-16 bg-white rounded-2xl border border-zinc-200/50 dark:bg-zinc-900/40 dark:border-zinc-800">
+              <span className="text-3xl">⚠️</span>
+              <h3 className="mt-4 text-sm font-bold text-zinc-900 dark:text-zinc-50">
+                Couldn&apos;t load notifications
+              </h3>
+              <p className="mt-1 text-xs text-zinc-500">{error}</p>
+              <button
+                onClick={loadNotifications}
+                className="mt-4 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-emerald-700 active:scale-95"
+              >
+                Retry
+              </button>
+            </div>
           ) : notifications.length > 0 ? (
             <div className="rounded-2xl border border-zinc-200/50 bg-white overflow-hidden shadow-md dark:border-zinc-800/40 dark:bg-zinc-900 divide-y divide-zinc-150/60 dark:divide-zinc-800/50">
               {notifications.map((notif) => {
@@ -142,6 +161,16 @@ export default function NotificationsPage() {
                             <span className="font-mono text-zinc-500 font-normal">{new Date(notif.meta.time || notif.created_at).toLocaleString()}</span>
                           </p>
                         </div>
+                      )}
+
+                      {/* Re-donate prompt on redemption notifications */}
+                      {notif.type === "redemption" && (
+                        <Link
+                          href="/donor/donate"
+                          className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline block pt-1"
+                        >
+                          Donate again
+                        </Link>
                       )}
 
                       {/* Individual Read Action */}

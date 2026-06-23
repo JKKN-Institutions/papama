@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import Navbar from "@/components/donor/Navbar";
 import { ApiClient } from "@/lib/donor/services/apiClient";
 import { RedemptionHistoryItem } from "@/lib/donor/types/contract";
@@ -16,14 +17,18 @@ export default function ImpactPage() {
   const [mealsSponsored, setMealsSponsored] = useState(0);
   const [redemptions, setRedemptions] = useState<RedemptionHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   async function loadImpactData() {
+    setLoading(true);
+    setError(null);
     try {
       const res = await ApiClient.getDashboard();
       setMealsSponsored(res.meals_sponsored);
       setRedemptions(res.redemption_history);
-    } catch (error) {
-      console.error("Error loading impact data:", error);
+    } catch (err) {
+      console.error("Error loading impact data:", err);
+      setError(err instanceof Error ? err.message : "Failed to load your impact data.");
     } finally {
       setLoading(false);
     }
@@ -57,6 +62,20 @@ export default function ImpactPage() {
         {loading ? (
           <div className="flex h-64 items-center justify-center">
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent" />
+          </div>
+        ) : error ? (
+          <div className="mt-8 text-center py-16 bg-white rounded-2xl border border-zinc-200/50 dark:bg-zinc-900/40 dark:border-zinc-800">
+            <span className="text-3xl">⚠️</span>
+            <h3 className="mt-4 text-sm font-bold text-zinc-900 dark:text-zinc-50">
+              Couldn&apos;t load your impact
+            </h3>
+            <p className="mt-1 text-xs text-zinc-500">{error}</p>
+            <button
+              onClick={loadImpactData}
+              className="mt-4 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-emerald-700 active:scale-95"
+            >
+              Retry
+            </button>
           </div>
         ) : (
           <div className="mt-8 space-y-12">
@@ -159,10 +178,16 @@ export default function ImpactPage() {
                           </div>
                         </div>
 
-                        <div className="mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-800 text-center">
+                        <div className="mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-800 text-center space-y-2">
                           <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 uppercase flex items-center justify-center gap-1">
                             ❤ MEAL FULLY REDEEMED
                           </span>
+                          <Link
+                            href="/donor/donate"
+                            className="inline-block text-[10px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline"
+                          >
+                            Donate again
+                          </Link>
                         </div>
                       </div>
                     );

@@ -15,9 +15,20 @@ export interface DonationResponse {
   created_at: string;
 }
 
+// Authoritative token status enum (token-flow.md). Legacy values
+// (active/invalidated/unused/cancelled) are dropped from the UI.
+export type TokenStatus =
+  | 'generated'
+  | 'live'
+  | 'in_admin_pool'
+  | 'assigned_to_volunteer'
+  | 'distributed'
+  | 'redeemed'
+  | 'expired';
+
 export interface CreditTransaction {
   id: string;
-  type: 'donation' | 'purchase'; // wait, contract says: { id, type, amount, at }
+  type: 'donation' | 'purchase'; // governed credits ledger: { id, type, amount, at }
   amount: number;
   at: string;
 }
@@ -31,30 +42,36 @@ export interface CreditsResponse {
   transactions: CreditTransaction[];
 }
 
+// Donors mint Standard only, exactly ONE token per convert. The distribution
+// path is chosen after a successful mint (Path A "use it now" → live;
+// Path B "authorize pApAmA" → in_admin_pool).
 export interface ConvertRequest {
-  amount: number; // multiple of 50
-  token_type: 'standard' | 'special_care';
-  special_instructions?: string; // added to match the special instructions requirements
+  amount: number; // >= threshold, <= balance
+  distribution_path: 'use_now' | 'authorize_papama';
 }
 
 export interface ConvertTokenItem {
   token_id: string;
+  serial_number: string;
   type: 'standard' | 'special_care';
   qr_payload: string;
-  status: 'generated' | 'live' | 'in_admin_pool' | 'assigned_to_volunteer' | 'distributed' | 'redeemed' | 'expired' | 'active' | 'invalidated' | 'unused' | 'cancelled';
+  status: TokenStatus;
+  value: number;
   expires_at: string;
 }
 
+// One mint → one token. `credit_balance` is the balance after the mint.
 export interface ConvertResponse {
-  tokens: ConvertTokenItem[];
+  token: ConvertTokenItem;
   credit_balance: number;
   converted: number;
 }
 
 export interface TokenItem {
   token_id: string;
+  serial_number?: string;
   type: 'standard' | 'special_care';
-  status: 'generated' | 'live' | 'in_admin_pool' | 'assigned_to_volunteer' | 'distributed' | 'redeemed' | 'expired' | 'active' | 'invalidated' | 'unused' | 'cancelled'; // Include new and legacy statuses
+  status: TokenStatus;
   qr_payload: string;
   value: number; // value in paise (e.g. 5000 = ₹50)
   issued_at: string;

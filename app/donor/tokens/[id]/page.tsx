@@ -79,10 +79,12 @@ export default function TokenDetailPage({
     };
   }, [id]);
 
-  const { timeLeft, isClose } = useCountdown(token?.expires_at, token?.status === "active");
+  // `live` is the donor-usable (pre-redemption) status in the authoritative enum.
+  const isLive = token?.status === "live";
+  const { timeLeft, isClose } = useCountdown(token?.expires_at, isLive);
 
-  const statusColors = {
-    // New statuses (from token_flow.md)
+  const statusColors: Record<string, string> = {
+    // Authoritative token_status enum (token-flow.md)
     generated: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-900/50",
     live: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/50",
     in_admin_pool: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-900/50",
@@ -90,11 +92,6 @@ export default function TokenDetailPage({
     distributed: "bg-cyan-50 text-cyan-700 border-cyan-200 dark:bg-cyan-950/30 dark:text-cyan-400 dark:border-cyan-900/50",
     redeemed: "bg-zinc-100 text-zinc-600 border-zinc-200 dark:bg-zinc-900 dark:text-zinc-400 dark:border-zinc-800/60",
     expired: "bg-red-50 text-red-700 border-red-200 dark:bg-red-950/30 dark:text-red-400 dark:border-red-900/50",
-    // Legacy statuses (for backward compatibility)
-    active: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/50",
-    unused: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/50",
-    invalidated: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-900/50",
-    cancelled: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-900/50",
   };
 
   return (
@@ -163,7 +160,7 @@ export default function TokenDetailPage({
             {isClose && timeLeft && (
               <div className="rounded-2xl border border-amber-200 bg-amber-500/5 p-6 shadow-sm dark:border-amber-800/30 dark:bg-amber-950/20 text-amber-800 dark:text-amber-400 animate-pulse">
                 <h3 className="text-sm font-bold flex items-center gap-1.5">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="h-4.5 w-4.5">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="h-5 w-5">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                   </svg>
                   Voucher Expiring Soon!
@@ -178,7 +175,7 @@ export default function TokenDetailPage({
             {token.type === "special_care" && token.special_instructions && (
               <div className="rounded-2xl border border-rose-200 bg-rose-50/35 p-6 shadow-sm dark:border-rose-800/30 dark:bg-rose-950/10">
                 <h3 className="text-sm font-bold text-rose-800 dark:text-rose-400 flex items-center gap-1.5">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="h-4.5 w-4.5 text-rose-600">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="h-5 w-5 text-rose-600">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
                   </svg>
                   Special Care Instructions
@@ -205,7 +202,7 @@ export default function TokenDetailPage({
                   
                   {/* Step 1: Minted */}
                   <div className="relative pl-10 flex items-start gap-4">
-                    <div className="absolute left-1.5 h-6.5 w-6.5 rounded-full border-2 border-emerald-500 bg-emerald-100 dark:bg-emerald-950 flex items-center justify-center -translate-x-1/2">
+                    <div className="absolute left-1.5 h-6 w-6 rounded-full border-2 border-emerald-500 bg-emerald-100 dark:bg-emerald-950 flex items-center justify-center -translate-x-1/2">
                       <div className="h-2 w-2 rounded-full bg-emerald-600 dark:bg-emerald-400" />
                     </div>
                     <div>
@@ -223,13 +220,11 @@ export default function TokenDetailPage({
 
                   {/* Step 2: Current Status / Redeemed */}
                   <div className="relative pl-10 flex items-start gap-4">
-                    <div className={`absolute left-1.5 h-6.5 w-6.5 rounded-full border-2 flex items-center justify-center -translate-x-1/2 ${
-                      token.status === "redeemed" 
-                        ? "border-emerald-500 bg-emerald-100 dark:bg-emerald-950" 
+                    <div className={`absolute left-1.5 h-6 w-6 rounded-full border-2 flex items-center justify-center -translate-x-1/2 ${
+                      token.status === "redeemed"
+                        ? "border-emerald-500 bg-emerald-100 dark:bg-emerald-950"
                         : token.status === "expired"
                         ? "border-red-500 bg-red-100 dark:bg-red-950"
-                        : token.status === "invalidated"
-                        ? "border-zinc-400 bg-zinc-100 dark:bg-zinc-800"
                         : "border-blue-400 bg-blue-50 dark:bg-blue-950"
                     }`}>
                       <div className={`h-2 w-2 rounded-full ${
@@ -237,8 +232,6 @@ export default function TokenDetailPage({
                           ? "bg-emerald-600"
                           : token.status === "expired"
                           ? "bg-red-600"
-                          : token.status === "invalidated"
-                          ? "bg-zinc-500"
                           : "bg-blue-500"
                       }`} />
                     </div>
@@ -274,7 +267,7 @@ export default function TokenDetailPage({
                             Token Expired
                           </h4>
                           <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                            Voucher reached expiration threshold. In accordance with program terms, unused expired voucher credits are automatically pooled to support emergency response meal hubs.
+                            This token expired unused.
                           </p>
                           <span className="mt-2 inline-block font-mono text-[10px] text-zinc-400 bg-zinc-50 px-2 py-0.5 rounded dark:bg-zinc-800">
                             Expired At: {new Date(token.expires_at).toLocaleString()}
@@ -282,31 +275,19 @@ export default function TokenDetailPage({
                         </>
                       )}
 
-                      {token.status === "invalidated" && (
+                      {isLive && (
                         <>
                           <h4 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
-                            Token Invalidated
+                            Live / Awaiting Scan
                           </h4>
                           <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                            This token voucher was voided due to transaction adjustments or account audits.
+                            Voucher is live and ready to be presented at any participating Anna Canteen or kitchen counter.
                           </p>
-                          <span className="mt-2 inline-block font-mono text-[10px] text-zinc-400 bg-zinc-50 px-2 py-0.5 rounded dark:bg-zinc-800">
-                            Invalidated
-                          </span>
-                        </>
-                      )}
-
-                      {token.status === "active" && (
-                        <>
-                          <h4 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
-                            Active / Awaiting Scan
-                          </h4>
-                          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                            Voucher is active and ready to be presented at any participating Anna Canteen or kitchen counter.
-                          </p>
-                          <span className="mt-2 inline-block font-mono text-[10px] text-blue-600 bg-blue-50/50 px-2 py-0.5 rounded dark:bg-blue-950/20 dark:text-blue-400 font-bold">
-                            Expires On: {new Date(token.expires_at).toLocaleDateString()}
-                          </span>
+                          {token.expires_at && (
+                            <span className="mt-2 inline-block font-mono text-[10px] text-blue-600 bg-blue-50/50 px-2 py-0.5 rounded dark:bg-blue-950/20 dark:text-blue-400 font-bold">
+                              Expires On: {new Date(token.expires_at).toLocaleDateString()}
+                            </span>
+                          )}
                         </>
                       )}
                     </div>
@@ -316,55 +297,20 @@ export default function TokenDetailPage({
 
               {/* Verification & Actions Column */}
               <div className="space-y-6 md:col-span-1">
-                {/* QR Code Card */}
-                {token.status === "active" && (
+                {/* QR Code Card — real QR of the token's qr_payload */}
+                {isLive && (
                   <div className="rounded-2xl border border-zinc-200/50 bg-white p-6 shadow-sm dark:border-zinc-800/40 dark:bg-zinc-900/40 text-center flex flex-col items-center">
                     <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-50 mb-4">
                       Voucher QR Code
                     </h3>
-                    <div className="relative p-4 bg-white rounded-2xl border border-zinc-150 shadow-inner flex items-center justify-center">
-                      {/* SVG Placeholder QR Component */}
-                      <svg
-                        width="140"
-                        height="140"
-                        viewBox="0 0 100 100"
-                        className="text-zinc-900"
-                        role="img"
-                        aria-label="Voucher QR Code"
-                      >
-                        {/* Outer corners */}
-                        <rect x="0" y="0" width="25" height="25" fill="none" stroke="currentColor" strokeWidth="6" />
-                        <rect x="6" y="6" width="13" height="13" fill="currentColor" />
-                        
-                        <rect x="75" y="0" width="25" height="25" fill="none" stroke="currentColor" strokeWidth="6" />
-                        <rect x="81" y="6" width="13" height="13" fill="currentColor" />
-                        
-                        <rect x="0" y="75" width="25" height="25" fill="none" stroke="currentColor" strokeWidth="6" />
-                        <rect x="6" y="81" width="13" height="13" fill="currentColor" />
-
-                        {/* QR pattern blocks */}
-                        <rect x="35" y="5" width="10" height="15" fill="currentColor" />
-                        <rect x="55" y="0" width="10" height="10" fill="currentColor" />
-                        <rect x="60" y="15" width="10" height="20" fill="currentColor" />
-                        
-                        <rect x="5" y="35" width="15" height="10" fill="currentColor" />
-                        <rect x="0" y="55" width="10" height="10" fill="currentColor" />
-                        <rect x="15" y="60" width="20" height="10" fill="currentColor" />
-
-                        <rect x="35" y="35" width="30" height="30" fill="none" stroke="currentColor" strokeWidth="4" />
-                        <rect x="43" y="43" width="14" height="14" fill="currentColor" />
-
-                        <rect x="75" y="35" width="10" height="15" fill="currentColor" />
-                        <rect x="85" y="55" width="15" height="10" fill="currentColor" />
-                        <rect x="35" y="75" width="15" height="10" fill="currentColor" />
-                        <rect x="55" y="85" width="10" height="15" fill="currentColor" />
-
-                        <rect x="75" y="75" width="25" height="25" fill="none" stroke="currentColor" strokeWidth="3" />
-                        <rect x="80" y="80" width="6" height="6" fill="currentColor" />
-                        <rect x="90" y="90" width="6" height="6" fill="currentColor" />
-                      </svg>
-                      {/* Scanning Line overlay effect */}
-                      <div className="absolute left-0 right-0 top-1/2 h-0.5 bg-emerald-500/80 animate-bounce" />
+                    <div className="p-4 bg-white rounded-2xl border border-zinc-150 shadow-inner flex items-center justify-center">
+                      <img
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(token.qr_payload)}`}
+                        alt="Voucher QR code"
+                        width={140}
+                        height={140}
+                        className="h-[140px] w-[140px]"
+                      />
                     </div>
                     <div className="mt-3 font-mono text-[9px] text-zinc-400 break-all select-all">
                       {token.qr_payload}
@@ -375,16 +321,27 @@ export default function TokenDetailPage({
                   </div>
                 )}
 
-                {/* Cryptographic Trust Box */}
+                {/* Verification box — real serial / QR payload */}
                 <div className="rounded-2xl border border-zinc-200/50 bg-white p-6 shadow-sm dark:border-zinc-800/40 dark:bg-zinc-900/40">
                   <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-50">
-                    Trust Ledger Cert
+                    Verification
                   </h3>
                   <p className="text-[10px] text-zinc-400 mt-0.5">
-                    Immutable verification details.
+                    Token verification details.
                   </p>
 
                   <div className="mt-6 space-y-4 text-xs">
+                    {token.serial_number && (
+                      <div>
+                        <span className="font-semibold text-zinc-400 dark:text-zinc-500">
+                          Serial Number
+                        </span>
+                        <p className="font-mono text-[10px] text-zinc-700 dark:text-zinc-300 break-all bg-zinc-50 dark:bg-zinc-800 p-2.5 rounded mt-1 select-all">
+                          {token.serial_number}
+                        </p>
+                      </div>
+                    )}
+
                     <div>
                       <span className="font-semibold text-zinc-400 dark:text-zinc-500">
                         Voucher Token ID
@@ -396,38 +353,11 @@ export default function TokenDetailPage({
 
                     <div>
                       <span className="font-semibold text-zinc-400 dark:text-zinc-500">
-                        Smart Contract Address
+                        QR Payload
                       </span>
                       <p className="font-mono text-[10px] text-zinc-700 dark:text-zinc-300 break-all bg-zinc-50 dark:bg-zinc-800 p-2.5 rounded mt-1 select-all">
-                        0x34f9a0c7edb2e04313f89ad4f107f9c2d1b5003c
+                        {token.qr_payload}
                       </p>
-                    </div>
-
-                    <div>
-                      <span className="font-semibold text-zinc-400 dark:text-zinc-500">
-                        Platform Standard
-                      </span>
-                      <p className="font-semibold text-zinc-800 dark:text-zinc-200 mt-0.5">
-                        pApAmA ERC-1155 Meal Voucher
-                      </p>
-                    </div>
-
-                    <div className="border-t border-zinc-100/50 pt-4 dark:border-zinc-800/30">
-                      <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-bold text-[10px]">
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 24 24"
-                          fill="currentColor"
-                          className="h-4 w-4 text-emerald-600"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M12.516 2.185a.75.75 0 00-1.032 0 11.209 11.209 0 01-7.877 3.08.75.75 0 00-.722.515A12.74 12.74 0 002.25 9.75c0 5.942 4.064 10.933 9.563 12.348a.749.749 0 00.374 0c5.499-1.415 9.563-6.406 9.563-12.348 0-1.39-.223-2.73-.635-3.97a.75.75 0 00-.722-.515 11.21 11.21 0 01-7.877-3.08zM11.25 14.25l-2.25-2.25a.75.75 0 00-1.06 1.06l2.78 2.78a.75.75 0 001.06 0l5.25-5.25a.75.75 0 00-1.06-1.06L11.25 14.25z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                        CRYPTOGRAPHICALLY SIGNED
-                      </div>
                     </div>
                   </div>
                 </div>

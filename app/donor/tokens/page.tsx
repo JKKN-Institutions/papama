@@ -40,7 +40,7 @@ export default function TokensLedgerPage() {
     let result = tokens;
 
     if (selectedStatus !== "All") {
-      result = result.filter((t) => t.status === selectedStatus.toLowerCase());
+      result = result.filter((t) => t.status === selectedStatus);
     }
 
     if (selectedType !== "All") {
@@ -60,11 +60,18 @@ export default function TokensLedgerPage() {
     return result;
   }, [searchQuery, selectedStatus, selectedType, tokens]);
 
-  const statuses = ["All", "Active", "Redeemed", "Expired", "Invalidated"];
+  // Filter labels map to the authoritative token_status enum values.
+  const statuses: { label: string; value: string }[] = [
+    { label: "All", value: "All" },
+    { label: "Live", value: "live" },
+    { label: "In Pool", value: "in_admin_pool" },
+    { label: "Redeemed", value: "redeemed" },
+    { label: "Expired", value: "expired" },
+  ];
   const types = ["All", "Standard", "Special_Care"];
 
-  const statusBadges = {
-    // New statuses (from token_flow.md)
+  const statusBadges: Record<string, string> = {
+    // Authoritative token_status enum (token-flow.md)
     generated: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-900/50",
     live: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/50",
     in_admin_pool: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-900/50",
@@ -72,11 +79,6 @@ export default function TokensLedgerPage() {
     distributed: "bg-cyan-50 text-cyan-700 border-cyan-200 dark:bg-cyan-950/30 dark:text-cyan-400 dark:border-cyan-900/50",
     redeemed: "bg-zinc-100 text-zinc-600 border-zinc-200 dark:bg-zinc-900 dark:text-zinc-400 dark:border-zinc-800/60",
     expired: "bg-red-50 text-red-700 border-red-200 dark:bg-red-950/30 dark:text-red-400 dark:border-red-900/50",
-    // Legacy statuses (for backward compatibility)
-    active: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/50",
-    unused: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/50",
-    invalidated: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-900/50",
-    cancelled: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-900/50",
   };
 
   return (
@@ -128,18 +130,18 @@ export default function TokensLedgerPage() {
             {/* Status tabs */}
             <div className="flex flex-wrap gap-1.5">
               {statuses.map((status) => {
-                const isSelected = selectedStatus === status;
+                const isSelected = selectedStatus === status.value;
                 return (
                   <button
-                    key={status}
-                    onClick={() => setSelectedStatus(status)}
+                    key={status.value}
+                    onClick={() => setSelectedStatus(status.value)}
                     className={`rounded-xl px-3 py-1.5 text-[11px] font-bold transition ${
                       isSelected
                         ? "bg-emerald-600 text-white shadow-sm"
                         : "bg-white border border-zinc-200/60 text-zinc-600 hover:bg-zinc-50 dark:bg-zinc-900 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-800"
                     }`}
                   >
-                    {status}
+                    {status.label}
                   </button>
                 );
               })}
@@ -216,17 +218,19 @@ export default function TokensLedgerPage() {
                               {new Date(token.redeemed_at).toLocaleDateString()}
                             </p>
                           </div>
-                        ) : token.status === "active" ? (
-                          <div>
-                            <span className="font-semibold text-blue-600 dark:text-blue-400">Active</span>
-                            <p className="text-[10px] text-zinc-400 font-normal">
-                              Expires: {new Date(token.expires_at).toLocaleDateString()}
-                            </p>
-                          </div>
                         ) : token.status === "expired" ? (
                           <span className="text-red-500 font-bold">Expired</span>
                         ) : (
-                          <span className="text-zinc-400 font-bold">Invalidated</span>
+                          <div>
+                            <span className="font-semibold text-blue-600 dark:text-blue-400 capitalize">
+                              {token.status.replace(/_/g, " ")}
+                            </span>
+                            {token.expires_at && (
+                              <p className="text-[10px] text-zinc-400 font-normal">
+                                Expires: {new Date(token.expires_at).toLocaleDateString()}
+                              </p>
+                            )}
+                          </div>
                         )}
                       </td>
                       <td className="px-6 py-4 text-right">

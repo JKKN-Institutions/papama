@@ -146,6 +146,20 @@ export const tokenMintRequestSchema = z.object({
 });
 export type TokenMintRequest = z.infer<typeof tokenMintRequestSchema>;
 
+/**
+ * PATCH /api/donor/profile — the signed-in donor edits their own profile
+ * (donor_donation_credit/update, scope own). Both fields are optional so the
+ * donor can update just one. `pan_number` is the 80G seam (donors.pan_number,
+ * client Q5): nullable, and normalized/validated against the PAN format in the
+ * route (empty → null). Identity of the donor is taken from the session, never
+ * the client.
+ */
+export const donorProfilePatchSchema = z.object({
+    full_name: z.string().trim().min(1).max(120).optional(),
+    pan_number: z.string().nullable().optional(),
+});
+export type DonorProfilePatch = z.infer<typeof donorProfilePatchSchema>;
+
 // ===========================================================================
 // Beneficiary registration (BEN-1…5) — net-new, no collision
 // ===========================================================================

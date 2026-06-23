@@ -88,10 +88,10 @@ async function sumColumn(
     let q = admin.from(table).select(col);
     if (startTs) q = q.gte(tsCol, startTs);
     if (endTs) q = q.lte(tsCol, endTs);
-    const { data, error } = await q;
+    const { data, error } = await q.returns<Record<string, unknown>[]>();
     if (error) throw new Error(error.message);
     return (data ?? []).reduce(
-        (sum: number, row: Record<string, unknown>) => sum + (Number(row[col]) || 0),
+        (sum, row) => sum + (Number(row[col]) || 0),
         0
     );
 }
