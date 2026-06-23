@@ -68,9 +68,17 @@ export async function middleware(request: NextRequest) {
         return NextResponse.redirect(url);
     }
 
+    // Volunteer portal: guarded too, except its own login page (avoid redirect loop).
+    if (!user && pathname.startsWith("/volunteer") && pathname !== "/volunteer/login") {
+        const url = request.nextUrl.clone();
+        url.pathname = "/volunteer/login";
+        url.searchParams.set("redirect", pathname);
+        return NextResponse.redirect(url);
+    }
+
     return response;
 }
 
 export const config = {
-    matcher: ["/admin/:path*", "/donor/:path*", "/vendor/:path*"],
+    matcher: ["/admin/:path*", "/donor/:path*", "/vendor/:path*", "/volunteer/:path*"],
 };

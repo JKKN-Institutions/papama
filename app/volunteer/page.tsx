@@ -1,0 +1,347 @@
+"use client";
+
+import { useState } from "react";
+
+import {
+  Dash,
+  ListStates,
+  Notice,
+  PageHeader,
+  StatusBadge,
+  TableHead,
+  TableShell,
+  useVolunteerFetch,
+  useVolunteerPost,
+} from "./_ui";
+
+/** A token currently held by this volunteer, awaiting distribution. */
+interface HeldToken {
+  token_id: string;
+  serial_number: string;
+  token_type: string;
+  value: number;
+  status: string;
+  minted_at: string;
+}
+
+/** A token-allocation request this volunteer has submitted. */
+interface VolunteerRequest {
+  id: string;
+  requested_count: number;
+  decided_count: number | null;
+  status: string;
+  created_at: string;
+}
+
+/**
+ * Volunteer dashboard (Path B). Three sections: tokens held & a distribute control,
+ * a request-tokens form, and the volunteer's own request history. Each section drives
+ * its own fetch state; mutations reload the affected list on success.
+ */
+export default function VolunteerDashboardPage() {
+  // GET /api/volunteer/tokens → { tokens: HeldToken[], total }
+  const tokens = useVolunteerFetch<HeldToken[]>("/api/volunteer/tokens", "tokens", "/volunteer");
+  // GET /api/volunteer/requests → { requests: VolunteerRequest[], total }
+  const requests = useVolunteerFetch<VolunteerRequest[]>(
+    "/api/volunteer/requests",
+    "requests",
+    "/volunteer"
+  );
+
+  const tokenList = tokens.data ?? [];
+  const requestList = requests.data ?? [];
+
+  return (
+    <div className="space-y-10">
+      <PageHeader
+        title="Volunteer dashboard"
+        subtitle="Hold tokens, distribute them to beneficiaries, and request more from the admin."
+      />
+
+      <HeldTokensSection
+        state={tokens.state}
+        errorMsg={tokens.errorMsg}
+        tokens={tokenList}
+        reload={tokens.reload}
+      />
+
+      <RequestTokensSection onRequested={requests.reload} />
+
+      <MyRequestsSection
+        state={requests.state}
+        errorMsg={requests.errorMsg}
+        requests={requestList}
+      />
+    </div>
+  );
+}
+
+/* ── Section a: held tokens + distribute ───────────────────────────────────── */
+
+function HeldTokensSection({
+  state,
+  errorMsg,
+  tokens,
+  reload,
+}: {
+  state: ReturnType<typeof useVolunteerFetch>["state"];
+  errorMsg: string | null;
+  tokens: HeldToken[];
+  reload: () => Promise<void>;
+}) {
+  return (
+    <section>
+      <SectionHeader
+        title="Held tokens"
+        subtitle="Tokens assigned to you, ready to distribute to beneficiaries."
+        count={state === "ready" ? tokens.length : undefined}
+      />
+      <ListStates
+        state={state}
+        errorMsg={errorMsg}
+        isEmpty={tokens.length === 0}
+        resourceLabel="held tokens"
+        emptyHint="Tokens granted to you will appear here once the admin approves a request."
+      >
+        <TableShell>
+          <TableHead columns={["Serial", "Type", "Value", "Status", "Minted", "Action"]} />
+          <tbody className="divide-y divide-slate-100">
+            {tokens.map((t) => (
+              <DistributeRow key={t.token_id} token={t} reload={reload} />
+            ))}
+          </tbody>
+        </TableShell>
+      </ListStates>
+    </section>
+  );
+}
+
+/** A single held-token row with an inline distribute form. */
+function DistributeRow({ token, reload }: { token: HeldToken; reload: () => Promise<void> }) {
+  const { post } = useVolunteerPost();
+  const [open, setOpen] = useState(false);
+  const [faceHash, setFaceHash] = useState("");
+  const [location, setLocation] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function distribute(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      const body: Record<string, unknown> = {};
+      if (faceHash.trim()) body.beneficiary_face_hash = faceHash.trim();
+      if (location.trim()) body.distribution_location = location.trim();
+      await post(`/api/volunteer/tokens/${token.token_id}/distribute`, body);
+      await reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to distribute token.");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <tr className="hover:bg-slate-50">
+        <td className="px-4 py-3 font-mono text-xs text-slate-700">{token.serial_number}</td>
+        <td className="px-4 py-3 capitalize text-slate-700">
+          {token.token_type.replace(/_/g, " ")}
+        </td>
+        <td className="px-4 py-3 font-medium text-slate-900">
+          ₹{token.value.toLocaleString("en-IN")}
+        </td>
+        <td className="px-4 py-3">
+          <StatusBadge value={token.status} />
+        </td>
+        <td className="px-4 py-3 text-slate-500">
+          {new Date(token.minted_at).toLocaleDateString()}
+        </td>
+        <td className="px-4 py-3">
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            disabled={busy}
+            className="rounded-md border border-green-300 bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700 transition hover:bg-green-100 disabled:opacity-50"
+          >
+            {open ? "Cancel" : "Distribute"}
+          </button>
+        </td>
+      </tr>
+      {open && (
+        <tr className="bg-slate-50/60">
+          <td colSpan={6} className="px-4 py-4">
+            <form onSubmit={distribute} className="flex flex-wrap items-end gap-3">
+              <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
+                Beneficiary face hash (optional)
+                <input
+                  value={faceHash}
+                  onChange={(e) => setFaceHash(e.target.value)}
+                  placeholder="hash…"
+                  className="w-56 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-600 focus:ring-1 focus:ring-slate-600"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
+                Distribution location (optional)
+                <input
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  placeholder="e.g. Relief camp 3"
+                  className="w-56 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-600 focus:ring-1 focus:ring-slate-600"
+                />
+              </label>
+              <button
+                type="submit"
+                disabled={busy}
+                className="rounded-lg bg-slate-900 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:opacity-60"
+              >
+                {busy ? "Distributing…" : "Confirm distribution"}
+              </button>
+              {error && <span className="text-xs font-medium text-red-700">{error}</span>}
+            </form>
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
+/* ── Section b: request more tokens ────────────────────────────────────────── */
+
+function RequestTokensSection({ onRequested }: { onRequested: () => Promise<void> }) {
+  const { post } = useVolunteerPost();
+  const [count, setCount] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    const n = Number(count);
+    if (!Number.isInteger(n) || n <= 0) {
+      setError("Enter a whole number of tokens greater than zero.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setMsg(null);
+    try {
+      await post<{ request_id: string; status: string }>("/api/volunteer/requests", {
+        requested_count: n,
+      });
+      setMsg(`Requested ${n} token(s). The admin will review your request.`);
+      setCount("");
+      await onRequested();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to submit request.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section>
+      <SectionHeader
+        title="Request tokens"
+        subtitle="Ask the admin to allocate more tokens for you to distribute."
+      />
+      <form
+        onSubmit={submit}
+        className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4"
+      >
+        <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
+          Number of tokens
+          <input
+            type="number"
+            min={1}
+            step={1}
+            value={count}
+            onChange={(e) => setCount(e.target.value)}
+            placeholder="e.g. 25"
+            className="w-40 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-600 focus:ring-1 focus:ring-slate-600"
+          />
+        </label>
+        <button
+          type="submit"
+          disabled={busy}
+          className="rounded-lg bg-slate-900 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:opacity-60"
+        >
+          {busy ? "Requesting…" : "Request"}
+        </button>
+        {msg && <span className="text-xs font-medium text-green-700">{msg}</span>}
+        {error && <span className="text-xs font-medium text-red-700">{error}</span>}
+      </form>
+    </section>
+  );
+}
+
+/* ── Section c: my requests ────────────────────────────────────────────────── */
+
+function MyRequestsSection({
+  state,
+  errorMsg,
+  requests,
+}: {
+  state: ReturnType<typeof useVolunteerFetch>["state"];
+  errorMsg: string | null;
+  requests: VolunteerRequest[];
+}) {
+  return (
+    <section>
+      <SectionHeader
+        title="My requests"
+        subtitle="The status of each token-allocation request you have submitted."
+        count={state === "ready" ? requests.length : undefined}
+      />
+      <ListStates
+        state={state}
+        errorMsg={errorMsg}
+        isEmpty={requests.length === 0}
+        resourceLabel="requests"
+        emptyHint="Submit a request above and it will show up here with its status."
+      >
+        <TableShell>
+          <TableHead columns={["Requested", "Granted", "Status", "Submitted"]} />
+          <tbody className="divide-y divide-slate-100">
+            {requests.map((r) => (
+              <tr key={r.id} className="hover:bg-slate-50">
+                <td className="px-4 py-3 font-medium text-slate-900">{r.requested_count}</td>
+                <td className="px-4 py-3 text-slate-700">
+                  <Dash>{r.decided_count != null ? r.decided_count : null}</Dash>
+                </td>
+                <td className="px-4 py-3">
+                  <StatusBadge value={r.status} />
+                </td>
+                <td className="px-4 py-3 text-slate-500">
+                  {new Date(r.created_at).toLocaleDateString()}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </TableShell>
+      </ListStates>
+    </section>
+  );
+}
+
+/* ── shared ───────────────────────────────────────────────────────────────── */
+
+function SectionHeader({
+  title,
+  subtitle,
+  count,
+}: {
+  title: string;
+  subtitle: string;
+  count?: number;
+}) {
+  return (
+    <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+      <div>
+        <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
+        <p className="mt-0.5 text-sm text-slate-500">{subtitle}</p>
+      </div>
+      {count != null && <span className="text-sm text-slate-400">{count} total</span>}
+    </div>
+  );
+}
