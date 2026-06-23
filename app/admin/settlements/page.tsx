@@ -1,16 +1,33 @@
 "use client";
 
+import { useCan } from "@/components/auth/AppUserProvider";
 import type { SettlementResponse } from "@/lib/validation/schemas";
 
-import { AdminPageHeader, Dash, ListStates, StatusBadge, TableHead, TableShell, useAdminList } from "../_ui";
+import {
+    ActionButton,
+    AdminPageHeader,
+    Dash,
+    ListStates,
+    Notice,
+    StatusBadge,
+    TableHead,
+    TableShell,
+    useAdminList,
+    useRowAction,
+} from "../_ui";
 
-/** Admin settlements page — vendor settlement headers and payout status (contract §8). */
+/** Admin settlements page — vendor settlement headers, payout status and lifecycle actions (contract §8). */
 export default function AdminSettlementsPage() {
-    const { items, state, errorMsg } = useAdminList<SettlementResponse>(
+    const canManage = useCan("vendor_settlement", "update");
+    const { items, state, errorMsg, reload } = useAdminList<SettlementResponse>(
         "/api/admin/settlements",
         "settlements",
         "/admin/settlements"
     );
+    const { run, busyId, actionError } = useRowAction("/api/admin/settlements", reload);
+
+    const columns = ["Vendor", "Period", "Amount", "Status", "Line items", "Settled"];
+    if (canManage) columns.push("Actions");
 
     return (
         <div>
@@ -19,6 +36,15 @@ export default function AdminSettlementsPage() {
                 subtitle="Vendor settlement headers. Amounts populate once line items land."
                 count={state === "ready" ? items.length : undefined}
             />
+
+            {actionError && (
+                <div className="mb-4">
+                    <Notice tone="error" title="Action failed">
+                        {actionError}
+                    </Notice>
+                </div>
+            )}
+
             <ListStates
                 state={state}
                 errorMsg={errorMsg}
@@ -27,9 +53,7 @@ export default function AdminSettlementsPage() {
                 emptyHint="Settlements will appear here once settlement cycles run."
                 table={
                     <TableShell>
-                        <TableHead
-                            columns={["Vendor", "Period", "Amount", "Status", "Line items", "Settled"]}
-                        />
+                        <TableHead columns={columns} />
                         <tbody className="divide-y divide-slate-100">
                             {items.map((s) => (
                                 <tr key={s.settlement_id} className="hover:bg-slate-50">
@@ -53,12 +77,75 @@ export default function AdminSettlementsPage() {
                                                 : null}
                                         </Dash>
                                     </td>
+                                    {canManage && (
+                                        <td className="px-4 py-3">
+                                            <SettlementActions
+                                                id={s.settlement_id}
+                                                status={s.status}
+                                                amount={s.amount}
+                                                busy={busyId === s.settlement_id}
+                                                run={run}
+                                            />
+                                        </td>
+                                    )}
                                 </tr>
                             ))}
                         </tbody>
                     </TableShell>
                 }
             />
+        </div>
+    );
+}
+
+function SettlementActions({
+    id,
+    status,
+    amount,
+    busy,
+    run,
+}: {
+    id: string;
+    status: SettlementResponse["status"];
+    amount: number;
+    busy: boolean;
+    run: (rowId: string, payload: Record<string, unknown>, confirmText?: string) => void;
+}) {
+    const act = (action: string, confirmText?: string) =>
+        run(id, { settlement_id: id, action }, confirmText);
+
+    return (
+        <div className="flex flex-wrap gap-1.5">
+            {status === "pending" && (
+                <ActionButton tone="neutral" disabled={busy} onClick={() => act("lock")}>
+                    Lock
+                </ActionButton>
+            )}
+            {status === "locked" && (
+                <>
+                    <ActionButton tone="primary" disabled={busy} onClick={() => act("reconcile")}>
+                        Reconcile
+                    </ActionButton>
+                    <ActionButton tone="neutral" disabled={busy} onClick={() => act("unlock")}>
+                        Unlock
+                    </ActionButton>
+                </>
+            )}
+            {status === "reconciled" && (
+                <ActionButton
+                    tone="primary"
+                    disabled={busy}
+                    onClick={() =>
+                        act(
+                            "pay",
+                            `Mark this settlement as paid (₹${amount.toLocaleString("en-IN")})? This stamps the payout time.`
+                        )
+                    }
+                >
+                    Mark paid
+                </ActionButton>
+            )}
+            {status === "paid" && <span className="text-xs text-slate-400">—</span>}
         </div>
     );
 }

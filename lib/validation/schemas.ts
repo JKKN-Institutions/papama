@@ -272,6 +272,22 @@ export const settlementResponseSchema = z.object({
 });
 export type SettlementResponse = z.infer<typeof settlementResponseSchema>;
 
+/**
+ * PATCH /api/admin/settlements — admin settlement lifecycle (contract §8, owner
+ * §4.8). Forward cycle lock → reconcile → pay; `unlock` is the admin override
+ * that returns a locked settlement to pending. `pay` stamps `settled_at`.
+ * `note` is appended to the audit trail.
+ */
+export const settlementActionSchema = z.enum(["lock", "unlock", "reconcile", "pay"]);
+export type SettlementAction = z.infer<typeof settlementActionSchema>;
+
+export const settlementActionRequestSchema = z.object({
+    settlement_id: z.string().uuid(),
+    action: settlementActionSchema,
+    note: z.string().trim().max(500).optional(),
+});
+export type SettlementActionRequest = z.infer<typeof settlementActionRequestSchema>;
+
 // ===========================================================================
 // Fraud (contract §9) — net-new
 // ===========================================================================

@@ -1,6 +1,11 @@
-import { defineRoute } from "@/lib/api/handler";
+import { BadRequestError, NotFoundError, defineRoute, parseBody } from "@/lib/api/handler";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import type { SettlementResponse } from "@/lib/validation/schemas";
+import type { SettlementStatus } from "@/lib/types/enums";
+import {
+    settlementActionRequestSchema,
+    type SettlementResponse,
+} from "@/lib/validation/schemas";
 
 /**
  * GET /api/admin/settlements — vendor settlement headers (contract §8).
@@ -32,3 +37,74 @@ export const GET = defineRoute({ feature: "vendor_settlement", action: "read" },
 
     return { settlements, total: settlements.length };
 });
+
+/**
+ * PATCH /api/admin/settlements — admin settlement lifecycle (contract §8).
+ *
+ * Gated by `vendor_settlement/update` — admin only (matches the
+ * `vendor_settlements_update_admin` RLS policy; admin also holds the matrix
+ * `override` capability). Forward cycle lock → reconcile → pay; `unlock` is the
+ * override returning a locked row to pending. `pay` stamps `settled_at`. Illegal
+ * transition → 400, missing → 404. Audited.
+ */
+type SettlementActionRule = {
+    to: SettlementStatus;
+    from: ReadonlyArray<SettlementStatus>;
+    verb: string;
+    stampsSettledAt?: boolean;
+};
+
+const SETTLEMENT_ACTION_RULES: Record<string, SettlementActionRule> = {
+    lock: { to: "locked", from: ["pending"], verb: "settlement.lock" },
+    unlock: { to: "pending", from: ["locked"], verb: "settlement.unlock" },
+    reconcile: { to: "reconciled", from: ["locked"], verb: "settlement.reconcile" },
+    pay: { to: "paid", from: ["reconciled"], verb: "settlement.pay", stampsSettledAt: true },
+};
+
+export const PATCH = defineRoute(
+    { feature: "vendor_settlement", action: "update" },
+    async ({ req, audit }) => {
+        const body = await parseBody(req, settlementActionRequestSchema);
+        const rule = SETTLEMENT_ACTION_RULES[body.action];
+
+        const admin = createAdminClient();
+
+        const { data, error: fetchError } = await admin
+            .from("vendor_settlements")
+            .select("id, status")
+            .eq("id", body.settlement_id)
+            .single();
+
+        if (fetchError || !data) throw new NotFoundError("settlement not found");
+        const settlement = data as { id: string; status: SettlementStatus };
+
+        if (!rule.from.includes(settlement.status)) {
+            throw new BadRequestError(
+                `cannot '${body.action}' a settlement whose status is '${settlement.status}'`
+            );
+        }
+
+        const nowIso = new Date().toISOString();
+        const update: Record<string, unknown> = { status: rule.to, updated_at: nowIso };
+        if (rule.stampsSettledAt) update.settled_at = nowIso;
+
+        const { error: updateError } = await admin
+            .from("vendor_settlements")
+            .update(update)
+            .eq("id", body.settlement_id);
+
+        if (updateError) throw new Error(updateError.message);
+
+        await audit({
+            action: rule.verb,
+            entity_table: "vendor_settlements",
+            entity_id: body.settlement_id,
+            summary: `settlement: ${settlement.status} → ${rule.to}${
+                body.note ? ` (${body.note})` : ""
+            }`,
+            metadata: { from: settlement.status, to: rule.to, note: body.note ?? null },
+        });
+
+        return { ok: true, id: body.settlement_id, status: rule.to };
+    }
+);

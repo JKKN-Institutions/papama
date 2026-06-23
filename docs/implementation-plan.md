@@ -62,7 +62,9 @@ matrix cell + `audit()`), then wire UI controls gated by `useCan()`:
   `useRowAction`). _Registration approve/reject queue (`beneficiary_registrations`)
   is a separate later slice._
 - [ ] Volunteers — assign / grant tokens; **enforce `max_tokens_per_volunteer`** from `system_config` (`token_distribution`)
-- [ ] Settlements — lock / reconcile / pay / override (`vendor_settlement` + `override`)
+- [x] Settlements — lock / reconcile / pay + unlock override
+  (`PATCH /api/admin/settlements`, admin-only state machine; pay stamps
+  `settled_at`; audited; UI via `useRowAction`)
 - [x] Fraud — resolve / dismiss (`PATCH /api/admin/fraud`, admin-only; dismiss
   clears block; resolver + notes recorded + audited; UI actions via `useRowAction`)
 - [ ] System config — update values (set `max_tokens_per_volunteer` once mentor gives the number)
