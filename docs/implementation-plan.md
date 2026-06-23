@@ -51,7 +51,7 @@ and connecting the real UI to it.
 - [x] Offline-demo flag made authoritative (`lib/donor/services/mock-mode.ts`;
   `NEXT_PUBLIC_USE_MOCK_API=true` forces mock everywhere).
 
-### Phase B — Admin write operations (make the console functional)
+### Phase B — Admin write operations ✅ DONE (except C5, moved to Phase C)
 For each domain: add guarded `POST/PATCH` routes via `defineRoute` (correct
 matrix cell + `audit()`), then wire UI controls gated by `useCan()`:
 - [x] Vendors — approve / reject / suspend / reinstate + KYC verify/fail
@@ -73,7 +73,9 @@ matrix cell + `audit()`), then wire UI controls gated by `useCan()`:
 - [x] System config — edit values inline (`PATCH /api/admin/system-config`,
   admin-only; value coerced to `value_type`; `null` unsets; audited). This is
   where `max_tokens_per_volunteer` gets set once the mentor gives the number.
-- [ ] Reports — generate / export (`audit_reports`)
+- [x] Reports — generate (`POST /api/admin/reports`, admin-only; aggregates
+  donations/redemptions/settlements/audit/fraud into `summary` over an optional
+  window; audited; UI generate form). _File export (PDF/CSV to storage) deferred._
 
 ### Phase C — Donor module: replace mock with governed backend
 - [ ] **C1** Real donor routes (`donations/create`, `donor/credits`,

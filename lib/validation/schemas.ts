@@ -471,6 +471,29 @@ export const complianceReportResponseSchema = z.object({
 export type ComplianceReportResponse = z.infer<typeof complianceReportResponseSchema>;
 
 /**
+ * POST /api/admin/reports — generate a report by aggregating live data into a
+ * `compliance_reports` row (admin only). Optional period (YYYY-MM-DD) filters the
+ * aggregation window. File export (PDF/CSV to storage) is a later slice; for now
+ * the computed `summary` jsonb is the report payload.
+ */
+const reportDateString = z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "expected a YYYY-MM-DD date");
+
+export const reportGenerateRequestSchema = z
+    .object({
+        report_type: reportTypeSchema,
+        title: z.string().trim().max(200).optional(),
+        period_start: reportDateString.optional(),
+        period_end: reportDateString.optional(),
+    })
+    .refine(
+        (r) => !r.period_start || !r.period_end || r.period_start <= r.period_end,
+        { message: "period_start must be on or before period_end", path: ["period_start"] }
+    );
+export type ReportGenerateRequest = z.infer<typeof reportGenerateRequestSchema>;
+
+/**
  * Richer fraud_flags row (M12) — superset of fraudFlagResponseSchema above with
  * the resolution + detection-method columns the admin fraud console needs.
  */
