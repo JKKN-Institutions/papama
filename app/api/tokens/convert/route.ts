@@ -1,8 +1,11 @@
+import { randomUUID } from "node:crypto";
+
 import { BadRequestError, defineRoute, parseBody } from "@/lib/api/handler";
 import { resolveDonorId } from "@/lib/donor/server-identity";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getNumber } from "@/lib/system-config";
 import { tokenMintRequestSchema } from "@/lib/validation/schemas";
+import { deriveQrPayload, qrHashOf } from "@/app/api/_lib/tokenQr";
 
 /**
  * POST /api/tokens/convert — the signed-in donor mints ONE token from credit
@@ -28,6 +31,11 @@ export const POST = defineRoute(
     { feature: "token_generation", action: "create", scope: "own" },
     async ({ req, user, audit }) => {
         const body = await parseBody(req, tokenMintRequestSchema);
+
+        // Donors mint Standard only; Special Care is beneficiary-eligibility-driven.
+        if (body.token_type === "special_care") {
+            throw new BadRequestError("donors can only mint Standard tokens");
+        }
 
         const admin = createAdminClient();
         const donorId = await resolveDonorId(user, admin);
@@ -72,12 +80,18 @@ export const POST = defineRoute(
         const status = body.distribution_path === "use_now" ? "live" : "in_admin_pool";
         const serial = serialNumber(body.token_type);
 
+        // One-time QR: derive the payload from the (pre-generated) id + a server
+        // secret, store only its non-reversible hash (SEC-5), return the payload.
+        const id = randomUUID();
+        const qrPayload = deriveQrPayload(id);
+
         // 1. Mint the token.
         const { data: token, error: tokenError } = await admin
             .from("tokens")
             .insert({
+                id,
                 serial_number: serial,
-                qr_hash: `PAPAMA:${serial}`,
+                qr_hash: qrHashOf(qrPayload),
                 token_type: body.token_type,
                 value_inr: body.amount_inr,
                 status,
@@ -85,7 +99,7 @@ export const POST = defineRoute(
                 special_instructions: body.special_instructions ?? null,
                 expires_at: expiresAt,
             })
-            .select("id, serial_number, token_type, status, value_inr, qr_hash, expires_at")
+            .select("id, serial_number, token_type, status, value_inr, expires_at")
             .single();
 
         if (tokenError || !token) {
@@ -97,7 +111,6 @@ export const POST = defineRoute(
             token_type: string;
             status: string;
             value_inr: number;
-            qr_hash: string | null;
             expires_at: string | null;
         };
 
@@ -149,13 +162,24 @@ export const POST = defineRoute(
             },
         });
 
+        // Notify the donor their token is ready (TRANS).
+        await admin.from("notifications").insert({
+            donor_id: donorId,
+            kind: "token_generated",
+            title: "Token created",
+            message: `A ₹${body.amount_inr} ${body.token_type} token is ready (${
+                status === "live" ? "yours to use" : "authorized to pApAmA"
+            }).`,
+            metadata: { token_id: t.id, value_inr: body.amount_inr, status },
+        });
+
         return {
             token_id: t.id,
             serial_number: t.serial_number,
             token_type: t.token_type,
             status: t.status,
             value: t.value_inr,
-            qr_payload: t.qr_hash ?? `PAPAMA:${t.serial_number}`,
+            qr_payload: qrPayload,
             expires_at: t.expires_at,
             credit_balance: newBalance,
         };

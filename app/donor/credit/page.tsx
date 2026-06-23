@@ -23,9 +23,11 @@ function CreditContent() {
 
   // Successful Conversion Result State (one token per mint).
   const [convertedToken, setConvertedToken] = useState<ConvertTokenItem | null>(null);
-  // Path A/B fork shown after a successful mint.
+  // Path A/B distribution choice, selected BEFORE minting (token-flow §2): the
+  // route mints `live` (use_now) or `in_admin_pool` (authorize_papama).
+  const [mintPath, setMintPath] = useState<DistributionPath>("use_now");
+  // The path the minted token actually committed to (for the success view).
   const [distributionPath, setDistributionPath] = useState<DistributionPath | null>(null);
-  const [pathSaving, setPathSaving] = useState(false);
 
   const threshold = credits?.threshold ?? 50;
   const balance = credits?.credit_balance ?? 0;
@@ -46,6 +48,7 @@ function CreditContent() {
   const closeConvertModal = () => {
     setIsConvertOpen(false);
     setConvertedToken(null);
+    setMintPath("use_now");
     setDistributionPath(null);
     setConvertError(null);
     setAmountError(null);
@@ -99,11 +102,11 @@ function CreditContent() {
     setIsConverting(true);
     setConvertError(null);
     try {
-      // Default the new token to "use it now" (Path A); the donor can switch to
-      // Path B from the post-mint fork below. The route mints with this path.
-      const res = await ApiClient.convertCreditToToken(amount, "use_now");
+      // Mint with the donor's chosen path (token-flow §2): use_now → live,
+      // authorize_papama → in_admin_pool. The route honours distribution_path.
+      const res = await ApiClient.convertCreditToToken(amount, mintPath);
       setConvertedToken(res.token);
-      setDistributionPath("use_now");
+      setDistributionPath(mintPath);
       // Dispatch update to reload Navbar balances
       window.dispatchEvent(new Event("papama_data_update"));
       await loadCredits();
@@ -113,16 +116,6 @@ function CreditContent() {
     } finally {
       setIsConverting(false);
     }
-  };
-
-  // Post-mint Path A/B selection. The mint already committed Path A (use_now);
-  // re-mint under Path B is out of scope here, so record the donor's choice
-  // locally and reflect it in the UI (the volunteer/admin flow consumes it).
-  const choosePath = (path: DistributionPath) => {
-    if (pathSaving) return;
-    setPathSaving(true);
-    setDistributionPath(path);
-    setPathSaving(false);
   };
 
   return (
@@ -309,41 +302,18 @@ function CreditContent() {
                       </div>
                     </div>
 
-                    {/* Path A/B fork */}
-                    <div className="mt-6 text-left">
+                    {/* Resulting distribution status (chosen at mint, token-flow §2) */}
+                    <div className="mt-6 text-left rounded-xl border border-zinc-150/60 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30 p-3.5">
                       <p className="text-[11px] font-bold text-zinc-600 dark:text-zinc-300">
-                        How should this token be used?
+                        {distributionPath === "authorize_papama"
+                          ? "Authorized to pApAmA"
+                          : "Live — held by you"}
                       </p>
-                      <div className="mt-3 grid grid-cols-1 gap-2.5">
-                        <button
-                          type="button"
-                          onClick={() => choosePath("use_now")}
-                          disabled={pathSaving}
-                          aria-pressed={distributionPath === "use_now"}
-                          className={`rounded-xl border p-3 text-left transition cursor-pointer ${
-                            distributionPath === "use_now"
-                              ? "border-emerald-600 bg-emerald-500/5 text-emerald-800 dark:border-emerald-500 dark:text-emerald-400"
-                              : "border-zinc-200 bg-white hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-800"
-                          }`}
-                        >
-                          <span className="block text-xs font-bold">Use it now</span>
-                          <span className="text-[10px] text-zinc-400 block mt-0.5">Keep the token live to redeem yourself.</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => choosePath("authorize_papama")}
-                          disabled={pathSaving}
-                          aria-pressed={distributionPath === "authorize_papama"}
-                          className={`rounded-xl border p-3 text-left transition cursor-pointer ${
-                            distributionPath === "authorize_papama"
-                              ? "border-emerald-600 bg-emerald-500/5 text-emerald-800 dark:border-emerald-500 dark:text-emerald-400"
-                              : "border-zinc-200 bg-white hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-800"
-                          }`}
-                        >
-                          <span className="block text-xs font-bold">Authorize pApAmA to distribute</span>
-                          <span className="text-[10px] text-zinc-400 block mt-0.5">Add to the admin pool for a volunteer to deliver.</span>
-                        </button>
-                      </div>
+                      <p className="mt-0.5 text-[10px] text-zinc-400">
+                        {distributionPath === "authorize_papama"
+                          ? "This token is now in the admin pool for a volunteer to deliver."
+                          : "Keep this token live to redeem or share its QR yourself."}
+                      </p>
                     </div>
 
                     <div className="mt-6 flex flex-col gap-2.5">
@@ -418,6 +388,39 @@ function CreditContent() {
                       <p className="text-[10px] text-zinc-400 dark:text-zinc-500 text-center font-semibold">
                         Mints 1 token of ₹{Number.isNaN(amount) ? 0 : amount} · min ₹{threshold}, max ₹{balance}
                       </p>
+                    </div>
+
+                    {/* Path A/B choice (token-flow §2) — drives the minted status */}
+                    <div className="mt-5 space-y-2">
+                      <p className="text-xs font-bold text-zinc-600 dark:text-zinc-400">After minting, this token should:</p>
+                      <div className="grid grid-cols-1 gap-2.5">
+                        <button
+                          type="button"
+                          onClick={() => setMintPath("use_now")}
+                          aria-pressed={mintPath === "use_now"}
+                          className={`rounded-xl border p-3 text-left transition cursor-pointer ${
+                            mintPath === "use_now"
+                              ? "border-emerald-600 bg-emerald-500/5 text-emerald-800 dark:border-emerald-500 dark:text-emerald-400"
+                              : "border-zinc-200 bg-white hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-800"
+                          }`}
+                        >
+                          <span className="block text-xs font-bold">Use it now</span>
+                          <span className="text-[10px] text-zinc-400 block mt-0.5">Keep the token live to redeem or share yourself.</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setMintPath("authorize_papama")}
+                          aria-pressed={mintPath === "authorize_papama"}
+                          className={`rounded-xl border p-3 text-left transition cursor-pointer ${
+                            mintPath === "authorize_papama"
+                              ? "border-emerald-600 bg-emerald-500/5 text-emerald-800 dark:border-emerald-500 dark:text-emerald-400"
+                              : "border-zinc-200 bg-white hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-800"
+                          }`}
+                        >
+                          <span className="block text-xs font-bold">Authorize pApAmA to distribute</span>
+                          <span className="text-[10px] text-zinc-400 block mt-0.5">Add to the admin pool for a volunteer to deliver.</span>
+                        </button>
+                      </div>
                     </div>
 
                     {/* Submit Actions */}

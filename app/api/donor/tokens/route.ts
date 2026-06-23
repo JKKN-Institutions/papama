@@ -1,5 +1,6 @@
 import { defineRoute } from "@/lib/api/handler";
 import { createClient } from "@/lib/supabase/server";
+import { deriveQrPayload } from "@/app/api/_lib/tokenQr";
 
 /**
  * GET /api/donor/tokens — the signed-in donor's minted tokens (token-flow §2).
@@ -17,7 +18,7 @@ export const GET = defineRoute(
         const { data, error } = await supabase
             .from("tokens")
             .select(
-                "id, serial_number, token_type, status, value_inr, qr_hash, expires_at, minted_at, redeemed_at, special_instructions"
+                "id, serial_number, token_type, status, value_inr, expires_at, minted_at, redeemed_at, special_instructions"
             )
             .order("minted_at", { ascending: false });
 
@@ -29,7 +30,7 @@ export const GET = defineRoute(
             token_type: t.token_type as string,
             status: t.status as string,
             value: t.value_inr as number,
-            qr_payload: (t.qr_hash as string | null) ?? `PAPAMA:${t.serial_number}`,
+            qr_payload: deriveQrPayload(t.id as string),
             issued_at: t.minted_at as string,
             expires_at: (t.expires_at as string | null) ?? null,
             redeemed_at: (t.redeemed_at as string | null) ?? null,

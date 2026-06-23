@@ -63,7 +63,8 @@ export const POST = defineRoute(
             .eq("donor_id", donorId)
             .maybeSingle();
 
-        const newBalance = (creditRow?.balance_inr ?? 0) + body.amount_inr;
+        const oldBalance = creditRow?.balance_inr ?? 0;
+        const newBalance = oldBalance + body.amount_inr;
 
         const creditWrite = creditRow
             ? await admin
@@ -86,9 +87,10 @@ export const POST = defineRoute(
         if (txError) throw new Error(txError.message);
 
         // Threshold (for the UI's "you can mint now" hint); unset → not reached.
+        let threshold: number | null = null;
         let thresholdReached = false;
         try {
-            const threshold = await getNumber("standard_token_value", admin as never);
+            threshold = await getNumber("standard_token_value", admin as never);
             thresholdReached = newBalance >= threshold;
         } catch {
             // standard_token_value unset — no guessed default.
@@ -101,6 +103,27 @@ export const POST = defineRoute(
             summary: `donor added ₹${body.amount_inr} credit (${method})`,
             metadata: { amount_inr: body.amount_inr, new_balance: newBalance, payment_ref: paymentRef },
         });
+
+        // Notifications (TRANS): donation receipt + a one-time threshold alert.
+        const notes: Array<Record<string, unknown>> = [
+            {
+                donor_id: donorId,
+                kind: "donation_success",
+                title: "Donation received",
+                message: `Thank you! ₹${body.amount_inr} was added to your credit.`,
+                metadata: { amount_inr: body.amount_inr, balance: newBalance },
+            },
+        ];
+        if (threshold != null && oldBalance < threshold && newBalance >= threshold) {
+            notes.push({
+                donor_id: donorId,
+                kind: "threshold",
+                title: "You can mint a token",
+                message: `Your credit reached ₹${newBalance} — convert it into a food token.`,
+                metadata: { balance: newBalance, threshold },
+            });
+        }
+        await admin.from("notifications").insert(notes);
 
         return {
             donation_id: donationId,
