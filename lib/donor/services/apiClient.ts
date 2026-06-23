@@ -11,6 +11,7 @@ import {
   RedemptionHistoryItem
 } from '../types/contract';
 import { DashboardService } from './dashboardService';
+import { isMockMode } from './mock-mode';
 
 const STORAGE_KEYS = {
   CREDITS: 'papama_mock_credits',
@@ -538,33 +539,120 @@ function simulateBackgroundRedemption(tokenId?: string): void {
 
 export const ApiClient = {
   // Section 1
+  // In mock mode every call resolves against the in-browser mock DB (offline
+  // demo). Otherwise these hit the real same-origin governed routes
+  // (POST /api/donations/create, /api/tokens/convert; GET /api/donor/credits,
+  // /api/donor/tokens) with the session cookie, and the responses are mapped
+  // into the donor contract types the UI already renders.
   async createDonation(amount: number, paymentMethod: string, donorId: string | null): Promise<DonationResponse> {
-    return apiRequest<DonationResponse>('/api/donations/create', {
+    if (isMockMode()) {
+      return apiRequest<DonationResponse>('/api/donations/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount, payment_method: paymentMethod, donor_id: donorId }),
+      });
+    }
+    const res = await fetch('/api/donations/create', {
       method: 'POST',
+      credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ amount, payment_method: paymentMethod, donor_id: donorId }),
+      body: JSON.stringify({ amount_inr: amount, payment_method: paymentMethod }),
     });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? `Donation failed (${res.status})`);
+    const d = await res.json();
+    return {
+      donation_id: d.donation_id,
+      amount,
+      payment_method: paymentMethod as DonationResponse['payment_method'],
+      status: d.status === 'completed' ? 'success' : (d.status as DonationResponse['status']),
+      credit_added: d.credit_added,
+      credit_balance: d.credit_balance,
+      threshold_reached: d.threshold_reached,
+      created_at: new Date().toISOString(),
+    };
   },
 
   async getCredits(): Promise<CreditsResponse> {
-    return apiRequest<CreditsResponse>('/api/donor/credits', {
-      method: 'GET',
-    });
+    if (isMockMode()) {
+      return apiRequest<CreditsResponse>('/api/donor/credits', { method: 'GET' });
+    }
+    const res = await fetch('/api/donor/credits', { credentials: 'same-origin', cache: 'no-store' });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? `Failed to load credits (${res.status})`);
+    const c = await res.json();
+    const threshold: number = c.threshold ?? 0;
+    return {
+      credit_balance: c.credit_balance,
+      threshold,
+      threshold_reached: c.threshold_reached,
+      convertible_tokens: threshold > 0 ? Math.floor(c.credit_balance / threshold) : 0,
+      withdrawable: false,
+      transactions: (c.transactions ?? []).map((t: { id: string; type: string; amount: number; timestamp: string }) => ({
+        id: t.id,
+        type: t.type as CreditTransaction['type'],
+        amount: t.amount,
+        at: t.timestamp,
+      })),
+    };
   },
 
   async convertCreditToToken(amount: number, tokenType: 'standard' | 'special_care', specialInstructions?: string): Promise<ConvertResponse> {
-    return apiRequest<ConvertResponse>('/api/tokens/convert', {
+    if (isMockMode()) {
+      return apiRequest<ConvertResponse>('/api/tokens/convert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount, token_type: tokenType, special_instructions: specialInstructions }),
+      });
+    }
+    const res = await fetch('/api/tokens/convert', {
       method: 'POST',
+      credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ amount, token_type: tokenType, special_instructions: specialInstructions }),
+      body: JSON.stringify({
+        token_type: tokenType,
+        amount_inr: amount,
+        distribution_path: 'use_now',
+        special_instructions: specialInstructions,
+      }),
     });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? `Conversion failed (${res.status})`);
+    const t = await res.json();
+    return {
+      tokens: [
+        {
+          token_id: t.token_id,
+          type: t.token_type,
+          qr_payload: t.qr_payload,
+          status: t.status,
+          expires_at: t.expires_at ?? '',
+        },
+      ],
+      credit_balance: t.credit_balance,
+      converted: amount,
+    };
   },
 
   // Section 2
   async getTokens(): Promise<TokensResponse> {
-    return apiRequest<TokensResponse>('/api/donor/tokens', {
-      method: 'GET',
-    });
+    if (isMockMode()) {
+      return apiRequest<TokensResponse>('/api/donor/tokens', { method: 'GET' });
+    }
+    const res = await fetch('/api/donor/tokens', { credentials: 'same-origin', cache: 'no-store' });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? `Failed to load tokens (${res.status})`);
+    const d = await res.json();
+    return {
+      tokens: (d.tokens ?? []).map((t: Record<string, unknown>) => ({
+        token_id: t.token_id as string,
+        type: t.token_type as TokenItem['type'],
+        status: t.status as TokenItem['status'],
+        qr_payload: t.qr_payload as string,
+        value: t.value as number,
+        issued_at: t.issued_at as string,
+        expires_at: (t.expires_at as string | null) ?? '',
+        redeemed_at: (t.redeemed_at as string | null) ?? null,
+        is_special_care: t.is_special_care as boolean | undefined,
+        special_instructions: t.special_instructions as string | undefined,
+      })),
+    };
   },
 
   // Section 3
