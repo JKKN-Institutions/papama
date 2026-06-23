@@ -157,6 +157,22 @@ export const beneficiaryResponseSchema = z.object({
 });
 export type BeneficiaryResponse = z.infer<typeof beneficiaryResponseSchema>;
 
+/**
+ * PATCH /api/admin/beneficiaries — admin record-state control (owner §4.6).
+ * `suspend` = temporary hold, `activate` = lift the hold, `block` = permanent
+ * stop. Operates on the `beneficiaries.status` enum (active|suspended|blocked).
+ * `reason` is recorded in the audit trail.
+ */
+export const beneficiaryActionSchema = z.enum(["suspend", "activate", "block"]);
+export type BeneficiaryAction = z.infer<typeof beneficiaryActionSchema>;
+
+export const beneficiaryActionRequestSchema = z.object({
+    beneficiary_id: z.string().uuid(),
+    action: beneficiaryActionSchema,
+    reason: z.string().trim().max(500).optional(),
+});
+export type BeneficiaryActionRequest = z.infer<typeof beneficiaryActionRequestSchema>;
+
 // ===========================================================================
 // Redemption & validation (RED-1…7, owner §4.4–4.6) — net-new
 // ===========================================================================

@@ -57,7 +57,10 @@ matrix cell + `audit()`), then wire UI controls gated by `useCan()`:
 - [x] Vendors — approve / reject / suspend / reinstate + KYC verify/fail
   (`PATCH /api/admin/vendors`, state machine + audit; UI actions gated by `useCan`)
 - [ ] Vendor menu pricing — approve (`vendor_menu_pricing`)
-- [ ] Beneficiaries — register / approve / suspend / block (`beneficiary_registration`)
+- [x] Beneficiaries — suspend / activate / block record-state
+  (`PATCH /api/admin/beneficiaries`, admin-only state machine + audit; UI via
+  `useRowAction`). _Registration approve/reject queue (`beneficiary_registrations`)
+  is a separate later slice._
 - [ ] Volunteers — assign / grant tokens; **enforce `max_tokens_per_volunteer`** from `system_config` (`token_distribution`)
 - [ ] Settlements — lock / reconcile / pay / override (`vendor_settlement` + `override`)
 - [x] Fraud — resolve / dismiss (`PATCH /api/admin/fraud`, admin-only; dismiss
