@@ -18,6 +18,11 @@ const SECTIONS: { href: string; title: string; description: string }[] = [
         description: "Approved beneficiary registry — category, status, eligibility.",
     },
     {
+        href: "/admin/beneficiary-registrations",
+        title: "Beneficiary registrations",
+        description: "Review eligibility submissions; approve to create verified beneficiaries.",
+    },
+    {
         href: "/admin/volunteers",
         title: "Volunteers",
         description: "Volunteer registry for token distribution (Path B).",
