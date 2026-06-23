@@ -94,6 +94,19 @@ export const creditsResponseSchema = z.object({
 export type CreditsResponse = z.infer<typeof creditsResponseSchema>;
 
 /**
+ * POST /api/donations/create — a donor buys credit (fiat → credit). The donor is
+ * taken from the session, never the client. `payment_method` is informational
+ * only for now: the payment provider is an OPEN item (ASSUMPTIONS.md), so the
+ * donation is recorded as completed with a placeholder ref until a real gateway
+ * lands in Phase E. Token minting is a separate step (POST /api/tokens/convert).
+ */
+export const donationPurchaseRequestSchema = z.object({
+    amount_inr: inrAmountSchema.positive(),
+    payment_method: z.string().trim().min(1).max(40).optional(),
+});
+export type DonationPurchaseRequest = z.infer<typeof donationPurchaseRequestSchema>;
+
+/**
  * POST /api/tokens/convert — request. // Section A (touches tokens)
  * Donor mints ONE token of a chosen amount; constrained server-side to
  * standard_token_value <= amount <= available credit (token-flow §1).
