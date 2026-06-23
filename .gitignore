@@ -36,6 +36,10 @@ yarn-error.log*
 # vercel
 .vercel
 
+# local agent tooling (Claude Code skills/config) and MCP config — not app code
+.claude/
+.mcp.json
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
