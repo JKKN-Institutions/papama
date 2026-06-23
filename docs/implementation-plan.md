@@ -61,7 +61,10 @@ matrix cell + `audit()`), then wire UI controls gated by `useCan()`:
   (`PATCH /api/admin/beneficiaries`, admin-only state machine + audit; UI via
   `useRowAction`). _Registration approve/reject queue (`beneficiary_registrations`)
   is a separate later slice._
-- [ ] Volunteers — assign / grant tokens; **enforce `max_tokens_per_volunteer`** from `system_config` (`token_distribution`)
+- [x] Volunteers — registry status (suspend / deactivate / activate)
+  (`PATCH /api/admin/volunteers`, admin-only state machine + audit; UI via
+  `useRowAction`). _Token allocation/grant + `max_tokens_per_volunteer` moved to
+  Phase C (it mutates the tokens table) — see C5._
 - [x] Settlements — lock / reconcile / pay + unlock override
   (`PATCH /api/admin/settlements`, admin-only state machine; pay stamps
   `settled_at`; audited; UI via `useRowAction`)
@@ -80,6 +83,11 @@ matrix cell + `audit()`), then wire UI controls gated by `useCan()`:
   enums**; keep mock available only behind `NEXT_PUBLIC_USE_MOCK_API`.
 - [ ] **C4** Replace mock campaigns; align donate flow with real
   `token_types`/`donations`.
+- [ ] **C5** Volunteer token allocation/grant (token-flow §3a/3b): move tokens
+  `in_admin_pool → assigned_to_volunteer`, write `token_distribution_records`,
+  and **enforce `max_tokens_per_volunteer`** (concurrent holding limit; `NULL` =
+  not set). Includes the volunteer-token-request queue route + UI. Lives here
+  (not Phase B) because it mutates the tokens table.
 
 ### Phase D — Core meal loop (per `docs/papama-owner-scope.md`)
 - [ ] Redemption + validation (`token_redemption`, `scan_proof`)

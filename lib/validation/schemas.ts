@@ -410,6 +410,24 @@ export const volunteerResponseSchema = z.object({
 });
 export type VolunteerResponse = z.infer<typeof volunteerResponseSchema>;
 
+/**
+ * PATCH /api/admin/volunteers — admin registry-status control. `suspend` =
+ * temporary hold, `deactivate` = retire, `activate` = restore. Operates on the
+ * `volunteers.status` text+CHECK value (active|inactive|suspended). `reason` is
+ * recorded in the audit trail. NOTE: token allocation / grant decisions and the
+ * `max_tokens_per_volunteer` limit are a separate token-flow slice (they mutate
+ * the tokens table), not part of this status control.
+ */
+export const volunteerActionSchema = z.enum(["suspend", "deactivate", "activate"]);
+export type VolunteerAction = z.infer<typeof volunteerActionSchema>;
+
+export const volunteerActionRequestSchema = z.object({
+    volunteer_id: z.string().uuid(),
+    action: volunteerActionSchema,
+    reason: z.string().trim().max(500).optional(),
+});
+export type VolunteerActionRequest = z.infer<typeof volunteerActionRequestSchema>;
+
 /** GET /api/admin/volunteer-token-requests — allocation request queue row (M09, token-flow §3b). */
 export const volunteerTokenRequestResponseSchema = z.object({
     id: z.string(),
