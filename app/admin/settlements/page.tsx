@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import { useCan } from "@/components/auth/AppUserProvider";
 import type { SettlementResponse } from "@/lib/validation/schemas";
 
@@ -33,9 +35,11 @@ export default function AdminSettlementsPage() {
         <div>
             <AdminPageHeader
                 title="Settlements"
-                subtitle="Vendor settlement headers. Amounts populate once line items land."
+                subtitle="Run a cycle to aggregate proof-released redemptions into per-vendor payouts, then lock → reconcile → pay."
                 count={state === "ready" ? items.length : undefined}
             />
+
+            {canManage && <RunSettlementBar onDone={reload} />}
 
             {actionError && (
                 <div className="mb-4">
@@ -146,6 +150,67 @@ function SettlementActions({
                 </ActionButton>
             )}
             {status === "paid" && <span className="text-xs text-slate-400">—</span>}
+        </div>
+    );
+}
+
+/** Admin control to run a settlement cycle — aggregates released redemptions into payouts. */
+function RunSettlementBar({ onDone }: { onDone: () => void }) {
+    const [period, setPeriod] = useState<"daily" | "twice_weekly" | "weekly">("weekly");
+    const [busy, setBusy] = useState(false);
+    const [msg, setMsg] = useState<string | null>(null);
+    const [err, setErr] = useState<string | null>(null);
+
+    async function runIt() {
+        setBusy(true);
+        setMsg(null);
+        setErr(null);
+        try {
+            const res = await fetch("/api/admin/settlements/run", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ period }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error ?? `Failed (${res.status})`);
+            setMsg(
+                data.settlements_created > 0
+                    ? `Created ${data.settlements_created} settlement(s) totalling ₹${Number(
+                          data.total_amount
+                      ).toLocaleString("en-IN")} across ${data.line_items} redemption(s).`
+                    : "No proof-released redemptions are awaiting settlement."
+            );
+            onDone();
+        } catch (e) {
+            setErr(e instanceof Error ? e.message : "Failed to run settlement.");
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    return (
+        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white p-4">
+            <span className="text-sm font-medium text-slate-700">Run settlement cycle:</span>
+            <select
+                value={period}
+                onChange={(e) => setPeriod(e.target.value as typeof period)}
+                disabled={busy}
+                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700"
+            >
+                <option value="daily">Daily</option>
+                <option value="twice_weekly">Twice weekly</option>
+                <option value="weekly">Weekly</option>
+            </select>
+            <button
+                type="button"
+                onClick={runIt}
+                disabled={busy}
+                className="rounded-lg bg-slate-900 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:opacity-60"
+            >
+                {busy ? "Running…" : "Run settlement"}
+            </button>
+            {msg && <span className="text-xs font-medium text-green-700">{msg}</span>}
+            {err && <span className="text-xs font-medium text-red-700">{err}</span>}
         </div>
     );
 }
