@@ -131,6 +131,21 @@ export const tokenResponseSchema = z.object({
 });
 export type TokenResponse = z.infer<typeof tokenResponseSchema>;
 
+/**
+ * POST /api/tokens/convert — donor mints ONE token of a chosen amount from
+ * credit (token-flow §1–2). Server-constrained: standard_token_value ≤ amount ≤
+ * available credit; minting deducts the amount from credit. `distribution_path`
+ * is the post-mint fork — `use_now` → token goes `live` (donor self-distributes),
+ * `authorize_papama` → token enters the admin pool (`in_admin_pool`).
+ */
+export const tokenMintRequestSchema = z.object({
+    token_type: tokenTypeSchema, // standard | special_care
+    amount_inr: inrAmountSchema.positive(),
+    distribution_path: z.enum(["use_now", "authorize_papama"]),
+    special_instructions: z.string().trim().max(500).optional(),
+});
+export type TokenMintRequest = z.infer<typeof tokenMintRequestSchema>;
+
 // ===========================================================================
 // Beneficiary registration (BEN-1…5) — net-new, no collision
 // ===========================================================================
