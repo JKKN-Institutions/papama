@@ -17,7 +17,7 @@ reporting throughout.
 | Area | Lives in | Notes |
 |------|----------|-------|
 | Admin & backend | `app/admin/**`, `app/api/**`, `lib/auth`, `lib/permissions`, `lib/system-config`, `lib/supabase` | RBAC via a permission matrix; all writes go through audited route handlers |
-| Donor portal | `app/donor/**`, `lib/donor/**` | Credit, donations, tokens, impact, notifications |
+| Donor portal | `app/donor/**`, `lib/donor/**` | Credit, donations, tokens, impact, notifications. Has an offline **mock mode** for demos — see below |
 | Shared auth | `app/login`, `app/auth/confirm`, `app/forgot-password`, `app/update-password` | Email/password sign-in, email confirmation, password reset |
 | Database | `supabase/migrations/**` | Versioned SQL migrations (`m01`…`m19`), RLS on every table |
 
@@ -56,6 +56,45 @@ on signup.
 ```bash
 npm run dev      # http://localhost:3000
 ```
+
+## Offline demo (mock mode) — for reviewers
+
+You can run and click through the **donor portal with no Supabase project, no
+database, and no network** — it serves realistic sample data from an in-browser
+mock store (`lib/donor/services/apiClient.ts`). Ideal for a quick UI/UX review.
+
+### Run it (2 steps)
+
+```bash
+npm install
+echo "NEXT_PUBLIC_USE_MOCK_API=true" > .env.local   # the only var needed for mock mode
+npm run dev                                          # http://localhost:3000
+```
+
+Then open the donor portal:
+
+| Page | URL |
+|------|-----|
+| Donate | http://localhost:3000/donor/donate |
+| Dashboard | http://localhost:3000/donor/dashboard |
+| Tokens | http://localhost:3000/donor/tokens |
+| Credit | http://localhost:3000/donor/credit |
+| Impact | http://localhost:3000/donor/impact |
+| Notifications | http://localhost:3000/donor/notifications |
+
+### What works in mock mode
+- Donating adds credit; converting credit mints tokens; a token "redeems" itself
+  a few seconds later to demonstrate the live impact/notification updates.
+- All donor data is stored in your browser's `localStorage` (clear site data to
+  reset). When `NEXT_PUBLIC_USE_MOCK_API=true`, the app never calls Supabase.
+
+### Notes / limits
+- The **admin console** (`/admin`) needs real Supabase Auth + data, so it is not
+  part of the offline mock demo — use the full setup below for that.
+- Mock mode is for demos only; the real backend (Phase C of
+  [`docs/implementation-plan.md`](./docs/implementation-plan.md)) is what ships.
+- To switch back to the real backend, remove `NEXT_PUBLIC_USE_MOCK_API` (or set
+  it to `false`) and configure the Supabase vars in the next section.
 
 ## Scripts
 

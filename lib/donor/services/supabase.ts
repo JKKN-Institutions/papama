@@ -1,5 +1,7 @@
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
 
+import { isMockMode } from "./mock-mode";
+
 /**
  * Session-aware Supabase client for the donor portal (browser).
  *
@@ -12,6 +14,8 @@ import { createClient as createBrowserClient } from "@/lib/supabase/client";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
-export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
+// Forcing mock mode (offline demo) makes every service that gates on this flag
+// fall back to the in-browser mock DB, even when Supabase env vars are present.
+export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey) && !isMockMode();
 
 export const supabase = isSupabaseConfigured ? createBrowserClient() : null;
