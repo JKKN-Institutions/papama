@@ -70,7 +70,9 @@ matrix cell + `audit()`), then wire UI controls gated by `useCan()`:
   `settled_at`; audited; UI via `useRowAction`)
 - [x] Fraud — resolve / dismiss (`PATCH /api/admin/fraud`, admin-only; dismiss
   clears block; resolver + notes recorded + audited; UI actions via `useRowAction`)
-- [ ] System config — update values (set `max_tokens_per_volunteer` once mentor gives the number)
+- [x] System config — edit values inline (`PATCH /api/admin/system-config`,
+  admin-only; value coerced to `value_type`; `null` unsets; audited). This is
+  where `max_tokens_per_volunteer` gets set once the mentor gives the number.
 - [ ] Reports — generate / export (`audit_reports`)
 
 ### Phase C — Donor module: replace mock with governed backend

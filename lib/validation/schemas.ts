@@ -343,6 +343,18 @@ export const systemConfigResponseSchema = z.object({
 });
 export type SystemConfigResponse = z.infer<typeof systemConfigResponseSchema>;
 
+/**
+ * PATCH /api/admin/system-config — update one existing config row's value
+ * (admin only). The value is validated/coerced against the row's `value_type`
+ * server-side and stored as text. `null` intentionally UNSETS the row (e.g.
+ * leaving `max_tokens_per_volunteer` unset) — never a guessed default.
+ */
+export const systemConfigUpdateRequestSchema = z.object({
+    key: z.string().min(1),
+    value: z.union([z.string(), z.number(), z.boolean(), z.null()]),
+});
+export type SystemConfigUpdateRequest = z.infer<typeof systemConfigUpdateRequestSchema>;
+
 // ===========================================================================
 // Admin-only response schemas — net-new Dev-2 tables (M07–M13). Field names &
 // nullability mirror the live columns exactly so the route handlers stay honest.
