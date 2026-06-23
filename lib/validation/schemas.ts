@@ -272,6 +272,21 @@ export const fraudFlagResponseSchema = z.object({
 });
 export type FraudFlagResponse = z.infer<typeof fraudFlagResponseSchema>;
 
+/**
+ * PATCH /api/admin/fraud — resolve or dismiss an open flag. `resolve` = a real
+ * issue that has been handled (the block, if any, stands); `dismiss` = a false
+ * positive (any block is cleared). `notes` is stored in `resolution_notes`.
+ */
+export const fraudActionSchema = z.enum(["resolve", "dismiss"]);
+export type FraudAction = z.infer<typeof fraudActionSchema>;
+
+export const fraudActionRequestSchema = z.object({
+    flag_id: z.string().uuid(),
+    action: fraudActionSchema,
+    notes: z.string().trim().max(500).optional(),
+});
+export type FraudActionRequest = z.infer<typeof fraudActionRequestSchema>;
+
 // ===========================================================================
 // System config (GET /api/admin/system-config) — net-new
 // ===========================================================================

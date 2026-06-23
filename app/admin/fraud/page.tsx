@@ -1,16 +1,42 @@
 "use client";
 
+import { useCan } from "@/components/auth/AppUserProvider";
 import type { FraudFlagDetailResponse } from "@/lib/validation/schemas";
 
-import { AdminPageHeader, BoolBadge, Dash, ListStates, StatusBadge, TableHead, TableShell, useAdminList } from "../_ui";
+import {
+    ActionButton,
+    AdminPageHeader,
+    BoolBadge,
+    Dash,
+    ListStates,
+    Notice,
+    StatusBadge,
+    TableHead,
+    TableShell,
+    useAdminList,
+    useRowAction,
+} from "../_ui";
 
 /** Admin fraud page — fraud flags with severity, detection method and block state (contract §9). */
 export default function AdminFraudPage() {
-    const { items, state, errorMsg } = useAdminList<FraudFlagDetailResponse>(
+    const canManage = useCan("fraud_monitoring", "update");
+    const { items, state, errorMsg, reload } = useAdminList<FraudFlagDetailResponse>(
         "/api/admin/fraud",
         "fraud_flags",
         "/admin/fraud"
     );
+    const { run, busyId, actionError } = useRowAction("/api/admin/fraud", reload);
+
+    const columns = [
+        "Type",
+        "Severity",
+        "Status",
+        "Detection",
+        "Entity",
+        "Blocked",
+        "Created",
+    ];
+    if (canManage) columns.push("Actions");
 
     return (
         <div>
@@ -19,6 +45,15 @@ export default function AdminFraudPage() {
                 subtitle="Flagged tokens, beneficiaries and vendors for review."
                 count={state === "ready" ? items.length : undefined}
             />
+
+            {actionError && (
+                <div className="mb-4">
+                    <Notice tone="error" title="Action failed">
+                        {actionError}
+                    </Notice>
+                </div>
+            )}
+
             <ListStates
                 state={state}
                 errorMsg={errorMsg}
@@ -27,17 +62,7 @@ export default function AdminFraudPage() {
                 emptyHint="Fraud flags will appear here as detections are raised."
                 table={
                     <TableShell>
-                        <TableHead
-                            columns={[
-                                "Type",
-                                "Severity",
-                                "Status",
-                                "Detection",
-                                "Entity",
-                                "Blocked",
-                                "Created",
-                            ]}
-                        />
+                        <TableHead columns={columns} />
                         <tbody className="divide-y divide-slate-100">
                             {items.map((f) => (
                                 <tr key={f.id} className="hover:bg-slate-50">
@@ -65,6 +90,41 @@ export default function AdminFraudPage() {
                                     <td className="px-4 py-3 text-slate-500">
                                         {new Date(f.created_at).toLocaleDateString()}
                                     </td>
+                                    {canManage && (
+                                        <td className="px-4 py-3">
+                                            {f.status === "open" ? (
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    <ActionButton
+                                                        tone="primary"
+                                                        disabled={busyId === f.id}
+                                                        onClick={() =>
+                                                            run(f.id, {
+                                                                flag_id: f.id,
+                                                                action: "resolve",
+                                                            })
+                                                        }
+                                                    >
+                                                        Resolve
+                                                    </ActionButton>
+                                                    <ActionButton
+                                                        tone="neutral"
+                                                        disabled={busyId === f.id}
+                                                        onClick={() =>
+                                                            run(
+                                                                f.id,
+                                                                { flag_id: f.id, action: "dismiss" },
+                                                                "Dismiss this flag as a false positive? Any block it set will be lifted."
+                                                            )
+                                                        }
+                                                    >
+                                                        Dismiss
+                                                    </ActionButton>
+                                                </div>
+                                            ) : (
+                                                <span className="text-xs text-slate-400">—</span>
+                                            )}
+                                        </td>
+                                    )}
                                 </tr>
                             ))}
                         </tbody>

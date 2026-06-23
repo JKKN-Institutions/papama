@@ -60,7 +60,8 @@ matrix cell + `audit()`), then wire UI controls gated by `useCan()`:
 - [ ] Beneficiaries — register / approve / suspend / block (`beneficiary_registration`)
 - [ ] Volunteers — assign / grant tokens; **enforce `max_tokens_per_volunteer`** from `system_config` (`token_distribution`)
 - [ ] Settlements — lock / reconcile / pay / override (`vendor_settlement` + `override`)
-- [ ] Fraud — resolve / dismiss (`fraud_monitoring`)
+- [x] Fraud — resolve / dismiss (`PATCH /api/admin/fraud`, admin-only; dismiss
+  clears block; resolver + notes recorded + audited; UI actions via `useRowAction`)
 - [ ] System config — update values (set `max_tokens_per_volunteer` once mentor gives the number)
 - [ ] Reports — generate / export (`audit_reports`)
 
