@@ -1,9 +1,8 @@
 import { z } from "zod";
 
 import { BadRequestError, defineRoute, parseBody } from "@/lib/api/handler";
-import { countHeldTokens } from "@/lib/volunteer/holdings";
+import { allocatePooledTokens } from "@/lib/volunteer/allocation";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getNumber } from "@/lib/system-config";
 
 /**
  * POST /api/admin/volunteer-requests/[id]/decide — the admin grants, partially
@@ -85,87 +84,17 @@ export const POST = defineRoute<{ id: string }>(
         }
 
         // GRANT / PARTIALLY_GRANT — allocate the explicit decided_count when given,
-        // else the full requested count.
+        // else the full requested count. The shared helper does the pool-pull +
+        // concurrent-limit check + 'assigned_to_volunteer' move + grant records
+        // (same engine as the §3a admin-initiated route, channel differs).
         const count = body.decided_count ?? request.requested_count;
 
-        // Resolve the volunteer's user_id (distribution records attribute to it).
-        const { data: volunteerRow, error: volunteerError } = await admin
-            .from("volunteers")
-            .select("user_id")
-            .eq("id", request.volunteer_id)
-            .maybeSingle();
-        if (volunteerError) throw new Error(volunteerError.message);
-        const volunteerUserId = (volunteerRow as { user_id: string | null } | null)?.user_id ?? null;
-        if (!volunteerUserId) {
-            throw new BadRequestError("volunteer has no linked user account");
-        }
-
-        // Concurrent-limit check — only when max_tokens_per_volunteer is set.
-        let limit: number | null = null;
-        try {
-            limit = await getNumber("max_tokens_per_volunteer", admin as never);
-        } catch {
-            // unset (NULL) or missing — do not block, do not invent a default.
-            limit = null;
-        }
-        if (limit !== null) {
-            const currentlyHeld = await countHeldTokens(admin, volunteerUserId);
-            if (currentlyHeld + count > limit) {
-                throw new BadRequestError(
-                    `grant of ${count} would exceed max_tokens_per_volunteer (${limit}); volunteer already holds ${currentlyHeld}`
-                );
-            }
-        }
-
-        // Pull `count` tokens from the admin pool, oldest minted first.
-        const { data: poolData, error: poolError } = await admin
-            .from("tokens")
-            .select("id")
-            .eq("status", "in_admin_pool")
-            .order("minted_at", { ascending: true })
-            .limit(count);
-        if (poolError) throw new Error(poolError.message);
-        const poolTokens = (poolData ?? []) as { id: string }[];
-        if (poolTokens.length < count) {
-            throw new BadRequestError(
-                `admin pool has only ${poolTokens.length} token(s); ${count} requested`
-            );
-        }
-
-        const nowIso = new Date().toISOString();
-        const movedIds: string[] = [];
-
-        // Move each token to assigned_to_volunteer, guarding on still-pooled
-        // status so a race that claimed it loses cleanly.
-        for (const t of poolTokens) {
-            const { data: moved, error: moveError } = await admin
-                .from("tokens")
-                .update({ status: "assigned_to_volunteer" })
-                .eq("id", t.id)
-                .eq("status", "in_admin_pool")
-                .select("id");
-            if (moveError) throw new Error(moveError.message);
-            if (moved && moved.length > 0) movedIds.push(t.id);
-        }
-
-        if (movedIds.length < count) {
-            throw new BadRequestError(
-                "could not reserve enough tokens (a concurrent allocation claimed some)"
-            );
-        }
-
-        // One grant record per moved token, attributed to the volunteer's user.
-        const { error: recordError } = await admin
-            .from("token_distribution_records")
-            .insert(
-                movedIds.map((tokenId) => ({
-                    token_id: tokenId,
-                    distributed_by: volunteerUserId,
-                    channel: "volunteer_request_grant",
-                    distributed_at: nowIso,
-                }))
-            );
-        if (recordError) throw new Error(recordError.message);
+        const { volunteerUserId, movedIds } = await allocatePooledTokens(
+            admin,
+            request.volunteer_id,
+            count,
+            "volunteer_request_grant"
+        );
 
         // Finalize the request.
         const { error: updateError } = await admin
@@ -174,7 +103,7 @@ export const POST = defineRoute<{ id: string }>(
                 status: body.decision,
                 decided_by: user.id,
                 decided_count: count,
-                updated_at: nowIso,
+                updated_at: new Date().toISOString(),
             })
             .eq("id", requestId)
             .eq("status", "pending");
