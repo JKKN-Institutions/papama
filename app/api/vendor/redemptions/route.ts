@@ -6,6 +6,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { validateRedemption } from "@/lib/services/redemption";
 import { flagFraud } from "@/lib/services/fraud";
+import { embeddingFingerprint, toVectorLiteral } from "@/lib/face/embedding";
+import { faceCaptureSchema } from "@/lib/validation/schemas";
 
 /**
  * POST /api/vendor/redemptions — commit a redemption (RED-1..7, PROOF-4).
@@ -29,7 +31,9 @@ const createSchema = z.object({
     qr_payload: z.string().min(1),
     menu_item_id: z.string().uuid(),
     geo: z.object({ lat: z.number(), lng: z.number() }).optional(),
-    face_hash: z.string().min(1).optional(),
+    // Face capture is REQUIRED to redeem (owner §4.6 — the vendor captures a photo).
+    // This closes the prior "validations bypassable by omitting the face" gap.
+    face_capture: faceCaptureSchema,
     co_pay: z.number().int().min(0).optional(),
 });
 
@@ -42,13 +46,15 @@ export const POST = defineRoute(
         const vendorId = await resolveVendorId(user, admin);
         if (!vendorId) throw new BadRequestError("no vendor profile for this account");
 
+        const faceFingerprint = embeddingFingerprint(body.face_capture.embedding);
+
         const result = await validateRedemption(
             {
                 qr_payload: body.qr_payload,
                 vendor_id: vendorId,
                 menu_item_id: body.menu_item_id,
                 geo: body.geo,
-                face_hash: body.face_hash,
+                face: body.face_capture,
                 co_pay: body.co_pay,
             },
             admin
@@ -57,12 +63,12 @@ export const POST = defineRoute(
         if (!result.ok || !result.token || !result.menuItem) {
             const failed = result.checks.find((c) => c.hard && !c.pass);
             // Real-time fraud signal: a repeat-beneficiary attempt (cooldown / daily limit).
-            if (failed && (failed.name === "cooldown" || failed.name === "meal_limit") && body.face_hash) {
+            if (failed && (failed.name === "cooldown" || failed.name === "meal_limit")) {
                 await flagFraud(admin, {
                     flag_type: "beneficiary_duplicate",
                     severity: "medium",
                     detection_method: "face_hash_repeat",
-                    entity: { kind: "face_hash", id: body.face_hash },
+                    entity: { kind: "face", id: result.beneficiary?.id ?? faceFingerprint },
                 });
             }
             throw new BadRequestError(
@@ -88,7 +94,7 @@ export const POST = defineRoute(
                 co_pay_inr: value.co_pay,
                 geo_lat: body.geo?.lat ?? null,
                 geo_lng: body.geo?.lng ?? null,
-                face_hash_checked: !!body.face_hash,
+                face_hash_checked: true, // capture required + liveness-gated + vector-matched
             })
             .select("id, payment_status")
             .single();
@@ -119,10 +125,12 @@ export const POST = defineRoute(
             throw new BadRequestError("token was already redeemed");
         }
 
-        // 3. Fair-usage cooldown log (identity signal for cross-vendor limits).
+        // 3. Fair-usage cooldown log — stores the face EMBEDDING so future redemptions
+        //    can match this person by vector distance (cross-vendor repeat-detection).
         await admin.from("redemption_cooldown_log").insert({
             beneficiary_id: beneficiaryId,
-            face_hash: body.face_hash ?? null,
+            face_hash: faceFingerprint,
+            face_embedding: toVectorLiteral(body.face_capture.embedding),
             token_id: token.id,
             vendor_id: vendorId,
         });

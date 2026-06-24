@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { PageHeader, Notice } from "../_ui";
+import FaceCapture from "@/components/face/FaceCapture";
+import type { FaceCapture as FaceCaptureValue } from "@/lib/validation/schemas";
 
 /* ---- Backend contract types ------------------------------------------------ */
 
@@ -58,7 +60,7 @@ function buildBody(opts: {
   qr_payload: string;
   menu_item_id: string;
   geo: Geo | null;
-  face_hash: string;
+  face: FaceCaptureValue | null;
   co_pay: string;
 }) {
   const body: Record<string, unknown> = {
@@ -66,7 +68,7 @@ function buildBody(opts: {
     menu_item_id: opts.menu_item_id,
   };
   if (opts.geo) body.geo = opts.geo;
-  if (opts.face_hash.trim()) body.face_hash = opts.face_hash.trim();
+  if (opts.face) body.face_capture = opts.face;
   if (opts.co_pay.trim() && !isNaN(Number(opts.co_pay))) body.co_pay = Number(opts.co_pay);
   return body;
 }
@@ -111,7 +113,7 @@ export default function VendorScanPage() {
   // Inputs
   const [qrPayload, setQrPayload] = useState("");
   const [menuItemId, setMenuItemId] = useState("");
-  const [faceHash, setFaceHash] = useState("");
+  const [face, setFace] = useState<FaceCaptureValue | null>(null);
   const [coPay, setCoPay] = useState("");
   const [geo, setGeo] = useState<Geo | null>(null);
   const [geoBusy, setGeoBusy] = useState(false);
@@ -213,7 +215,7 @@ export default function VendorScanPage() {
     setPreviewBusy(true);
     const result = await postJson<PreviewResult>(
       "/api/vendor/redemptions/preview",
-      buildBody({ qr_payload: qrPayload, menu_item_id: menuItemId, geo, face_hash: faceHash, co_pay: coPay }),
+      buildBody({ qr_payload: qrPayload, menu_item_id: menuItemId, geo, face, co_pay: coPay }),
       router
     );
     setPreviewBusy(false);
@@ -229,7 +231,7 @@ export default function VendorScanPage() {
     setRedeemBusy(true);
     const result = await postJson<RedeemResult>(
       "/api/vendor/redemptions",
-      buildBody({ qr_payload: qrPayload, menu_item_id: menuItemId, geo, face_hash: faceHash, co_pay: coPay }),
+      buildBody({ qr_payload: qrPayload, menu_item_id: menuItemId, geo, face, co_pay: coPay }),
       router
     );
     setRedeemBusy(false);
@@ -373,20 +375,21 @@ export default function VendorScanPage() {
           </div>
 
           <div>
-            <label htmlFor="face" className="mb-1 block text-sm font-medium text-slate-700">
-              Beneficiary face hash (optional)
-            </label>
-            <input
-              id="face"
-              type="text"
-              value={faceHash}
-              onChange={(e) => {
-                setFaceHash(e.target.value);
+            <span className="mb-1 block text-sm font-medium text-slate-700">
+              Beneficiary face (required to serve)
+            </span>
+            <FaceCapture
+              label="Beneficiary face"
+              onCapture={(f) => {
+                setFace(f);
                 resetFlow();
               }}
-              placeholder="Face match hash, if captured"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm text-slate-900 outline-none focus:border-slate-600 focus:ring-1 focus:ring-slate-600"
             />
+            {face && (
+              <p className="mt-1 text-xs text-green-700">
+                Face captured (liveness {Math.round(face.liveness * 100)}%).
+              </p>
+            )}
           </div>
 
           <button
@@ -445,13 +448,16 @@ export default function VendorScanPage() {
             <button
               type="button"
               onClick={onRedeem}
-              disabled={!allChecksPass || redeemBusy || redeem != null}
+              disabled={!allChecksPass || redeemBusy || redeem != null || !face}
               className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {redeemBusy ? "Redeeming…" : "Serve & redeem"}
             </button>
             {!allChecksPass && (
               <span className="text-sm text-red-600">Resolve the failing checks before serving.</span>
+            )}
+            {allChecksPass && !face && (
+              <span className="text-sm text-amber-600">Capture the beneficiary&apos;s face before serving.</span>
             )}
           </div>
         </section>

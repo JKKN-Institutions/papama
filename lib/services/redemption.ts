@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getNumber } from "@/lib/system-config";
 import { qrHashOf } from "@/app/api/_lib/tokenQr";
+import { toVectorLiteral } from "@/lib/face/embedding";
 
 /**
  * Redemption validation + value engine (owner §4.4, RED-1..7, PROOF-4).
@@ -61,13 +62,14 @@ interface MenuRow {
     approval_status: string;
 }
 
-/** The beneficiary row fields the engine needs (matched by face_hash). */
+/** The beneficiary row fields the engine needs (matched by face embedding). */
 interface BeneficiaryRow {
     id: string;
     face_hash: string | null;
     category: string;
     eligibility_status: string;
     status: string;
+    eligibility_expires_at: string | null;
 }
 
 /** Money split computed for the redemption (owner §4.4). */
@@ -88,7 +90,8 @@ export interface ValidateRedemptionInput {
     vendor_id: string;
     menu_item_id: string;
     geo?: { lat: number; lng: number };
-    face_hash?: string;
+    /** On-device face capture. Required at the real redemption; optional in preview. */
+    face?: { embedding: number[]; liveness: number };
     co_pay?: number;
 }
 
@@ -261,102 +264,205 @@ export async function validateRedemption(
         });
     }
 
-    // --- cooldown / meal-limit (fair usage, RED-3) ---------------------------
-    if (input.face_hash) {
-        const { data: log } = await admin
-            .from("redemption_cooldown_log")
-            .select("redeemed_at")
-            .eq("face_hash", input.face_hash)
-            .order("redeemed_at", { ascending: false });
-        const rows = (log as { redeemed_at: string }[] | null) ?? [];
+    // --- face capture: liveness + identity (owner §4.5/§4.6/§5.2, SEC-1..4) ---
+    // Identity is resolved by VECTOR DISTANCE, not text equality. A registered
+    // beneficiary is identified 1:1 via match_beneficiary_face; fair-usage
+    // (cooldown/meal-limit) is keyed on the FACE across vendors via
+    // recent_face_matches, so it catches anonymous repeat-redeemers too. The
+    // create route REQUIRES a capture — the no-face branch is preview-only.
+    let beneficiary: BeneficiaryRow | null = null;
+    let faceVector: string | null = null;
 
-        // 6h gap since the last meal.
+    if (!input.face) {
+        checks.push({
+            name: "face",
+            pass: true,
+            hard: false,
+            detail: "face capture pending (required to redeem)",
+        });
+    } else {
+        faceVector = toVectorLiteral(input.face.embedding);
+
+        // liveness / anti-spoof gate
         try {
-            const cooldownHours = await getNumber("meal_cooldown_hours", admin as never);
-            const last = rows[0]?.redeemed_at;
-            if (last) {
-                const sinceMs = nowMs - Date.parse(last);
-                const within = sinceMs < cooldownHours * 3_600_000;
-                checks.push({
-                    name: "cooldown",
-                    pass: !within,
-                    hard: true,
-                    detail: within
-                        ? `last meal was ${(sinceMs / 3_600_000).toFixed(1)}h ago (< ${cooldownHours}h)`
-                        : `last meal ≥ ${cooldownHours}h ago`,
-                });
+            const minLive = await getNumber("face_liveness_min", admin as never);
+            const livePass = input.face.liveness >= minLive;
+            checks.push({
+                name: "liveness",
+                pass: livePass,
+                hard: true,
+                detail: livePass
+                    ? `liveness ${input.face.liveness.toFixed(2)} ≥ ${minLive}`
+                    : `liveness ${input.face.liveness.toFixed(2)} < ${minLive} (possible spoof)`,
+            });
+        } catch {
+            checks.push({
+                name: "liveness",
+                pass: true,
+                hard: false,
+                detail: "face_liveness_min unset — liveness skipped",
+            });
+        }
+
+        let threshold: number | null = null;
+        try {
+            threshold = await getNumber("face_match_threshold", admin as never);
+        } catch {
+            threshold = null;
+        }
+
+        // 1:1 identify a REGISTERED beneficiary (nearest within the threshold).
+        if (threshold != null) {
+            const { data: matchRows } = await admin.rpc("match_beneficiary_face", {
+                query: faceVector,
+                max_distance: threshold,
+            });
+            const matchId =
+                (matchRows as { beneficiary_id: string }[] | null)?.[0]?.beneficiary_id ?? null;
+            if (matchId) {
+                const { data: benefData } = await admin
+                    .from("beneficiaries")
+                    .select("id, face_hash, category, eligibility_status, status, eligibility_expires_at")
+                    .eq("id", matchId)
+                    .maybeSingle();
+                beneficiary = (benefData as BeneficiaryRow | null) ?? null;
+            }
+        }
+
+        // cooldown + meal-limit, keyed on the face across all vendors (RED-3).
+        if (threshold != null) {
+            let cooldownHours = 0;
+            let maxPerDay = 0;
+            let dedupHours = 0;
+            try {
+                cooldownHours = await getNumber("meal_cooldown_hours", admin as never);
+            } catch {
+                /* unset — skip below */
+            }
+            try {
+                maxPerDay = await getNumber("max_meals_per_day", admin as never);
+            } catch {
+                /* unset — skip below */
+            }
+            try {
+                dedupHours = await getNumber("face_dedup_window_hours", admin as never);
+            } catch {
+                /* unset — falls back to cooldown window */
+            }
+
+            const startOfDay = new Date();
+            startOfDay.setHours(0, 0, 0, 0);
+            const lookbackMs = Math.max(cooldownHours, dedupHours) * 3_600_000;
+            const since = new Date(
+                Math.min(startOfDay.getTime(), nowMs - lookbackMs)
+            ).toISOString();
+
+            const { data: recentRows } = await admin.rpc("recent_face_matches", {
+                query: faceVector,
+                max_distance: threshold,
+                since,
+            });
+            const recent = (recentRows as { redeemed_at: string }[] | null) ?? [];
+
+            if (cooldownHours > 0) {
+                const lastMs = recent.length ? Date.parse(recent[0].redeemed_at) : null; // newest-first
+                if (lastMs != null) {
+                    const sinceMs = nowMs - lastMs;
+                    const within = sinceMs < cooldownHours * 3_600_000;
+                    checks.push({
+                        name: "cooldown",
+                        pass: !within,
+                        hard: true,
+                        detail: within
+                            ? `last meal ${(sinceMs / 3_600_000).toFixed(1)}h ago (< ${cooldownHours}h)`
+                            : `last meal ≥ ${cooldownHours}h ago`,
+                    });
+                } else {
+                    checks.push({
+                        name: "cooldown",
+                        pass: true,
+                        hard: false,
+                        detail: "no prior meals for this face",
+                    });
+                }
             } else {
                 checks.push({
                     name: "cooldown",
                     pass: true,
                     hard: false,
-                    detail: "no prior meals on record",
+                    detail: "meal_cooldown_hours unset — cooldown skipped",
                 });
             }
-        } catch {
+
+            if (maxPerDay > 0) {
+                const todayCount = recent.filter(
+                    (r) => Date.parse(r.redeemed_at) >= startOfDay.getTime()
+                ).length;
+                const underLimit = todayCount < maxPerDay;
+                checks.push({
+                    name: "meal_limit",
+                    pass: underLimit,
+                    hard: true,
+                    detail: underLimit
+                        ? `${todayCount}/${maxPerDay} meals today`
+                        : `daily meal limit reached (${todayCount}/${maxPerDay})`,
+                });
+            } else {
+                checks.push({
+                    name: "meal_limit",
+                    pass: true,
+                    hard: false,
+                    detail: "max_meals_per_day unset — meal limit skipped",
+                });
+            }
+        } else {
             checks.push({
                 name: "cooldown",
                 pass: true,
                 hard: false,
-                detail: "meal_cooldown_hours unset — cooldown skipped",
+                detail: "face_match_threshold unset — fair-usage checks skipped",
             });
         }
 
-        // max meals/day.
-        try {
-            const maxPerDay = await getNumber("max_meals_per_day", admin as never);
-            const startOfDay = new Date();
-            startOfDay.setHours(0, 0, 0, 0);
-            const todayCount = rows.filter(
-                (r) => Date.parse(r.redeemed_at) >= startOfDay.getTime()
-            ).length;
-            const underLimit = todayCount < maxPerDay;
-            checks.push({
-                name: "meal_limit",
-                pass: underLimit,
-                hard: true,
-                detail: underLimit
-                    ? `${todayCount}/${maxPerDay} meals today`
-                    : `daily meal limit reached (${todayCount}/${maxPerDay})`,
-            });
-        } catch {
-            checks.push({
-                name: "meal_limit",
-                pass: true,
-                hard: false,
-                detail: "max_meals_per_day unset — meal limit skipped",
-            });
-        }
-    } else {
-        checks.push({
-            name: "cooldown",
-            pass: true,
-            hard: false,
-            detail: "no beneficiary identity — volunteer-assisted",
-        });
-    }
-
-    // --- eligibility (only when face_hash matches a beneficiary) --------------
-    let beneficiary: BeneficiaryRow | null = null;
-    if (input.face_hash) {
-        const { data: benefData } = await admin
-            .from("beneficiaries")
-            .select("id, face_hash, category, eligibility_status, status")
-            .eq("face_hash", input.face_hash)
-            .maybeSingle();
-        beneficiary = (benefData as BeneficiaryRow | null) ?? null;
-
+        // eligibility of the matched registered beneficiary, incl. expiry (owner §2.2.1).
         if (beneficiary) {
             const active = beneficiary.status === "active";
+            const expired =
+                beneficiary.eligibility_expires_at != null &&
+                Date.parse(beneficiary.eligibility_expires_at) < nowMs;
+            const pass = active && !expired;
             checks.push({
                 name: "eligibility",
-                pass: active,
+                pass,
                 hard: true,
-                detail: active
-                    ? beneficiary.eligibility_status === "verified"
+                detail: !active
+                    ? `beneficiary is ${beneficiary.status}`
+                    : expired
+                      ? `eligibility expired ${beneficiary.eligibility_expires_at!.slice(0, 10)}`
+                      : beneficiary.eligibility_status === "verified"
                         ? "beneficiary active & verified"
-                        : `beneficiary active (eligibility ${beneficiary.eligibility_status})`
-                    : `beneficiary is ${beneficiary.status}`,
+                        : `beneficiary active (eligibility ${beneficiary.eligibility_status})`,
+            });
+        }
+
+        // Special-Care binding: a Special-Care token requires a matched, active,
+        // care-eligible beneficiary — eligibility is registration-driven, not just
+        // the menu item (owner §2.2.1 / §4.2.1, closes the menu-only gap).
+        if (token.token_type === "special_care") {
+            const careCategories = new Set(["pregnant_women", "patient"]);
+            const careOk =
+                beneficiary != null &&
+                beneficiary.status === "active" &&
+                careCategories.has(beneficiary.category);
+            checks.push({
+                name: "special_care_eligibility",
+                pass: careOk,
+                hard: true,
+                detail: careOk
+                    ? `special-care eligible (${beneficiary!.category})`
+                    : beneficiary
+                      ? `beneficiary category '${beneficiary.category}' is not special-care eligible`
+                      : "special-care token requires a registered, care-eligible beneficiary",
             });
         }
     }

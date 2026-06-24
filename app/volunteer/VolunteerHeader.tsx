@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 
 const NAV = [
   { href: "/volunteer", label: "Home" },
-  { href: "/volunteer/beneficiaries", label: "Beneficiaries" },
+  { href: "/volunteer/beneficiaries", label: "Register beneficiary" },
 ];
 
 /** Volunteer top bar: brand, nav links, and a sign-out action. Client component. */
@@ -34,10 +34,7 @@ export function VolunteerHeader() {
           </Link>
           <nav className="flex items-center gap-1">
             {NAV.map((item) => {
-              const active =
-                item.href === "/volunteer"
-                  ? pathname === item.href
-                  : pathname === item.href || pathname.startsWith(item.href + "/");
+              const active = pathname === item.href || pathname.startsWith(item.href + "/");
               return (
                 <Link
                   key={item.href}

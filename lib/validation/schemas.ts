@@ -52,6 +52,27 @@ export const geoPointSchema = z.object({
 /** ISO-8601 timestamp string as returned by route handlers. */
 export const isoTimestampSchema = z.string().datetime({ offset: true });
 
+/**
+ * Face embedding length — the @vladmandic/human `faceres` model output (1024-d).
+ * MUST match the `vector(N)` columns in migration m23. Change both together if the
+ * face model is swapped.
+ */
+export const FACE_EMBEDDING_DIM = 1024;
+
+/**
+ * A face capture produced ON-DEVICE by the <FaceCapture> component (owner §4.6 /
+ * §5.2). We only ever transmit/store the non-reversible embedding + a liveness
+ * score — never a raw image. `liveness` is the anti-spoof score (0..1); the
+ * redemption/enrolment routes reject captures below `system_config.face_liveness_min`.
+ */
+export const faceCaptureSchema = z.object({
+    embedding: z
+        .array(z.number().finite())
+        .length(FACE_EMBEDDING_DIM, `expected a ${FACE_EMBEDDING_DIM}-d face embedding`),
+    liveness: z.number().min(0).max(1),
+});
+export type FaceCapture = z.infer<typeof faceCaptureSchema>;
+
 // ===========================================================================
 // Donor contract (consumed by Developer 1) — Section A gated for wiring
 // ===========================================================================
