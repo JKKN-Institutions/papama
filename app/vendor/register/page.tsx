@@ -403,28 +403,68 @@ export default function VendorRegisterPage() {
             </div>
           </fieldset>
 
-          <fieldset className="space-y-2">
+          <fieldset className="space-y-3">
             <legend className="text-sm font-semibold uppercase tracking-wide text-slate-500">
               Location
             </legend>
-            <button
-              type="button"
-              onClick={useMyLocation}
-              disabled={geoBusy}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
-            >
-              {geoBusy
-                ? "Locating…"
-                : business.geo_lat != null
-                  ? "Update my location"
-                  : "Use my location"}
-            </button>
-            {business.geo_lat != null && business.geo_lng != null && (
-              <p className="text-xs text-slate-500">
-                {business.geo_lat.toFixed(4)}, {business.geo_lng.toFixed(4)}
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={useMyLocation}
+                disabled={geoBusy}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+              >
+                {geoBusy
+                  ? "Locating…"
+                  : business.geo_lat != null
+                    ? "Update my location"
+                    : "Use my location"}
+              </button>
+              <span className="text-xs text-slate-400">or enter coordinates manually</span>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label htmlFor="geo_lat" className="mb-1 block text-sm font-medium text-slate-700">
+                  Latitude
+                </label>
+                <input
+                  id="geo_lat"
+                  type="number"
+                  step="any"
+                  inputMode="decimal"
+                  value={business.geo_lat ?? ""}
+                  onChange={(e) =>
+                    setField("geo_lat", e.target.value === "" ? null : Number(e.target.value))
+                  }
+                  placeholder="e.g. 13.0827"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-600 focus:ring-1 focus:ring-slate-600"
+                />
+              </div>
+              <div>
+                <label htmlFor="geo_lng" className="mb-1 block text-sm font-medium text-slate-700">
+                  Longitude
+                </label>
+                <input
+                  id="geo_lng"
+                  type="number"
+                  step="any"
+                  inputMode="decimal"
+                  value={business.geo_lng ?? ""}
+                  onChange={(e) =>
+                    setField("geo_lng", e.target.value === "" ? null : Number(e.target.value))
+                  }
+                  placeholder="e.g. 80.2707"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-600 focus:ring-1 focus:ring-slate-600"
+                />
+              </div>
+            </div>
+            {geoError && (
+              <p className="text-xs text-red-600">
+                {geoError} — type the coordinates above instead, or open the app on{" "}
+                <span className="font-mono">localhost</span> (the browser only shares location on a
+                secure origin, not over a plain-http network IP).
               </p>
             )}
-            {geoError && <p className="text-xs text-red-600">{geoError}</p>}
           </fieldset>
 
           {error && (
