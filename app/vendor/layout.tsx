@@ -1,15 +1,17 @@
 import type { ReactNode } from "react";
 
 import Link from "next/link";
-import { redirect } from "next/navigation";
 
 import { getAppUser } from "@/lib/auth";
 
 import { VendorHeader } from "./VendorHeader";
 
 /**
- * Shell for every /vendor page. Server-side gate, mirroring the admin layout:
- *   - not signed in       → redirect to /vendor/login
+ * Shell for every /vendor page.
+ *   - not signed in       → render the page bare (this layout wraps the auth
+ *     pages /vendor/login + /vendor/register too; the proxy already redirects
+ *     unauthenticated hits to the GATED /vendor pages to login, so a null user
+ *     here means we are ON an auth page — redirecting would loop it onto itself)
  *   - signed in, not vendor → "not a vendor account" notice (no vendor chrome)
  *   - vendor              → render the app with the header
  * Per-feature authorization still runs in each API route and in RLS.
@@ -18,7 +20,7 @@ export default async function VendorLayout({ children }: { children: ReactNode }
   const user = await getAppUser();
 
   if (!user) {
-    redirect("/vendor/login?redirect=/vendor");
+    return <>{children}</>;
   }
 
   if (user.role !== "vendor") {

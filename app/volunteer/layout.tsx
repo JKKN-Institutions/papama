@@ -1,15 +1,17 @@
 import type { ReactNode } from "react";
 
 import Link from "next/link";
-import { redirect } from "next/navigation";
 
 import { getAppUser } from "@/lib/auth";
 
 import { VolunteerHeader } from "./VolunteerHeader";
 
 /**
- * Shell for every /volunteer page. Server-side gate, mirroring the vendor layout:
- *   - not signed in           → redirect to /volunteer/login
+ * Shell for every /volunteer page.
+ *   - not signed in           → render the page bare (this layout also wraps
+ *     /volunteer/login; the proxy already redirects unauthenticated hits to the
+ *     GATED pages, so a null user here means we are on the login page —
+ *     redirecting would loop it onto itself)
  *   - signed in, not volunteer → "not a volunteer account" notice (no chrome)
  *   - volunteer               → render the app with the header
  * Per-feature authorization still runs in each API route and in RLS.
@@ -18,7 +20,7 @@ export default async function VolunteerLayout({ children }: { children: ReactNod
   const user = await getAppUser();
 
   if (!user) {
-    redirect("/volunteer/login?redirect=/volunteer");
+    return <>{children}</>;
   }
 
   if (user.role !== "volunteer") {
