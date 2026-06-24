@@ -2,25 +2,22 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { createClient } from "@/lib/supabase/client";
 
 /**
- * Vendor registration (public). Handles BOTH onboarding entry points:
+ * Vendor registration (public, single atomic flow).
  *
- *   A. Not signed in → email + password + all business fields. On submit we
- *      `supabase.auth.signUp` with { full_name, account_type: 'vendor' } metadata.
- *      - session returned (email-confirm OFF) → POST /api/vendor/register → /vendor
- *      - no session (email-confirm ON)        → "check your email" notice
- *
- *   B. Signed in but no vendor record yet (the post-confirmation path) → only the
- *      business-fields form → POST /api/vendor/register → /vendor.
- *
- * The signed-in vs. signed-out decision is made via supabase.auth.getSession().
+ * The form collects the login credentials AND all business fields, then POSTs them
+ * to /api/vendor/register, which creates the account + pending vendor SERVER-SIDE
+ * (email pre-confirmed). On success we sign the new vendor in and drop them on
+ * /vendor. This deliberately does NOT use a client supabase.auth.signUp: with email
+ * confirmation enabled that returns no session, and the old flow then lost the whole
+ * application (the new vendor was stranded as a plain donor).
  */
 
-/* ---- Business fields shared by both branches ------------------------------- */
+/* ---- Business fields -------------------------------------------------------- */
 
 interface BusinessFields {
   name: string;
@@ -58,16 +55,19 @@ const EMPTY_BUSINESS: BusinessFields = {
   geo_lng: null,
 };
 
-/** Strips empty strings so the API receives only the fields actually filled in. */
-function businessPayload(b: BusinessFields): Record<string, unknown> {
-  const out: Record<string, unknown> = { name: b.name.trim() };
+/** Builds the request body: login creds + only the business fields actually filled. */
+function buildPayload(email: string, password: string, b: BusinessFields): Record<string, unknown> {
+  const out: Record<string, unknown> = {
+    email: email.trim(),
+    password,
+    name: b.name.trim(),
+  };
   const optional: (keyof BusinessFields)[] = [
     "legal_name",
     "address",
     "city",
     "pincode",
     "phone",
-    "email",
     "emergency_contact",
     "fssai_license",
     "gst_number",
@@ -79,6 +79,8 @@ function businessPayload(b: BusinessFields): Record<string, unknown> {
     const v = b[k];
     if (typeof v === "string" && v.trim()) out[k] = v.trim();
   }
+  // Business contact email is distinct from the login email (avoid the key clash).
+  if (b.email.trim()) out.contact_email = b.email.trim();
   if (b.geo_lat != null && b.geo_lng != null) {
     out.geo_lat = b.geo_lat;
     out.geo_lng = b.geo_lng;
@@ -89,33 +91,15 @@ function businessPayload(b: BusinessFields): Record<string, unknown> {
 export default function VendorRegisterPage() {
   const router = useRouter();
 
-  // "loading" while we resolve the session; then "signup" (A) or "complete" (B).
-  const [mode, setMode] = useState<"loading" | "signup" | "complete">("loading");
-
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [business, setBusiness] = useState<BusinessFields>(EMPTY_BUSINESS);
 
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [confirmSent, setConfirmSent] = useState(false);
 
   const [geoBusy, setGeoBusy] = useState(false);
   const [geoError, setGeoError] = useState<string | null>(null);
-
-  // Decide which branch to render from the current session.
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      const supabase = createClient();
-      const { data } = await supabase.auth.getSession();
-      if (!active) return;
-      setMode(data.session ? "complete" : "signup");
-    })();
-    return () => {
-      active = false;
-    };
-  }, []);
 
   function setField<K extends keyof BusinessFields>(key: K, value: BusinessFields[K]) {
     setBusiness((b) => ({ ...b, [key]: value }));
@@ -141,34 +125,6 @@ export default function VendorRegisterPage() {
     );
   }
 
-  /** POST the business fields to create the pending vendor, then go to the app. */
-  async function registerVendor(): Promise<boolean> {
-    let res: Response;
-    try {
-      res = await fetch("/api/vendor/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify(businessPayload(business)),
-      });
-    } catch {
-      setError("Network error — please try again.");
-      return false;
-    }
-    if (res.status === 401) {
-      router.push("/vendor/login?redirect=/vendor/register");
-      return false;
-    }
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      console.error("[vendor/register] /api/vendor/register failed:", res.status, body);
-      const m = typeof body.error === "string" && body.error.trim() ? body.error : null;
-      setError(m ?? `Registration failed (${res.status}).`);
-      return false;
-    }
-    return true;
-  }
-
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -177,86 +133,49 @@ export default function VendorRegisterPage() {
       setError("Business name is required.");
       return;
     }
+    if (!email.trim() || password.length < 6) {
+      setError("Enter an email and a password (at least 6 characters).");
+      return;
+    }
 
     setLoading(true);
 
-    // Branch B — already signed in, just create the vendor record.
-    if (mode === "complete") {
-      const ok = await registerVendor();
-      if (!ok) {
-        setLoading(false);
-        return;
-      }
-      router.push("/vendor");
-      router.refresh();
+    // Create account + pending vendor server-side (one atomic call).
+    let res: Response;
+    try {
+      res = await fetch("/api/vendor/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(buildPayload(email, password, business)),
+      });
+    } catch {
+      setError("Network error — please try again.");
+      setLoading(false);
       return;
     }
 
-    // Branch A — create the auth account first.
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      console.error("[vendor/register] failed:", res.status, body);
+      const m = typeof body.error === "string" && body.error.trim() ? body.error : null;
+      setError(m ?? `Registration failed (${res.status}).`);
+      setLoading(false);
+      return;
+    }
+
+    // Account exists and is confirmed — sign in and enter the vendor app.
     const supabase = createClient();
-    const { data, error: signUpError } = await supabase.auth.signUp({
-      email,
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
       password,
-      options: { data: { full_name: business.name.trim(), account_type: "vendor" } },
     });
-
-    if (signUpError) {
-      console.error("[vendor/register] sign-up failed:", signUpError);
-      const m = signUpError.message?.trim();
-      setError(
-        m && m !== "{}"
-          ? m
-          : "Sign-up failed on the server (the database rejected the new user). Apply the signup-constraints migration (docs/proposed-migrations/m23) and try again.",
-      );
-      setLoading(false);
-      return;
-    }
-
-    // Email confirmation ON → no session yet; finish after they confirm + sign in.
-    if (!data.session) {
-      setConfirmSent(true);
-      setLoading(false);
-      return;
-    }
-
-    // Session present → create the vendor right away and enter the app.
-    const ok = await registerVendor();
-    if (!ok) {
-      setLoading(false);
+    if (signInError) {
+      // The account was created fine; only the auto sign-in hiccupped.
+      router.push("/vendor/login?registered=1");
       return;
     }
     router.push("/vendor");
     router.refresh();
-  }
-
-  /* ---- Render states ------------------------------------------------------- */
-
-  if (mode === "loading") {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-slate-900" />
-      </main>
-    );
-  }
-
-  if (confirmSent) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-        <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-          <h1 className="text-xl font-semibold text-slate-900">Check your email</h1>
-          <p className="mt-2 text-sm text-slate-500">
-            We sent a confirmation link to <span className="font-medium text-slate-700">{email}</span>.
-            Confirm it, then sign in to finish your application.
-          </p>
-          <Link
-            href="/vendor/login?redirect=/vendor/register"
-            className="mt-6 inline-block rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
-          >
-            Go to sign in
-          </Link>
-        </div>
-      </main>
-    );
   }
 
   return (
@@ -264,45 +183,42 @@ export default function VendorRegisterPage() {
       <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
         <div className="mb-6 text-center">
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
-            {mode === "complete" ? "Complete your vendor application" : "Become a pApAmA vendor"}
+            Become a pApAmA vendor
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            {mode === "complete"
-              ? "Tell us about your business to finish your application."
-              : "Create an account and tell us about your business."}
+            Create an account and tell us about your business. We’ll review and approve it before
+            you go live.
           </p>
         </div>
 
         <form onSubmit={onSubmit} className="space-y-6">
-          {/* Account credentials — sign-up branch only. */}
-          {mode === "signup" && (
-            <fieldset className="space-y-4">
-              <legend className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-                Account
-              </legend>
-              <Field
-                id="email"
-                label="Email"
-                type="email"
-                required
-                autoComplete="email"
-                value={email}
-                onChange={setEmail}
-                placeholder="you@example.com"
-              />
-              <Field
-                id="password"
-                label="Password"
-                type="password"
-                required
-                minLength={6}
-                autoComplete="new-password"
-                value={password}
-                onChange={setPassword}
-                placeholder="At least 6 characters"
-              />
-            </fieldset>
-          )}
+          {/* Account credentials */}
+          <fieldset className="space-y-4">
+            <legend className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+              Account
+            </legend>
+            <Field
+              id="email"
+              label="Email"
+              type="email"
+              required
+              autoComplete="email"
+              value={email}
+              onChange={setEmail}
+              placeholder="you@example.com"
+            />
+            <Field
+              id="password"
+              label="Password"
+              type="password"
+              required
+              minLength={6}
+              autoComplete="new-password"
+              value={password}
+              onChange={setPassword}
+              placeholder="At least 6 characters"
+            />
+          </fieldset>
 
           <fieldset className="space-y-4">
             <legend className="text-sm font-semibold uppercase tracking-wide text-slate-500">
@@ -486,24 +402,15 @@ export default function VendorRegisterPage() {
             disabled={loading}
             className="w-full rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {loading
-              ? "Submitting…"
-              : mode === "complete"
-                ? "Submit application"
-                : "Create account & apply"}
+            {loading ? "Submitting…" : "Create account & apply"}
           </button>
 
-          {mode === "signup" && (
-            <p className="text-center text-sm text-slate-500">
-              Already have a vendor account?{" "}
-              <Link
-                href="/vendor/login"
-                className="font-medium text-slate-900 hover:underline"
-              >
-                Sign in
-              </Link>
-            </p>
-          )}
+          <p className="text-center text-sm text-slate-500">
+            Already have a vendor account?{" "}
+            <Link href="/vendor/login" className="font-medium text-slate-900 hover:underline">
+              Sign in
+            </Link>
+          </p>
         </form>
       </div>
     </main>
