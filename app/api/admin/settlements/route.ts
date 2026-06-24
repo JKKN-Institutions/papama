@@ -20,7 +20,7 @@ export const GET = defineRoute({ feature: "vendor_settlement", action: "read" },
 
     const { data, error } = await supabase
         .from("vendor_settlements")
-        .select("id, vendor_id, period, amount, status, line_item_count, settled_at, created_at")
+        .select("id, vendor_id, period, amount, status, on_hold, line_item_count, settled_at, created_at")
         .order("created_at", { ascending: false });
 
     if (error) throw new Error(error.message);
@@ -31,6 +31,7 @@ export const GET = defineRoute({ feature: "vendor_settlement", action: "read" },
         period: s.period,
         amount: Number(s.amount),
         status: s.status,
+        on_hold: s.on_hold ?? false,
         line_items: s.line_item_count,
         settled_at: s.settled_at,
     }));
@@ -65,26 +66,60 @@ export const PATCH = defineRoute(
     { feature: "vendor_settlement", action: "update" },
     async ({ req, audit }) => {
         const body = await parseBody(req, settlementActionRequestSchema);
-        const rule = SETTLEMENT_ACTION_RULES[body.action];
 
         const admin = createAdminClient();
 
         const { data, error: fetchError } = await admin
             .from("vendor_settlements")
-            .select("id, status")
+            .select("id, status, on_hold")
             .eq("id", body.settlement_id)
             .single();
 
         if (fetchError || !data) throw new NotFoundError("settlement not found");
-        const settlement = data as { id: string; status: SettlementStatus };
+        const settlement = data as {
+            id: string;
+            status: SettlementStatus;
+            on_hold: boolean;
+        };
+        const nowIso = new Date().toISOString();
 
+        // HOLD / RELEASE — admin override (owner §4.8). Orthogonal to the lifecycle:
+        // toggles on_hold without changing status. Hold is allowed on any non-paid
+        // settlement; release lifts an existing hold.
+        if (body.action === "hold" || body.action === "release") {
+            if (body.action === "hold" && settlement.status === "paid") {
+                throw new BadRequestError("cannot hold a settlement that is already paid");
+            }
+            const onHold = body.action === "hold";
+            const { error: holdError } = await admin
+                .from("vendor_settlements")
+                .update({ on_hold: onHold, hold_note: body.note ?? null, updated_at: nowIso })
+                .eq("id", body.settlement_id);
+            if (holdError) throw new Error(holdError.message);
+
+            await audit({
+                action: `settlement.${body.action}`,
+                entity_table: "vendor_settlements",
+                entity_id: body.settlement_id,
+                summary: `settlement ${onHold ? "held" : "released"}${body.note ? ` (${body.note})` : ""}`,
+                metadata: { on_hold: onHold, status: settlement.status, note: body.note ?? null },
+            });
+
+            return { ok: true, id: body.settlement_id, status: settlement.status, on_hold: onHold };
+        }
+
+        // LIFECYCLE — lock / unlock / reconcile / pay (status transitions).
+        const rule = SETTLEMENT_ACTION_RULES[body.action];
         if (!rule.from.includes(settlement.status)) {
             throw new BadRequestError(
                 `cannot '${body.action}' a settlement whose status is '${settlement.status}'`
             );
         }
+        // A held settlement cannot be paid until released (the override's whole point).
+        if (body.action === "pay" && settlement.on_hold) {
+            throw new BadRequestError("settlement is on hold — release it before paying");
+        }
 
-        const nowIso = new Date().toISOString();
         const update: Record<string, unknown> = { status: rule.to, updated_at: nowIso };
         if (rule.stampsSettledAt) update.settled_at = nowIso;
 

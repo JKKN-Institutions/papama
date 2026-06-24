@@ -40,8 +40,8 @@ export default function AdminVendorsPage() {
             return;
         }
 
-        const body = (await res.json()) as { vendors: VendorResponse[] };
-        setVendors(body.vendors);
+        const body = (await res.json()) as { vendors?: VendorResponse[] };
+        setVendors(body.vendors ?? []); // guard: never set undefined (shared useAdminList does the same)
         setState("ready");
     }, [router]);
 

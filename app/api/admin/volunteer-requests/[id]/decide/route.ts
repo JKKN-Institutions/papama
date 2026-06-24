@@ -83,11 +83,33 @@ export const POST = defineRoute<{ id: string }>(
             return { request_id: requestId, granted_count: 0 };
         }
 
-        // GRANT / PARTIALLY_GRANT — allocate the explicit decided_count when given,
-        // else the full requested count. The shared helper does the pool-pull +
-        // concurrent-limit check + 'assigned_to_volunteer' move + grant records
-        // (same engine as the §3a admin-initiated route, channel differs).
-        const count = body.decided_count ?? request.requested_count;
+        // GRANT / PARTIALLY_GRANT — resolve the count, bounded by the request so a
+        // "granted" can never allocate MORE than was requested:
+        //   granted           → exactly requested_count (a full grant),
+        //   partially_granted  → an explicit decided_count in 1..requested_count-1.
+        let count: number;
+        if (body.decision === "granted") {
+            if (body.decided_count !== undefined && body.decided_count !== request.requested_count) {
+                throw new BadRequestError(
+                    "a full grant allocates exactly the requested count — use partially_granted for fewer"
+                );
+            }
+            count = request.requested_count;
+        } else {
+            if (body.decided_count === undefined) {
+                throw new BadRequestError("partially_granted requires decided_count");
+            }
+            if (body.decided_count < 1 || body.decided_count >= request.requested_count) {
+                throw new BadRequestError(
+                    `decided_count must be between 1 and ${request.requested_count - 1} for a partial grant`
+                );
+            }
+            count = body.decided_count;
+        }
+
+        // The shared helper does the pool-pull + concurrent-limit check +
+        // 'assigned_to_volunteer' move + grant records (same engine as the §3a
+        // admin-initiated route, channel differs).
 
         const { volunteerUserId, movedIds } = await allocatePooledTokens(
             admin,

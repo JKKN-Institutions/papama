@@ -40,6 +40,7 @@ export const POST = defineRoute(
             total_amount: result.total_amount,
             line_items: result.line_items,
             vendors: result.vendors,
+            errors: result.errors, // vendors skipped + rolled back (run does not abort on one failure)
         };
     }
 );

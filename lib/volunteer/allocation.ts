@@ -92,6 +92,19 @@ export async function allocatePooledTokens(
     const nowIso = new Date().toISOString();
     const movedIds: string[] = [];
 
+    // Compensating rollback: supabase-js can't span a transaction across these
+    // statements, so on ANY failure after we start moving tokens we return the
+    // moved ones to the pool. This prevents the orphaned-`assigned_to_volunteer`
+    // (no grant record, no audit, request stuck) state the prior code could leave.
+    const revertMoves = async () => {
+        if (movedIds.length === 0) return;
+        await admin
+            .from("tokens")
+            .update({ status: "in_admin_pool" })
+            .in("id", movedIds)
+            .eq("status", "assigned_to_volunteer");
+    };
+
     // 4. Move each token, guarding on still-pooled status.
     for (const t of poolTokens) {
         const { data: moved, error: moveError } = await admin
@@ -100,11 +113,15 @@ export async function allocatePooledTokens(
             .eq("id", t.id)
             .eq("status", "in_admin_pool")
             .select("id");
-        if (moveError) throw new Error(moveError.message);
+        if (moveError) {
+            await revertMoves();
+            throw new Error(moveError.message);
+        }
         if (moved && moved.length > 0) movedIds.push(t.id);
     }
 
     if (movedIds.length < count) {
+        await revertMoves();
         throw new BadRequestError(
             "could not reserve enough tokens (a concurrent allocation claimed some)"
         );
@@ -121,7 +138,10 @@ export async function allocatePooledTokens(
                 distributed_at: nowIso,
             }))
         );
-    if (recordError) throw new Error(recordError.message);
+    if (recordError) {
+        await revertMoves();
+        throw new Error(recordError.message);
+    }
 
     return { volunteerUserId, movedIds };
 }

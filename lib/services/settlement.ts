@@ -33,6 +33,8 @@ export interface SettlementRunResult {
     total_amount: number;
     line_items: number;
     vendors: { vendor_id: string; settlement_id: string; amount: number; count: number }[];
+    /** Vendors whose settlement failed and was rolled back — the run continues past them. */
+    errors: { vendor_id: string; error: string }[];
 }
 
 /** Platform-owed amount for one redemption (menu value minus beneficiary's over-pay). */
@@ -77,47 +79,65 @@ export async function runSettlement(
         total_amount: 0,
         line_items: 0,
         vendors: [],
+        errors: [],
     };
 
+    // Each vendor is settled independently. A failure is isolated (recorded in
+    // `errors`) so it can't abort the whole run, and a half-built settlement is
+    // compensated (header deleted) — the prior code threw mid-loop, leaving earlier
+    // vendors committed but UNaudited (audit happens per returned vendor) and a
+    // failed vendor's empty header orphaned.
     for (const [vendorId, reds] of byVendor) {
-        const amount = reds.reduce((s, r) => s + payout(r), 0);
+        try {
+            const amount = reds.reduce((s, r) => s + payout(r), 0);
 
-        const { data: settlementRow, error: insErr } = await admin
-            .from("vendor_settlements")
-            .insert({
+            const { data: settlementRow, error: insErr } = await admin
+                .from("vendor_settlements")
+                .insert({
+                    vendor_id: vendorId,
+                    period,
+                    period_start: reds[0].redeemed_at, // earliest (ordered asc)
+                    period_end: nowIso,
+                    amount,
+                    line_item_count: reds.length,
+                    status: "pending",
+                })
+                .select("id")
+                .single();
+            if (insErr || !settlementRow) {
+                throw new Error(insErr?.message ?? "failed to create settlement header");
+            }
+            const settlementId = (settlementRow as { id: string }).id;
+
+            const { error: liErr } = await admin.from("settlement_line_items").insert(
+                reds.map((r) => ({
+                    settlement_id: settlementId,
+                    redemption_id: r.id,
+                    amount_inr: payout(r),
+                }))
+            );
+            if (liErr) {
+                // Compensating cleanup: drop the just-created header so no empty/half
+                // settlement is left behind.
+                await admin.from("vendor_settlements").delete().eq("id", settlementId);
+                throw new Error(liErr.message);
+            }
+
+            result.settlements_created += 1;
+            result.total_amount += amount;
+            result.line_items += reds.length;
+            result.vendors.push({
                 vendor_id: vendorId,
-                period,
-                period_start: reds[0].redeemed_at, // earliest (ordered asc)
-                period_end: nowIso,
-                amount,
-                line_item_count: reds.length,
-                status: "pending",
-            })
-            .select("id")
-            .single();
-        if (insErr || !settlementRow) {
-            throw new Error(insErr?.message ?? "failed to create settlement");
-        }
-        const settlementId = (settlementRow as { id: string }).id;
-
-        const { error: liErr } = await admin.from("settlement_line_items").insert(
-            reds.map((r) => ({
                 settlement_id: settlementId,
-                redemption_id: r.id,
-                amount_inr: payout(r),
-            }))
-        );
-        if (liErr) throw new Error(liErr.message);
-
-        result.settlements_created += 1;
-        result.total_amount += amount;
-        result.line_items += reds.length;
-        result.vendors.push({
-            vendor_id: vendorId,
-            settlement_id: settlementId,
-            amount,
-            count: reds.length,
-        });
+                amount,
+                count: reds.length,
+            });
+        } catch (e) {
+            result.errors.push({
+                vendor_id: vendorId,
+                error: e instanceof Error ? e.message : "settlement failed",
+            });
+        }
     }
 
     return result;

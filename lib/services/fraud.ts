@@ -2,6 +2,8 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { getNumber } from "@/lib/system-config";
+
 /**
  * Core rule-based fraud signals (SEC-5..8, demo step 9). Real-time flags are
  * raised inline by the redemption route (repeat-beneficiary, duplicate token);
@@ -65,14 +67,22 @@ export async function flagFraud(admin: SupabaseClient, input: FraudFlagInput): P
 
 /**
  * Vendor volume-anomaly sweep: flag any vendor whose redemptions TODAY are a
- * statistical outlier — ≥ 3 and ≥ 3× the median across active vendors. The
- * multiplier/floor are detection heuristics (a later slice can move them to
- * system_config). Returns the number of NEW flags created.
+ * statistical outlier — ≥ `fraud_anomaly_min_count` AND ≥ `fraud_anomaly_median_multiple`×
+ * the median across active vendors. Both thresholds are admin-tunable
+ * `system_config` rows (AGENTS.md: rules are never hard-coded); the constants
+ * below are only the fallback used when a key is unset. Returns NEW flags created.
  */
-const ANOMALY_MIN_COUNT = 3;
-const ANOMALY_MEDIAN_MULTIPLE = 3;
+const DEFAULT_ANOMALY_MIN_COUNT = 3;
+const DEFAULT_ANOMALY_MEDIAN_MULTIPLE = 3;
 
 export async function scanVendorAnomalies(admin: SupabaseClient): Promise<number> {
+    const minCount = await getNumber("fraud_anomaly_min_count", admin as never).catch(
+        () => DEFAULT_ANOMALY_MIN_COUNT
+    );
+    const medianMultiple = await getNumber("fraud_anomaly_median_multiple", admin as never).catch(
+        () => DEFAULT_ANOMALY_MEDIAN_MULTIPLE
+    );
+
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
 
@@ -88,12 +98,17 @@ export async function scanVendorAnomalies(admin: SupabaseClient): Promise<number
     }
     if (counts.size === 0) return 0;
 
+    // True median: average the two middle values for an even-length set (the old
+    // upper-middle pick inflated the threshold and let real outliers escape).
     const sorted = [...counts.values()].sort((a, b) => a - b);
-    const median = Math.max(1, sorted[Math.floor(sorted.length / 2)]);
+    const mid = Math.floor(sorted.length / 2);
+    const rawMedian =
+        sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+    const median = Math.max(1, rawMedian);
 
     let created = 0;
     for (const [vendorId, count] of counts) {
-        if (count >= ANOMALY_MIN_COUNT && count >= ANOMALY_MEDIAN_MULTIPLE * median) {
+        if (count >= minCount && count >= medianMultiple * median) {
             const inserted = await flagFraud(admin, {
                 flag_type: "vendor_anomaly",
                 severity: "medium",

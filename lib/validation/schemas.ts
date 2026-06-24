@@ -328,6 +328,7 @@ export const settlementResponseSchema = z.object({
     settlement_id: z.string(),
     vendor_id: z.string(),
     period: settlementCycleSchema,
+    on_hold: z.boolean(), // admin override (owner §4.8 hold/delay); blocks `pay` while true
     amount: z.number().nonnegative(), // numeric in DB
     status: settlementStatusSchema,
     line_items: z.number().int().nonnegative(),
@@ -339,9 +340,18 @@ export type SettlementResponse = z.infer<typeof settlementResponseSchema>;
  * PATCH /api/admin/settlements — admin settlement lifecycle (contract §8, owner
  * §4.8). Forward cycle lock → reconcile → pay; `unlock` is the admin override
  * that returns a locked settlement to pending. `pay` stamps `settled_at`.
- * `note` is appended to the audit trail.
+ * `hold`/`release` are the admin OVERRIDE (owner §4.8): hold delays a payout (any
+ * non-paid status) and blocks `pay`; release lifts it. They toggle `on_hold` and
+ * do NOT change the lifecycle status. `note` is appended to the audit trail.
  */
-export const settlementActionSchema = z.enum(["lock", "unlock", "reconcile", "pay"]);
+export const settlementActionSchema = z.enum([
+    "lock",
+    "unlock",
+    "reconcile",
+    "pay",
+    "hold",
+    "release",
+]);
 export type SettlementAction = z.infer<typeof settlementActionSchema>;
 
 export const settlementActionRequestSchema = z.object({
@@ -368,11 +378,13 @@ export const fraudFlagResponseSchema = z.object({
 export type FraudFlagResponse = z.infer<typeof fraudFlagResponseSchema>;
 
 /**
- * PATCH /api/admin/fraud — resolve or dismiss an open flag. `resolve` = a real
- * issue that has been handled (the block, if any, stands); `dismiss` = a false
- * positive (any block is cleared). `notes` is stored in `resolution_notes`.
+ * PATCH /api/admin/fraud — action an open flag, or lift a standing block.
+ * `resolve` = a real issue handled (the block, if any, stands); `dismiss` = a
+ * false positive (any block is cleared); `unblock` = lift the block on an
+ * already-resolved (or any blocked) flag without changing its status — the only
+ * way to release a block left in place by `resolve`. `notes` → `resolution_notes`.
  */
-export const fraudActionSchema = z.enum(["resolve", "dismiss"]);
+export const fraudActionSchema = z.enum(["resolve", "dismiss", "unblock"]);
 export type FraudAction = z.infer<typeof fraudActionSchema>;
 
 export const fraudActionRequestSchema = z.object({

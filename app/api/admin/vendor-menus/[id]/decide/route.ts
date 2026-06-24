@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { NotFoundError, defineRoute, parseBody } from "@/lib/api/handler";
+import { BadRequestError, NotFoundError, defineRoute, parseBody } from "@/lib/api/handler";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -28,21 +28,36 @@ export const PATCH = defineRoute<{ id: string }>(
 
         const admin = createAdminClient();
 
+        // Only a still-`pending` item may be decided — no re-flipping a settled
+        // approval/rejection (matches every other lifecycle route's state guard).
+        const { data: current, error: fetchError } = await admin
+            .from("vendor_menus")
+            .select("id, approval_status")
+            .eq("id", params.id)
+            .maybeSingle();
+        if (fetchError) throw new Error(fetchError.message);
+        if (!current) throw new NotFoundError("menu item not found");
+        if (current.approval_status !== "pending") {
+            throw new BadRequestError(`menu item is already '${current.approval_status}'`);
+        }
+
         const approvalStatus = body.decision === "approve" ? "approved" : "rejected";
         const update: Record<string, unknown> = { approval_status: approvalStatus };
-        if (body.decision === "approve" && body.special_care_equivalent !== undefined) {
-            update.special_care_equivalent_approved = body.special_care_equivalent;
-        }
+        // On approve, set the special-care flag as requested. On reject, explicitly
+        // CLEAR it so a rejected item can never carry a stale approved equivalence.
+        update.special_care_equivalent_approved =
+            body.decision === "approve" ? (body.special_care_equivalent ?? false) : false;
 
         const { data, error } = await admin
             .from("vendor_menus")
             .update(update)
             .eq("id", params.id)
+            .eq("approval_status", "pending") // race guard: lose cleanly if decided concurrently
             .select("id, approval_status, special_care_equivalent_approved")
             .maybeSingle();
 
         if (error) throw new Error(error.message);
-        if (!data) throw new NotFoundError("menu item not found");
+        if (!data) throw new BadRequestError("menu item was decided concurrently");
 
         await audit({
             action: `vendor.menu.${body.decision}`,
