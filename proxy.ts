@@ -2,13 +2,15 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 /**
- * Edge middleware: refreshes the Supabase auth session on each request and
- * guards the admin area. Any unauthenticated hit to /admin/** is bounced to
- * /login (with a ?redirect back). Per-route authorization (the permission
- * matrix) still runs inside each API route via defineRoute — this is only the
- * coarse "are you signed in at all" gate plus token refresh.
+ * Edge proxy (Next.js 16 — renamed from `middleware`): refreshes the Supabase
+ * auth session on each request and guards the authenticated areas. Any
+ * unauthenticated hit to a portal is bounced to that portal's login (with a
+ * ?redirect back), except each portal's own public auth pages. Per-route
+ * authorization (the permission matrix) still runs inside each API route via
+ * defineRoute — this is only the coarse "are you signed in at all" gate + token
+ * refresh.
  */
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
     let response = NextResponse.next({ request });
 
     const supabase = createServerClient(
