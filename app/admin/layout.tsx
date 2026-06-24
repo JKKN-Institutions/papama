@@ -4,6 +4,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { AppUserProvider } from "@/components/auth/AppUserProvider";
+import { BugReporterWrapper } from "@/components/bug-reporter-wrapper";
 import { getAppUser } from "@/lib/auth";
 import { isAdminConsoleRole } from "@/lib/permissions";
 
@@ -31,10 +32,12 @@ export default async function AdminLayout({ children }: { children: ReactNode })
 
     return (
         <AppUserProvider user={user}>
-            <div className="min-h-screen bg-slate-50">
-                <AdminHeader />
-                <main className="mx-auto max-w-6xl px-6 py-8">{children}</main>
-            </div>
+            <BugReporterWrapper>
+                <div className="min-h-screen bg-slate-50">
+                    <AdminHeader />
+                    <main className="mx-auto max-w-6xl px-6 py-8">{children}</main>
+                </div>
+            </BugReporterWrapper>
         </AppUserProvider>
     );
 }

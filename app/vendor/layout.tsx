@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 
 import Link from "next/link";
 
+import { BugReporterWrapper } from "@/components/bug-reporter-wrapper";
 import { getAppUser } from "@/lib/auth";
 
 import { VendorHeader } from "./VendorHeader";
@@ -28,10 +29,12 @@ export default async function VendorLayout({ children }: { children: ReactNode }
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <VendorHeader />
-      <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">{children}</main>
-    </div>
+    <BugReporterWrapper>
+      <div className="min-h-screen bg-slate-50">
+        <VendorHeader />
+        <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">{children}</main>
+      </div>
+    </BugReporterWrapper>
   );
 }
 
