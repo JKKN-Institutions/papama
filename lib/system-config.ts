@@ -26,7 +26,8 @@ export type SystemConfigKey =
     | "courier_batch_min_value"
     | "vendor_min_rating"
     | "vendor_max_complaint_rate"
-    | "max_tokens_per_volunteer";
+    | "max_tokens_per_volunteer"
+    | "patient_eligibility_months";
 
 type ValueType = "number" | "boolean" | "string";
 

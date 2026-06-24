@@ -83,8 +83,10 @@ export async function scanVendorAnomalies(admin: SupabaseClient): Promise<number
         () => DEFAULT_ANOMALY_MEDIAN_MULTIPLE
     );
 
+    // Use UTC midnight so the day boundary matches redeemed_at (stored as UTC)
+    // regardless of the server's local timezone (which may not be IST).
     const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
+    startOfDay.setUTCHours(0, 0, 0, 0);
 
     const { data: reds, error } = await admin
         .from("token_redemptions")

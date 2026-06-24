@@ -63,8 +63,14 @@ export default function AdminSettlementsPage() {
                         <tbody className="divide-y divide-slate-100">
                             {items.map((s) => (
                                 <tr key={s.settlement_id} className="hover:bg-slate-50">
-                                    <td className="px-4 py-3 font-mono text-xs text-slate-600">
-                                        {s.vendor_id}
+                                    <td className="px-4 py-3 text-slate-700">
+                                        {s.vendor_name ? (
+                                            <span className="font-medium">{s.vendor_name}</span>
+                                        ) : (
+                                            <span className="font-mono text-xs text-slate-500" title={s.vendor_id}>
+                                                {s.vendor_id.slice(0, 8)}…
+                                            </span>
+                                        )}
                                     </td>
                                     <td className="px-4 py-3 capitalize text-slate-700">
                                         {s.period.replace(/_/g, " ")}

@@ -25,6 +25,8 @@ interface MenuItem {
 interface PreviewCheck {
   name: string;
   pass: boolean;
+  /** Whether failing this check invalidates the redemption (vs. informational). */
+  hard: boolean;
   detail?: string;
 }
 
@@ -301,8 +303,11 @@ export default function VendorScanPage() {
     setProofDone(true);
   }
 
-  // A redemption is blocked if any check failed.
-  const allChecksPass = preview != null && preview.checks.every((c) => c.pass);
+  // A redemption is blocked only if a HARD check failed. SOFT checks (e.g. geo
+  // not yet shared, no prior meals on file) are informational and must not block
+  // the Serve button — mirror the engine's own `ok = every(!hard || pass)` rule.
+  const allChecksPass =
+    preview != null && preview.checks.every((c) => !c.hard || c.pass);
 
   return (
     <div>

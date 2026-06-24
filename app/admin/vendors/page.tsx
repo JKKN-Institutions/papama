@@ -133,10 +133,11 @@ export default function AdminVendorsPage() {
     );
 }
 
-const NEEDS_CONFIRM = new Set<VendorAction>(["reject", "suspend", "fail_kyc"]);
+// approve and reinstate bring a vendor online; require explicit confirmation.
+const NEEDS_CONFIRM = new Set<VendorAction>(["approve", "reinstate", "reject", "suspend", "fail_kyc"]);
 const CONFIRM_TEXT: Record<VendorAction, string> = {
-    approve: "",
-    reinstate: "",
+    approve: "Approve this vendor? They will be allowed to accept token redemptions.",
+    reinstate: "Reinstate this vendor? They will resume accepting token redemptions.",
     verify_kyc: "",
     reject: "Reject this vendor? They will not be able to operate.",
     suspend: "Suspend this vendor? Redemptions at this vendor will stop.",

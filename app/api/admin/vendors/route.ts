@@ -1,8 +1,17 @@
-import { BadRequestError, NotFoundError, defineRoute, parseBody } from "@/lib/api/handler";
+import { BadRequestError, NotFoundError, defineRoute, parseBody, parseQuery } from "@/lib/api/handler";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { KycStatus, VendorStatus } from "@/lib/types/enums";
 import { vendorActionRequestSchema, type VendorResponse } from "@/lib/validation/schemas";
+import { z } from "zod";
+
+const DEFAULT_LIMIT = 100;
+const MAX_LIMIT = 200;
+
+const vendorListQuerySchema = z.object({
+    limit: z.coerce.number().int().min(1).max(MAX_LIMIT).optional(),
+    offset: z.coerce.number().int().min(0).optional(),
+});
 
 /**
  * GET /api/admin/vendors — list vendors for the admin console (contract §4).
@@ -13,7 +22,11 @@ import { vendorActionRequestSchema, type VendorResponse } from "@/lib/validation
  * VendorResponse contract shape (geo composed from geo_lat/geo_lng). Never null
  * body — returns an empty list on no rows.
  */
-export const GET = defineRoute({ feature: "vendor_management", action: "read" }, async () => {
+export const GET = defineRoute({ feature: "vendor_management", action: "read" }, async ({ req }) => {
+    const { limit = DEFAULT_LIMIT, offset = 0 } = parseQuery(
+        req.nextUrl.searchParams,
+        vendorListQuerySchema
+    );
     const supabase = await createClient();
 
     const { data, error } = await supabase
@@ -21,7 +34,8 @@ export const GET = defineRoute({ feature: "vendor_management", action: "read" },
         .select(
             "id, name, status, kyc_status, fssai_license, gst_number, geo_lat, geo_lng, hygiene_rating, created_at"
         )
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .range(offset, offset + limit - 1);
 
     if (error) throw new Error(error.message);
 
@@ -40,7 +54,7 @@ export const GET = defineRoute({ feature: "vendor_management", action: "read" },
         created_at: v.created_at,
     }));
 
-    return { vendors, total: vendors.length };
+    return { vendors, total: vendors.length, limit, offset };
 });
 
 /**
@@ -95,6 +109,13 @@ export const PATCH = defineRoute(
             throw new BadRequestError(
                 `cannot '${body.action}' a vendor whose ${rule.column} is '${current}'`
             );
+        }
+
+        // A vendor must not be brought online before KYC is verified — approving a
+        // pending/failed-KYC outlet would let it scan tokens and lock payments
+        // without verification (status and kyc_status were independent before).
+        if (body.action === "approve" && vendor.kyc_status !== "verified") {
+            throw new BadRequestError("verify KYC before approving this vendor");
         }
 
         const { error: updateError } = await admin

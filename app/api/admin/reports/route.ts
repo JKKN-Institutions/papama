@@ -85,15 +85,27 @@ async function sumColumn(
     startTs: string | null,
     endTs: string | null
 ): Promise<number> {
+    // Prefer a server-side PostgREST aggregate (DB sums the column, no full-row
+    // fetch). BUT Supabase disables aggregate functions in the Data API by default
+    // on many projects — when that's the case the aggregate select errors. So we
+    // try the aggregate and transparently fall back to fetch-and-sum, which always
+    // works and is fine at Phase-1 scale. (CSR export is demo step 9 — never break.)
+    let agg = admin.from(table).select(`${col}.sum()`);
+    if (startTs) agg = agg.gte(tsCol, startTs);
+    if (endTs) agg = agg.lte(tsCol, endTs);
+    const aggRes = await agg.returns<Record<string, unknown>[]>();
+    if (!aggRes.error) {
+        const row = (aggRes.data ?? [])[0];
+        return row ? Number(row["sum"]) || 0 : 0;
+    }
+
+    // Fallback: fetch the column and sum in JS.
     let q = admin.from(table).select(col);
     if (startTs) q = q.gte(tsCol, startTs);
     if (endTs) q = q.lte(tsCol, endTs);
     const { data, error } = await q.returns<Record<string, unknown>[]>();
     if (error) throw new Error(error.message);
-    return (data ?? []).reduce(
-        (sum, row) => sum + (Number(row[col]) || 0),
-        0
-    );
+    return (data ?? []).reduce((sum, row) => sum + (Number(row[col]) || 0), 0);
 }
 
 async function buildSummary(

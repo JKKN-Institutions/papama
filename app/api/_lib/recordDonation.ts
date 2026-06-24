@@ -3,6 +3,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getNumber } from "@/lib/system-config";
+import { dispatchNotification } from "@/lib/notifications/dispatch";
 
 /**
  * Shared donation-recording primitive used by BOTH the guest donation route and
@@ -91,23 +92,46 @@ export async function recordDonation({
         };
     }
 
-    // 2. Add credit to the donor's balance (upsert donor_credits).
-    const { data: creditRow } = await admin
-        .from("donor_credits")
-        .select("balance_inr")
-        .eq("donor_id", donorId)
-        .maybeSingle();
+    // 2. Add credit to the donor's balance with a compare-and-swap retry loop.
+    //    supabase-js can't express `balance = balance + x` or wrap a transaction,
+    //    so we read-then-CAS on the prior value: if a concurrent donation/mint
+    //    moved the balance, the guarded update affects 0 rows and we re-read and
+    //    retry. This prevents lost updates (two donations silently overwriting
+    //    each other). A hardening RPC is proposed in docs/proposed-migrations.
+    let oldBalance = 0;
+    let newBalance = 0;
+    let credited = false;
+    for (let attempt = 0; attempt < 6 && !credited; attempt++) {
+        const { data: creditRow } = await admin
+            .from("donor_credits")
+            .select("balance_inr")
+            .eq("donor_id", donorId)
+            .maybeSingle();
 
-    const oldBalance = creditRow?.balance_inr ?? 0;
-    const newBalance = oldBalance + amountInr;
+        oldBalance = creditRow?.balance_inr ?? 0;
+        newBalance = oldBalance + amountInr;
 
-    const creditWrite = creditRow
-        ? await admin
-              .from("donor_credits")
-              .update({ balance_inr: newBalance, updated_at: nowIso })
-              .eq("donor_id", donorId)
-        : await admin.from("donor_credits").insert({ donor_id: donorId, balance_inr: newBalance });
-    if (creditWrite.error) throw new Error(creditWrite.error.message);
+        if (creditRow) {
+            const { data: updated, error: updErr } = await admin
+                .from("donor_credits")
+                .update({ balance_inr: newBalance, updated_at: nowIso })
+                .eq("donor_id", donorId)
+                .eq("balance_inr", oldBalance)
+                .select("donor_id")
+                .maybeSingle();
+            if (updErr) throw new Error(updErr.message);
+            credited = !!updated; // 0 rows → lost the race; loop re-reads & retries
+        } else {
+            const { error: insErr } = await admin
+                .from("donor_credits")
+                .insert({ donor_id: donorId, balance_inr: newBalance });
+            // A concurrent donation may have inserted the row first; retry as update.
+            credited = !insErr;
+        }
+    }
+    if (!credited) {
+        throw new Error("could not apply credit after concurrent updates — please retry");
+    }
 
     // 3. Ledger entry.
     const { error: txError } = await admin.from("credit_transactions").insert({
@@ -121,25 +145,24 @@ export async function recordDonation({
     const thresholdReached = threshold != null && newBalance >= threshold;
 
     // 4. Notifications: receipt + one-time threshold alert.
-    const notes: Array<Record<string, unknown>> = [
-        {
-            donor_id: donorId,
-            kind: "donation_success",
-            title: "Donation received",
-            message: `Thank you! ₹${amountInr} was added to your credit.`,
-            metadata: { amount_inr: amountInr, balance: newBalance },
-        },
-    ];
+    await dispatchNotification(admin, {
+        donorId,
+        kind: "donation_success",
+        title: "Donation received",
+        message: `Thank you! ₹${amountInr} was added to your credit.`,
+        metadata: { amount_inr: amountInr, balance: newBalance },
+        // Default channels = ['in_app']. Pass ['in_app','email','sms'] here once
+        // the email/SMS provider is configured (ASSUMPTIONS.md open item Q4).
+    });
     if (threshold != null && oldBalance < threshold && newBalance >= threshold) {
-        notes.push({
-            donor_id: donorId,
+        await dispatchNotification(admin, {
+            donorId,
             kind: "threshold",
             title: "You can mint a token",
             message: `Your credit reached ₹${newBalance} — convert it into a food token.`,
             metadata: { balance: newBalance, threshold },
         });
     }
-    await admin.from("notifications").insert(notes);
 
     return {
         donationId,

@@ -13,7 +13,13 @@ import { createClient } from "@/lib/supabase/client";
 function VolunteerLoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get("redirect") || "/volunteer";
+  // Same-origin relative paths only — reject `//evil.com` / absolute URLs so
+  // `?redirect=` can't be abused as an open-redirect phishing vector.
+  const rawRedirect = searchParams.get("redirect");
+  const redirectTo =
+    rawRedirect && rawRedirect.startsWith("/") && !rawRedirect.startsWith("//")
+      ? rawRedirect
+      : "/volunteer";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

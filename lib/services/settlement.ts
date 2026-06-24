@@ -28,13 +28,6 @@ interface ReleasedRedemption {
     redeemed_at: string;
 }
 
-/** Window length (ms) for a settlement cadence — used to bound a payout period. */
-const CYCLE_WINDOW_MS: Record<SettlementPeriod, number> = {
-    daily: 24 * 3_600_000,
-    twice_weekly: Math.round(3.5 * 24 * 3_600_000),
-    weekly: 7 * 24 * 3_600_000,
-};
-
 export interface SettlementRunResult {
     settlements_created: number;
     total_amount: number;
@@ -58,24 +51,27 @@ export async function runSettlement(
     fallbackPeriod: SettlementPeriod,
     admin: SupabaseClient
 ): Promise<SettlementRunResult> {
-    // Redemptions already on a settlement (have a line item) — exclude.
-    const { data: lineRows, error: lineErr } = await admin
-        .from("settlement_line_items")
-        .select("redemption_id");
-    if (lineErr) throw new Error(lineErr.message);
-    const settled = new Set((lineRows ?? []).map((r) => r.redemption_id as string));
-
-    // Proof-released redemptions (payment unlocked) not yet settled.
+    // Proof-released redemptions NOT yet on any settlement line item.
+    // Anti-join via PostgREST resource embedding: left-join settlement_line_items
+    // and keep only rows where the join produced no match (null settlement_id).
+    // This pushes the exclusion into a single SQL LEFT JOIN … WHERE … IS NULL
+    // rather than loading the whole settlement_line_items table into JS.
     const { data: redRows, error: redErr } = await admin
         .from("token_redemptions")
-        .select("id, vendor_id, token_value_inr, menu_value_inr, difference_paid_inr, redeemed_at")
+        .select(
+            "id, vendor_id, token_value_inr, menu_value_inr, difference_paid_inr, redeemed_at," +
+            "settlement_line_items(settlement_id)"
+        )
         .eq("payment_status", "released")
         .order("redeemed_at", { ascending: true });
     if (redErr) throw new Error(redErr.message);
 
-    const pending = ((redRows as ReleasedRedemption[] | null) ?? []).filter(
-        (r) => !settled.has(r.id)
-    );
+    // Keep only redemptions that have no matching settlement_line_items row.
+    const pending = (
+        (redRows as unknown as (ReleasedRedemption & {
+            settlement_line_items: { settlement_id: string }[];
+        })[]) ?? []
+    ).filter((r) => r.settlement_line_items.length === 0);
 
     // Group by vendor.
     const byVendor = new Map<string, ReleasedRedemption[]>();
@@ -119,11 +115,13 @@ export async function runSettlement(
             // Honour the vendor's own cycle; fall back to the run's period otherwise.
             const period = cycleByVendor.get(vendorId) ?? fallbackPeriod;
 
-            // Period windowing: only settle redemptions that fall inside the current
-            // cadence window [now − window, now]. Older released redemptions roll
-            // into a later run for that vendor (they remain unsettled until then).
-            const windowStartMs = now.getTime() - CYCLE_WINDOW_MS[period];
-            const reds = allReds.filter((r) => Date.parse(r.redeemed_at) >= windowStartMs);
+            // Settle ALL of this vendor's proof-released, not-yet-settled
+            // redemptions — NOT just those inside the current cadence window. The
+            // old window filter permanently stranded any released redemption older
+            // than one cycle (e.g. after a vendor outage): such rows never fell into
+            // a future window either, so they were never paid. `period` still labels
+            // the cadence; period_start/period_end below stamp the span covered.
+            const reds = allReds;
             if (reds.length === 0) continue;
 
             const amount = reds.reduce((s, r) => s + payout(r), 0);

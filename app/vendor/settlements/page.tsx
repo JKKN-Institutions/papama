@@ -8,7 +8,10 @@ import { useVendorFetch, PageHeader, ListStates, TableShell, TableHead, StatusBa
  */
 interface Settlement {
   id?: string;
-  cycle?: string;
+  // The settlement record's cadence label (daily/twice_weekly/weekly). The API
+  // field is `period` — the page previously read `s.cycle`, which never existed,
+  // so the "Cycle" column always showed an em-dash.
+  period?: string;
   period_start?: string;
   period_end?: string;
   amount?: number;
@@ -53,7 +56,7 @@ export default function VendorSettlementsPage() {
             {rows.map((s, i) => (
               <tr key={s.id ?? i} className="border-b border-slate-100 last:border-0">
                 <td className="px-4 py-3 text-slate-700">
-                  <Dash>{s.cycle}</Dash>
+                  <Dash>{s.period}</Dash>
                 </td>
                 <td className="px-4 py-3 text-slate-600">
                   {fmtDate(s.period_start) || fmtDate(s.period_end) ? (

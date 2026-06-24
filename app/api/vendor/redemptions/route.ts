@@ -8,6 +8,7 @@ import { validateRedemption } from "@/lib/services/redemption";
 import { flagFraud } from "@/lib/services/fraud";
 import { embeddingFingerprint, toVectorLiteral } from "@/lib/face/embedding";
 import { faceCaptureSchema } from "@/lib/validation/schemas";
+import { dispatchNotification } from "@/lib/notifications/dispatch";
 
 /**
  * POST /api/vendor/redemptions — commit a redemption (RED-1..7, PROOF-4).
@@ -164,18 +165,25 @@ export const POST = defineRoute(
                 .select("name, city")
                 .eq("id", vendorId)
                 .maybeSingle();
-            await admin.from("notifications").insert({
-                donor_id: token.donor_id,
+            await dispatchNotification(admin, {
+                donorId: token.donor_id,
                 kind: "redemption",
                 title: "Your token was redeemed",
                 message: `A token you funded was redeemed at ${v?.name ?? "a partner vendor"} for a ₹${value.menu_value} meal.`,
                 metadata: {
-                    vendor: v?.name ?? null,
+                    // Keys MUST match the donor notifications UI reader
+                    // (app/donor/notifications/page.tsx) and NotificationMeta:
+                    // it reads `vendor_name` + `meal_info` — the old `vendor` key
+                    // and the missing `meal_info` rendered as `undefined`.
+                    vendor_name: v?.name ?? null,
+                    meal_info: result.menuItem?.item_name ?? null,
                     location: v?.city ?? null,
                     redeemed_at: nowIso,
                     value_inr: value.menu_value,
                     beneficiary_category: result.beneficiary?.category ?? null,
                 },
+                // Default channels = ['in_app']. Pass ['in_app','email','sms'] here once
+                // the email/SMS provider is configured (ASSUMPTIONS.md open item Q4).
             });
         }
 

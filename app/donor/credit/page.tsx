@@ -6,6 +6,7 @@ import Navbar from "@/components/donor/Navbar";
 import { ApiClient } from "@/lib/donor/services/apiClient";
 import { CreditsResponse, ConvertTokenItem } from "@/lib/donor/types/contract";
 import Link from "next/link";
+import { t } from "@/lib/i18n";
 
 type DistributionPath = "use_now" | "authorize_papama";
 
@@ -122,11 +123,13 @@ function CreditContent() {
     <div className="space-y-8">
       {/* Header */}
       <div>
+        {/* i18n reference migration (spec F-8): strings come from lib/i18n via t().
+            Remaining pages follow this same key-based pattern. */}
         <h1 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-zinc-50">
-          Credit Registry
+          {t("donor.credit.title")}
         </h1>
         <p className="mt-1.5 text-sm text-zinc-500 dark:text-zinc-400 max-w-2xl leading-relaxed">
-          Credits are accumulated via donations. Every ₹50 can be converted into 1 voucher token. Credits are non-withdrawable.
+          {t("donor.credit.subtitle", { threshold })}
         </p>
       </div>
 
@@ -155,7 +158,7 @@ function CreditContent() {
             <div className="space-y-6 lg:col-span-1">
               <div className="rounded-2xl border border-zinc-200/50 bg-white p-6 shadow-md dark:border-zinc-800/40 dark:bg-zinc-900">
                 <span className="text-[10px] uppercase tracking-wider text-zinc-400 font-black">
-                  Available Credits
+                  {t("donor.credit.availableCredits")}
                 </span>
                 <div className="mt-2 flex items-baseline gap-2">
                   <span className="text-4xl font-black text-zinc-900 dark:text-zinc-50">
@@ -164,7 +167,7 @@ function CreditContent() {
                   <span className="text-xs font-bold text-zinc-400 uppercase">INR</span>
                 </div>
 
-                {/* Progress bar to next ₹50 block */}
+                {/* Progress bar toward the next threshold block. Uses credits.threshold from system_config. */}
                 <div className="mt-4">
                   <div className="h-2 w-full rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
                     <div
@@ -172,14 +175,19 @@ function CreditContent() {
                         credits.threshold_reached ? "bg-emerald-500" : "bg-blue-500"
                       }`}
                       style={{
-                        width: `${Math.min(100, (credits.credit_balance / 50) * 100)}%`,
+                        width: `${Math.min(100, (credits.credit_balance / threshold) * 100)}%`,
                       }}
                     />
                   </div>
                   <p className="mt-2.5 text-[10px] text-zinc-400 dark:text-zinc-500 font-semibold leading-normal">
-                    {credits.credit_balance < 50
-                      ? `Need ₹${50 - credits.credit_balance} more to reach the next ₹50 voucher threshold.`
-                      : `Sufficient balance for ${credits.convertible_tokens} voucher(s).`}
+                    {credits.credit_balance < threshold
+                      ? t("donor.credit.needMore", {
+                          remaining: threshold - credits.credit_balance,
+                          threshold,
+                        })
+                      : t("donor.credit.sufficient", {
+                          count: credits.convertible_tokens ?? 0,
+                        })}
                   </p>
                 </div>
 
@@ -193,10 +201,10 @@ function CreditContent() {
                     disabled={!credits.threshold_reached}
                     className="w-full rounded-xl bg-emerald-600 py-3 text-xs font-bold text-white transition hover:bg-emerald-700 shadow-md active:scale-95 disabled:pointer-events-none disabled:opacity-50 cursor-pointer"
                   >
-                    Convert to Token
+                    {t("donor.credit.convertCta")}
                   </button>
                   <p className="text-[10px] text-center text-rose-500 font-bold bg-rose-500/5 p-2 rounded border border-rose-500/10">
-                    ⚠️ Credits are Non-Withdrawable
+                    {t("donor.credit.nonWithdrawable")}
                   </p>
                 </div>
               </div>

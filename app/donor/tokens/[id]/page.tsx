@@ -3,6 +3,7 @@
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import Navbar from "@/components/donor/Navbar";
+import { TokenQrCode } from "@/components/donor/TokenQrCode";
 import { ApiClient } from "@/lib/donor/services/apiClient";
 import { TokenItem } from "@/lib/donor/types/contract";
 
@@ -297,20 +298,14 @@ export default function TokenDetailPage({
 
               {/* Verification & Actions Column */}
               <div className="space-y-6 md:col-span-1">
-                {/* QR Code Card — real QR of the token's qr_payload */}
+                {/* QR Code Card — rendered client-side via the `qrcode` package (no external requests). */}
                 {isLive && (
                   <div className="rounded-2xl border border-zinc-200/50 bg-white p-6 shadow-sm dark:border-zinc-800/40 dark:bg-zinc-900/40 text-center flex flex-col items-center">
                     <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-50 mb-4">
                       Voucher QR Code
                     </h3>
                     <div className="p-4 bg-white rounded-2xl border border-zinc-150 shadow-inner flex items-center justify-center">
-                      <img
-                        src={`https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(token.qr_payload)}`}
-                        alt="Voucher QR code"
-                        width={140}
-                        height={140}
-                        className="h-[140px] w-[140px]"
-                      />
+                      <TokenQrCode payload={token.qr_payload} size={140} />
                     </div>
                     <div className="mt-3 font-mono text-[9px] text-zinc-400 break-all select-all">
                       {token.qr_payload}
