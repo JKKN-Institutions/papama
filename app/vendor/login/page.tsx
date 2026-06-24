@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 
@@ -95,6 +96,13 @@ function VendorLoginForm() {
             {loading ? "Signing in…" : "Sign in"}
           </button>
         </form>
+
+        <p className="mt-6 text-center text-sm text-slate-500">
+          New vendor?{" "}
+          <Link href="/vendor/register" className="font-medium text-slate-900 hover:underline">
+            Apply here
+          </Link>
+        </p>
       </div>
     </main>
   );

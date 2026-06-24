@@ -104,6 +104,12 @@ function DonorLoginForm() {
               Create an account
             </Link>
           </p>
+          <p className="text-center text-xs text-zinc-400">
+            Run a canteen?{" "}
+            <Link href="/vendor/register" className="font-medium text-zinc-600 hover:underline dark:text-zinc-300">
+              Become a vendor
+            </Link>
+          </p>
         </form>
       </div>
     </main>
