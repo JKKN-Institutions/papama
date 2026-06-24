@@ -37,17 +37,25 @@ function NotVendor({ role }: { role: string }) {
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
       <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-        <h1 className="text-xl font-semibold text-slate-900">Not a vendor account</h1>
+        <h1 className="text-xl font-semibold text-slate-900">Not a vendor account yet</h1>
         <p className="mt-2 text-sm text-slate-500">
-          The vendor app is restricted to vendor accounts. Your role
-          (<span className="font-medium text-slate-700">{role}</span>) does not have access.
+          You’re signed in as <span className="font-medium text-slate-700">{role}</span>, which isn’t a
+          vendor account. If you run a kitchen and want to serve meals, apply to become a vendor.
         </p>
-        <Link
-          href="/"
-          className="mt-6 inline-block rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
-        >
-          Go home
-        </Link>
+        <div className="mt-6 flex items-center justify-center gap-3">
+          <Link
+            href="/vendor/register"
+            className="inline-block rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+          >
+            Apply here
+          </Link>
+          <Link
+            href="/"
+            className="inline-block rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+          >
+            Go home
+          </Link>
+        </div>
       </div>
     </main>
   );

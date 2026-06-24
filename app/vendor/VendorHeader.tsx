@@ -10,6 +10,7 @@ const NAV = [
   { href: "/vendor/scan", label: "Scan" },
   { href: "/vendor/menu", label: "Menu" },
   { href: "/vendor/settlements", label: "Settlements" },
+  { href: "/vendor/profile", label: "Profile" },
 ];
 
 /** Vendor top bar: brand, nav links, and a sign-out action. Client component. */

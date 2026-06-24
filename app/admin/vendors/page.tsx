@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, type ReactNode, useState } from "react";
+import { Fragment, useCallback, useEffect, type ReactNode, useState } from "react";
 
 import { useCan } from "@/components/auth/AppUserProvider";
 import type { VendorAction, VendorResponse } from "@/lib/validation/schemas";
@@ -169,6 +169,11 @@ function VendorTable({
     busyVendor: string | null;
     onAction: (vendorId: string, action: VendorAction) => void;
 }) {
+    // Which vendor's verification detail panel is currently expanded (one at a time).
+    const [openVendor, setOpenVendor] = useState<string | null>(null);
+    // Column span for the full-width detail row (data columns + Details + optional Actions).
+    const colSpan = 8 + (canManage ? 1 : 0);
+
     return (
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
             <table className="w-full text-left text-sm">
@@ -181,53 +186,198 @@ function VendorTable({
                         <th className="px-4 py-3 font-medium">GST</th>
                         <th className="px-4 py-3 font-medium">Hygiene</th>
                         <th className="px-4 py-3 font-medium">Registered</th>
+                        <th className="px-4 py-3 font-medium">Details</th>
                         {canManage && <th className="px-4 py-3 font-medium">Actions</th>}
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                     {vendors.map((v) => {
                         const busy = busyVendor === v.vendor_id;
+                        const isOpen = openVendor === v.vendor_id;
                         return (
-                            <tr key={v.vendor_id} className="hover:bg-slate-50">
-                                <td className="px-4 py-3 font-medium text-slate-900">{v.name}</td>
-                                <td className="px-4 py-3">
-                                    <StatusBadge value={v.status} />
-                                </td>
-                                <td className="px-4 py-3">
-                                    <StatusBadge value={v.kyc_status} />
-                                </td>
-                                <td className="px-4 py-3 text-slate-600">{v.fssai_license ?? "—"}</td>
-                                <td className="px-4 py-3 text-slate-600">{v.gst_number ?? "—"}</td>
-                                <td className="px-4 py-3 text-slate-600">
-                                    {v.hygiene_rating != null ? `${v.hygiene_rating}/5` : "—"}
-                                </td>
-                                <td className="px-4 py-3 text-slate-500">
-                                    {new Date(v.created_at).toLocaleDateString()}
-                                </td>
-                                {canManage && (
+                            <Fragment key={v.vendor_id}>
+                                <tr className="hover:bg-slate-50">
+                                    <td className="px-4 py-3 font-medium text-slate-900">{v.name}</td>
                                     <td className="px-4 py-3">
-                                        <div className="flex flex-wrap gap-1.5">
-                                            {actionsFor(v).map((a) => (
-                                                <ActionButton
-                                                    key={a.action}
-                                                    tone={a.tone}
-                                                    disabled={busy}
-                                                    onClick={() => onAction(v.vendor_id, a.action)}
-                                                >
-                                                    {a.label}
-                                                </ActionButton>
-                                            ))}
-                                            {actionsFor(v).length === 0 && (
-                                                <span className="text-xs text-slate-400">—</span>
-                                            )}
-                                        </div>
+                                        <StatusBadge value={v.status} />
                                     </td>
+                                    <td className="px-4 py-3">
+                                        <StatusBadge value={v.kyc_status} />
+                                    </td>
+                                    <td className="px-4 py-3 text-slate-600">{v.fssai_license ?? "—"}</td>
+                                    <td className="px-4 py-3 text-slate-600">{v.gst_number ?? "—"}</td>
+                                    <td className="px-4 py-3 text-slate-600">
+                                        {v.hygiene_rating != null ? `${v.hygiene_rating}/5` : "—"}
+                                    </td>
+                                    <td className="px-4 py-3 text-slate-500">
+                                        {new Date(v.created_at).toLocaleDateString()}
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <ActionButton
+                                            tone="neutral"
+                                            disabled={false}
+                                            onClick={() =>
+                                                setOpenVendor(isOpen ? null : v.vendor_id)
+                                            }
+                                        >
+                                            {isOpen ? "Hide" : "Details"}
+                                        </ActionButton>
+                                    </td>
+                                    {canManage && (
+                                        <td className="px-4 py-3">
+                                            <div className="flex flex-wrap gap-1.5">
+                                                {actionsFor(v).map((a) => (
+                                                    <ActionButton
+                                                        key={a.action}
+                                                        tone={a.tone}
+                                                        disabled={busy}
+                                                        onClick={() => onAction(v.vendor_id, a.action)}
+                                                    >
+                                                        {a.label}
+                                                    </ActionButton>
+                                                ))}
+                                                {actionsFor(v).length === 0 && (
+                                                    <span className="text-xs text-slate-400">—</span>
+                                                )}
+                                            </div>
+                                        </td>
+                                    )}
+                                </tr>
+                                {isOpen && (
+                                    <tr className="bg-slate-50/60">
+                                        <td colSpan={colSpan} className="px-4 py-4">
+                                            <VendorDetail vendor={v} />
+                                        </td>
+                                    </tr>
                                 )}
-                            </tr>
+                            </Fragment>
                         );
                     })}
                 </tbody>
             </table>
+        </div>
+    );
+}
+
+type VendorDocument = {
+    id: string;
+    doc_type: string;
+    verification_status: string;
+    signed_url: string;
+    created_at: string;
+};
+
+/**
+ * The per-vendor verification checklist the admin reviews before Approve / Verify
+ * KYC. Shows the full registration fields plus the vendor's uploaded documents,
+ * fetched lazily from GET /api/admin/vendors/{id}/documents on first expand.
+ */
+function VendorDetail({ vendor }: { vendor: VendorResponse }) {
+    const router = useRouter();
+    const [docs, setDocs] = useState<VendorDocument[]>([]);
+    const [docState, setDocState] = useState<"loading" | "ready" | "error">("loading");
+    const [docError, setDocError] = useState<string | null>(null);
+
+    useEffect(() => {
+        let cancelled = false;
+        async function loadDocs() {
+            setDocState("loading");
+            setDocError(null);
+            const res = await fetch(`/api/admin/vendors/${vendor.vendor_id}/documents`, {
+                cache: "no-store",
+            });
+            if (cancelled) return;
+            if (res.status === 401) {
+                router.push("/login?redirect=/admin/vendors");
+                return;
+            }
+            if (!res.ok) {
+                const body = await res.json().catch(() => ({}));
+                setDocError(body.error ?? `Couldn’t load documents (${res.status})`);
+                setDocState("error");
+                return;
+            }
+            const body = (await res.json()) as { documents: VendorDocument[] };
+            if (cancelled) return;
+            setDocs(body.documents ?? []);
+            setDocState("ready");
+        }
+        void loadDocs();
+        return () => {
+            cancelled = true;
+        };
+    }, [vendor.vendor_id, router]);
+
+    return (
+        <div className="space-y-4">
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs sm:grid-cols-3 lg:grid-cols-4">
+                <Detail label="Name" value={vendor.name} />
+                <Detail label="FSSAI licence" value={vendor.fssai_license} />
+                <Detail label="GST number" value={vendor.gst_number} />
+                <Detail
+                    label="Hygiene rating"
+                    value={vendor.hygiene_rating != null ? `${vendor.hygiene_rating}/5` : null}
+                />
+                <Detail
+                    label="Geo"
+                    value={
+                        vendor.geo
+                            ? `${vendor.geo.lat.toFixed(5)}, ${vendor.geo.lng.toFixed(5)}`
+                            : null
+                    }
+                />
+                <Detail
+                    label="Registered"
+                    value={new Date(vendor.created_at).toLocaleString()}
+                />
+            </dl>
+
+            <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Documents
+                </p>
+                {docState === "loading" && (
+                    <p className="text-xs text-slate-400">Loading documents…</p>
+                )}
+                {docState === "error" && (
+                    <p className="text-xs text-red-700">{docError}</p>
+                )}
+                {docState === "ready" && docs.length === 0 && (
+                    <p className="text-xs text-slate-400">No documents uploaded.</p>
+                )}
+                {docState === "ready" && docs.length > 0 && (
+                    <ul className="divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white">
+                        {docs.map((d) => (
+                            <li
+                                key={d.id}
+                                className="flex items-center justify-between gap-3 px-3 py-2 text-xs"
+                            >
+                                <span className="font-medium capitalize text-slate-700">
+                                    {d.doc_type.replace(/_/g, " ")}
+                                </span>
+                                <StatusBadge value={d.verification_status} />
+                                <a
+                                    href={d.signed_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="ml-auto rounded-md border border-slate-300 px-2.5 py-1 font-medium text-slate-700 transition hover:bg-slate-50"
+                                >
+                                    View
+                                </a>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </div>
+        </div>
+    );
+}
+
+function Detail({ label, value }: { label: string; value: string | null }) {
+    return (
+        <div>
+            <dt className="text-slate-400">{label}</dt>
+            <dd className="mt-0.5 font-medium text-slate-700">{value ?? "—"}</dd>
         </div>
     );
 }

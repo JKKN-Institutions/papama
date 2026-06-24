@@ -47,8 +47,10 @@ export default function VendorDashboardPage() {
         </Notice>
       )}
 
+      {state === "ready" && vendor && <OnboardingBanner vendor={vendor} />}
+
       {state === "ready" && (
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="mt-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-slate-900">
             <Dash>{vendor?.name}</Dash>
           </h2>
@@ -88,6 +90,41 @@ export default function VendorDashboardPage() {
         ))}
       </div>
     </div>
+  );
+}
+
+/**
+ * Onboarding status banner driven by the vendor's status + kyc_status:
+ *   - status !== 'approved'     → "under review"
+ *   - approved but kyc unverified → prompt to upload documents (→ /vendor/profile)
+ *   - approved + verified         → "active"
+ */
+function OnboardingBanner({ vendor }: { vendor: VendorProfile }) {
+  if (vendor.status !== "approved") {
+    return (
+      <Notice tone="warn" title="Application under review">
+        Your vendor application is pending. We’ll let you know once it’s approved — you can prepare your
+        menu and documents in the meantime.
+      </Notice>
+    );
+  }
+
+  if (vendor.kyc_status !== "verified") {
+    return (
+      <Notice tone="warn" title="Verify your documents">
+        Your application is approved, but your KYC isn’t verified yet.{" "}
+        <Link href="/vendor/profile" className="font-medium text-amber-900 underline">
+          Upload your documents
+        </Link>{" "}
+        to start serving meals.
+      </Notice>
+    );
+  }
+
+  return (
+    <Notice tone="info" title="Active">
+      Your account is approved and verified. You’re all set to scan tokens and serve meals.
+    </Notice>
   );
 }
 

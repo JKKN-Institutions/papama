@@ -60,8 +60,10 @@ export async function middleware(request: NextRequest) {
         return NextResponse.redirect(url);
     }
 
-    // Vendor portal: guarded too, except its own login page (avoid redirect loop).
-    if (!user && pathname.startsWith("/vendor") && pathname !== "/vendor/login") {
+    // Vendor portal: guarded too, except its own auth pages — login AND the
+    // self-service /vendor/register page must be reachable signed-out.
+    const vendorPublicPages = ["/vendor/login", "/vendor/register"];
+    if (!user && pathname.startsWith("/vendor") && !vendorPublicPages.includes(pathname)) {
         const url = request.nextUrl.clone();
         url.pathname = "/vendor/login";
         url.searchParams.set("redirect", pathname);

@@ -23,6 +23,11 @@ const SECTIONS: { href: string; title: string; description: string }[] = [
         description: "Review eligibility submissions; approve to create verified beneficiaries.",
     },
     {
+        href: "/admin/vendor-menus",
+        title: "Vendor menus",
+        description: "Approve vendor-proposed menu items (incl. Special-Care equivalents).",
+    },
+    {
         href: "/admin/volunteers",
         title: "Volunteers",
         description: "Volunteer registry for token distribution (Path B).",
