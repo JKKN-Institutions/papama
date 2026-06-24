@@ -68,19 +68,13 @@ export default function AdminReportsPage() {
                                     <td className="px-4 py-3 text-slate-600">
                                         <SummaryCell summary={r.summary} />
                                     </td>
-                                    <td className="px-4 py-3 text-slate-600">
-                                        {r.file_url ? (
-                                            <a
-                                                href={r.file_url}
-                                                className="text-blue-600 hover:underline"
-                                                target="_blank"
-                                                rel="noreferrer"
-                                            >
-                                                Download
-                                            </a>
-                                        ) : (
-                                            "—"
-                                        )}
+                                    <td className="px-4 py-3">
+                                        <a
+                                            href={`/api/admin/reports/export?id=${r.id}`}
+                                            className="text-blue-600 hover:underline"
+                                        >
+                                            Export CSV
+                                        </a>
                                     </td>
                                     <td className="px-4 py-3 text-slate-500">
                                         {new Date(r.created_at).toLocaleDateString()}

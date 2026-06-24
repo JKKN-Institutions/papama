@@ -5,6 +5,7 @@ import { resolveVendorId } from "@/lib/vendor/server-identity";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { validateRedemption } from "@/lib/services/redemption";
+import { flagFraud } from "@/lib/services/fraud";
 
 /**
  * POST /api/vendor/redemptions — commit a redemption (RED-1..7, PROOF-4).
@@ -55,6 +56,15 @@ export const POST = defineRoute(
 
         if (!result.ok || !result.token || !result.menuItem) {
             const failed = result.checks.find((c) => c.hard && !c.pass);
+            // Real-time fraud signal: a repeat-beneficiary attempt (cooldown / daily limit).
+            if (failed && (failed.name === "cooldown" || failed.name === "meal_limit") && body.face_hash) {
+                await flagFraud(admin, {
+                    flag_type: "beneficiary_duplicate",
+                    severity: "medium",
+                    detection_method: "face_hash_repeat",
+                    entity: { kind: "face_hash", id: body.face_hash },
+                });
+            }
             throw new BadRequestError(
                 failed ? `${failed.name}: ${failed.detail}` : "redemption failed validation"
             );
@@ -97,7 +107,14 @@ export const POST = defineRoute(
             .select("id");
         if (burnError) throw new Error(burnError.message);
         if (!burned || burned.length === 0) {
-            // Lost the race: another scan redeemed it first. Roll back our row.
+            // Duplicate-redemption attempt: another scan redeemed it first. Flag + roll back.
+            await flagFraud(admin, {
+                flag_type: "duplicate_token",
+                severity: "high",
+                detection_method: "token_duplication",
+                entity: { kind: "token", id: token.id },
+                blocked: true,
+            });
             await admin.from("token_redemptions").delete().eq("id", redemption.id);
             throw new BadRequestError("token was already redeemed");
         }
@@ -131,6 +148,28 @@ export const POST = defineRoute(
                 value,
             },
         });
+
+        // Donor transparency (TRANS / demo step 8): alert the donor who funded it.
+        if (token.donor_id) {
+            const { data: v } = await admin
+                .from("vendors")
+                .select("name, city")
+                .eq("id", vendorId)
+                .maybeSingle();
+            await admin.from("notifications").insert({
+                donor_id: token.donor_id,
+                kind: "redemption",
+                title: "Your token was redeemed",
+                message: `A token you funded was redeemed at ${v?.name ?? "a partner vendor"} for a ₹${value.menu_value} meal.`,
+                metadata: {
+                    vendor: v?.name ?? null,
+                    location: v?.city ?? null,
+                    redeemed_at: nowIso,
+                    value_inr: value.menu_value,
+                    beneficiary_category: result.beneficiary?.category ?? null,
+                },
+            });
+        }
 
         return {
             redemption_id: redemption.id,

@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import { useCan } from "@/components/auth/AppUserProvider";
 import type { FraudFlagDetailResponse } from "@/lib/validation/schemas";
 
@@ -20,6 +22,7 @@ import {
 /** Admin fraud page — fraud flags with severity, detection method and block state (contract §9). */
 export default function AdminFraudPage() {
     const canManage = useCan("fraud_monitoring", "update");
+    const canScan = useCan("fraud_monitoring", "create");
     const { items, state, errorMsg, reload } = useAdminList<FraudFlagDetailResponse>(
         "/api/admin/fraud",
         "fraud_flags",
@@ -42,9 +45,11 @@ export default function AdminFraudPage() {
         <div>
             <AdminPageHeader
                 title="Fraud"
-                subtitle="Flagged tokens, beneficiaries and vendors for review."
+                subtitle="Flagged tokens, beneficiaries and vendors. Repeat-beneficiary and duplicate-token attempts flag live; run a sweep for vendor volume anomalies."
                 count={state === "ready" ? items.length : undefined}
             />
+
+            {canScan && <RunFraudScanBar onDone={reload} />}
 
             {actionError && (
                 <div className="mb-4">
@@ -131,6 +136,50 @@ export default function AdminFraudPage() {
                     </TableShell>
                 }
             />
+        </div>
+    );
+}
+
+/** Admin control to run the vendor volume-anomaly sweep. */
+function RunFraudScanBar({ onDone }: { onDone: () => void }) {
+    const [busy, setBusy] = useState(false);
+    const [msg, setMsg] = useState<string | null>(null);
+    const [err, setErr] = useState<string | null>(null);
+
+    async function scan() {
+        setBusy(true);
+        setMsg(null);
+        setErr(null);
+        try {
+            const res = await fetch("/api/admin/fraud/scan", { method: "POST" });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error ?? `Failed (${res.status})`);
+            setMsg(
+                data.flags_created > 0
+                    ? `Sweep raised ${data.flags_created} new vendor-anomaly flag(s).`
+                    : "No vendor volume anomalies detected."
+            );
+            onDone();
+        } catch (e) {
+            setErr(e instanceof Error ? e.message : "Scan failed.");
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    return (
+        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white p-4">
+            <span className="text-sm font-medium text-slate-700">Vendor anomaly sweep:</span>
+            <button
+                type="button"
+                onClick={scan}
+                disabled={busy}
+                className="rounded-lg bg-slate-900 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:opacity-60"
+            >
+                {busy ? "Scanning…" : "Run fraud scan"}
+            </button>
+            {msg && <span className="text-xs font-medium text-green-700">{msg}</span>}
+            {err && <span className="text-xs font-medium text-red-700">{err}</span>}
         </div>
     );
 }
