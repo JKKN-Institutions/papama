@@ -5,7 +5,6 @@ import { useState } from "react";
 import {
   Dash,
   ListStates,
-  Notice,
   PageHeader,
   StatusBadge,
   TableHead,
@@ -33,10 +32,18 @@ interface VolunteerRequest {
   created_at: string;
 }
 
+/** This volunteer's concurrent-holding headroom (max_tokens_per_volunteer). */
+interface Allocation {
+  limit: number | null;
+  held_count: number;
+  remaining: number | null;
+}
+
 /**
- * Volunteer dashboard (Path B). Three sections: tokens held & a distribute control,
- * a request-tokens form, and the volunteer's own request history. Each section drives
- * its own fetch state; mutations reload the affected list on success.
+ * Volunteer dashboard (Path B). Sections: tokens held & a distribute control,
+ * a request-tokens form (with concurrent-limit headroom), and the volunteer's
+ * own request history. Each section drives its own fetch state; mutations reload
+ * the affected lists on success.
  */
 export default function VolunteerDashboardPage() {
   // GET /api/volunteer/tokens → { tokens: HeldToken[], total }
@@ -47,9 +54,20 @@ export default function VolunteerDashboardPage() {
     "requests",
     "/volunteer"
   );
+  // GET /api/volunteer/allocation → { allocation: Allocation }
+  const allocation = useVolunteerFetch<Allocation>(
+    "/api/volunteer/allocation",
+    "allocation",
+    "/volunteer"
+  );
 
   const tokenList = tokens.data ?? [];
   const requestList = requests.data ?? [];
+
+  // Distributing changes both the held set and the held-count headroom.
+  async function reloadAfterDistribute() {
+    await Promise.all([tokens.reload(), allocation.reload()]);
+  }
 
   return (
     <div className="space-y-10">
@@ -62,10 +80,13 @@ export default function VolunteerDashboardPage() {
         state={tokens.state}
         errorMsg={tokens.errorMsg}
         tokens={tokenList}
-        reload={tokens.reload}
+        reload={reloadAfterDistribute}
       />
 
-      <RequestTokensSection onRequested={requests.reload} />
+      <RequestTokensSection
+        allocation={allocation.data}
+        onRequested={requests.reload}
+      />
 
       <MyRequestsSection
         state={requests.state}
@@ -208,7 +229,13 @@ function DistributeRow({ token, reload }: { token: HeldToken; reload: () => Prom
 
 /* ── Section b: request more tokens ────────────────────────────────────────── */
 
-function RequestTokensSection({ onRequested }: { onRequested: () => Promise<void> }) {
+function RequestTokensSection({
+  allocation,
+  onRequested,
+}: {
+  allocation: Allocation | null;
+  onRequested: () => Promise<void>;
+}) {
   const { post } = useVolunteerPost();
   const [count, setCount] = useState("");
   const [busy, setBusy] = useState(false);
@@ -271,7 +298,31 @@ function RequestTokensSection({ onRequested }: { onRequested: () => Promise<void
         {msg && <span className="text-xs font-medium text-green-700">{msg}</span>}
         {error && <span className="text-xs font-medium text-red-700">{error}</span>}
       </form>
+      <AllocationHint allocation={allocation} />
     </section>
+  );
+}
+
+/** Concurrent-limit headroom line. Never invents a number when the limit is unset. */
+function AllocationHint({ allocation }: { allocation: Allocation | null }) {
+  if (!allocation) return null;
+  const { limit, held_count, remaining } = allocation;
+  if (limit == null) {
+    return (
+      <p className="mt-2 text-xs text-slate-500">
+        You currently hold {held_count} token(s). No holding limit is set.
+      </p>
+    );
+  }
+  return (
+    <p className="mt-2 text-xs text-slate-500">
+      You hold {held_count} of {limit} token(s){" "}
+      {remaining === 0 ? (
+        <span className="font-medium text-amber-700">— at your limit; distribute some first.</span>
+      ) : (
+        <span>— you can hold {remaining} more.</span>
+      )}
+    </p>
   );
 }
 

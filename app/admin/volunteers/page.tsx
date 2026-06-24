@@ -27,6 +27,7 @@ export default function AdminVolunteersPage() {
         "/admin/volunteers"
     );
     const { run, busyId, actionError } = useRowAction("/api/admin/volunteers", reload);
+    const { allocate, busyId: allocBusyId, actionError: allocError } = useAllocate(reload);
 
     const columns = ["Name", "Email", "Phone", "Status", "Joined"];
     if (canManage) columns.push("Actions");
@@ -43,6 +44,14 @@ export default function AdminVolunteersPage() {
                 <div className="mb-4">
                     <Notice tone="error" title="Action failed">
                         {actionError}
+                    </Notice>
+                </div>
+            )}
+
+            {allocError && (
+                <div className="mb-4">
+                    <Notice tone="error" title="Allocation failed">
+                        {allocError}
                     </Notice>
                 </div>
             )}
@@ -81,6 +90,8 @@ export default function AdminVolunteersPage() {
                                                 status={v.status}
                                                 busy={busyId === v.id}
                                                 run={run}
+                                                allocate={allocate}
+                                                allocBusy={allocBusyId === v.id}
                                             />
                                         </td>
                                     )}
@@ -103,19 +114,66 @@ function VolunteerActions({
     status,
     busy,
     run,
+    allocate,
+    allocBusy,
 }: {
     id: string;
     status: VolunteerResponse["status"];
     busy: boolean;
     run: (rowId: string, payload: Record<string, unknown>, confirmText?: string) => void;
+    allocate: (id: string, count: number) => void;
+    allocBusy: boolean;
 }) {
     const act = (action: string, confirmText?: string) =>
         run(id, { volunteer_id: id, action }, confirmText);
 
+    const [allocating, setAllocating] = useState(false);
+    const [count, setCount] = useState("");
+
+    function submitAllocate() {
+        const n = Number(count);
+        if (!Number.isInteger(n) || n <= 0) return;
+        allocate(id, n);
+        setCount("");
+        setAllocating(false);
+    }
+
     return (
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
             {status === "active" && (
                 <>
+                    {/* §3a admin-initiated direct assignment from the admin pool. */}
+                    {allocating ? (
+                        <>
+                            <input
+                                type="number"
+                                min={1}
+                                step={1}
+                                value={count}
+                                onChange={(e) => setCount(e.target.value)}
+                                placeholder="count"
+                                className="w-20 rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-900 outline-none focus:border-slate-600 focus:ring-1 focus:ring-slate-600"
+                            />
+                            <ActionButton tone="primary" disabled={allocBusy} onClick={submitAllocate}>
+                                Confirm
+                            </ActionButton>
+                            <ActionButton
+                                tone="neutral"
+                                disabled={allocBusy}
+                                onClick={() => setAllocating(false)}
+                            >
+                                Cancel
+                            </ActionButton>
+                        </>
+                    ) : (
+                        <ActionButton
+                            tone="primary"
+                            disabled={allocBusy}
+                            onClick={() => setAllocating(true)}
+                        >
+                            Allocate
+                        </ActionButton>
+                    )}
                     <ActionButton
                         tone="warn"
                         disabled={busy}
@@ -336,4 +394,46 @@ function useDecideRequest(reload: () => Promise<void>) {
     );
 
     return { decide, busyId, actionError };
+}
+
+/**
+ * Local POST runner for the §3a admin-initiated allocation endpoint
+ * (POST /api/admin/volunteers/[id]/allocate). Mirrors useDecideRequest: tracks a
+ * per-row busy id, surfaces the error body, and reloads the registry on success.
+ */
+function useAllocate(reload: () => Promise<void>) {
+    const [busyId, setBusyId] = useState<string | null>(null);
+    const [actionError, setActionError] = useState<string | null>(null);
+
+    const allocate = useCallback(
+        async (id: string, count: number) => {
+            setBusyId(id);
+            setActionError(null);
+            try {
+                const res = await fetch(`/api/admin/volunteers/${id}/allocate`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    credentials: "same-origin",
+                    body: JSON.stringify({ count }),
+                });
+                if (res.status === 401) {
+                    window.location.href = "/login?redirect=/admin/volunteers";
+                    return;
+                }
+                if (!res.ok) {
+                    const data = await res.json().catch(() => ({}));
+                    setActionError(data.error ?? `Allocation failed (${res.status})`);
+                    return;
+                }
+                await reload();
+            } catch {
+                setActionError("Network error — please try again.");
+            } finally {
+                setBusyId(null);
+            }
+        },
+        [reload]
+    );
+
+    return { allocate, busyId, actionError };
 }
