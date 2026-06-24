@@ -1,6 +1,8 @@
-# ASSUMPTIONS.md — pApAmA (Developer 2)
+# ASSUMPTIONS.md — pApAmA
 
 Per the Phase 1 Definition of Done, this file records decisions made in the absence of an explicit client/mentor answer, plus known open items. Update it whenever an assumption is made or resolved.
+
+> **Note:** This is now a single-developer project (no Developer 1 / Developer 2 split). The whole app — backend, admin, and frontend — is one person's responsibility. Any "Developer 1/2" wording below is historical.
 
 ## Resolved (decided with mentor — June 2026)
 
@@ -21,4 +23,4 @@ Per the Phase 1 Definition of Done, this file records decisions made in the abse
 ## Schema decisions to confirm
 
 - Token **current-holder** representation: explicit `current_holder_type`/`current_holder_id` on `tokens`, vs. derived from status + latest `token_distribution_records`. (Pick one; keep consistent.)
-- API **field names/enums** in the Dev 2 contract were drafted by design, not specified by the client — confirm against real Supabase columns with Developer 1 before locking.
+- API **field names/enums** in the admin/backend contract were drafted by design, not specified by the client — confirm against the real Supabase columns (see `docs/db-schema-snapshot.md`) before locking.

@@ -1,6 +1,11 @@
-import { defineRoute } from "@/lib/api/handler";
+import { BadRequestError, NotFoundError, defineRoute, parseBody } from "@/lib/api/handler";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import type { BeneficiaryResponse } from "@/lib/validation/schemas";
+import type { BeneficiaryStatus } from "@/lib/types/enums";
+import {
+    beneficiaryActionRequestSchema,
+    type BeneficiaryResponse,
+} from "@/lib/validation/schemas";
 
 /**
  * GET /api/admin/beneficiaries — approved-beneficiary registry (contract §6).
@@ -34,5 +39,69 @@ export const GET = defineRoute(
         }));
 
         return { beneficiaries, total: beneficiaries.length };
+    }
+);
+
+/**
+ * PATCH /api/admin/beneficiaries — admin record-state control (owner §4.6).
+ *
+ * Gated by `beneficiary_registration/update` — admin only (matches the
+ * `beneficiaries_update_admin` RLS policy). State machine: suspend (active→
+ * suspended), activate (suspended→active), block (active|suspended→blocked,
+ * terminal). Illegal transition → 400, missing → 404. Audited; reason → trail.
+ */
+type BeneficiaryActionRule = {
+    to: BeneficiaryStatus;
+    from: ReadonlyArray<BeneficiaryStatus>;
+    verb: string;
+};
+
+const BENEFICIARY_ACTION_RULES: Record<string, BeneficiaryActionRule> = {
+    suspend: { to: "suspended", from: ["active"], verb: "beneficiary.suspend" },
+    activate: { to: "active", from: ["suspended"], verb: "beneficiary.activate" },
+    block: { to: "blocked", from: ["active", "suspended"], verb: "beneficiary.block" },
+};
+
+export const PATCH = defineRoute(
+    { feature: "beneficiary_registration", action: "update" },
+    async ({ req, audit }) => {
+        const body = await parseBody(req, beneficiaryActionRequestSchema);
+        const rule = BENEFICIARY_ACTION_RULES[body.action];
+
+        const admin = createAdminClient();
+
+        const { data, error: fetchError } = await admin
+            .from("beneficiaries")
+            .select("id, status")
+            .eq("id", body.beneficiary_id)
+            .single();
+
+        if (fetchError || !data) throw new NotFoundError("beneficiary not found");
+        const beneficiary = data as { id: string; status: BeneficiaryStatus };
+
+        if (!rule.from.includes(beneficiary.status)) {
+            throw new BadRequestError(
+                `cannot '${body.action}' a beneficiary whose status is '${beneficiary.status}'`
+            );
+        }
+
+        const { error: updateError } = await admin
+            .from("beneficiaries")
+            .update({ status: rule.to, updated_at: new Date().toISOString() })
+            .eq("id", body.beneficiary_id);
+
+        if (updateError) throw new Error(updateError.message);
+
+        await audit({
+            action: rule.verb,
+            entity_table: "beneficiaries",
+            entity_id: body.beneficiary_id,
+            summary: `beneficiary: ${beneficiary.status} → ${rule.to}${
+                body.reason ? ` (${body.reason})` : ""
+            }`,
+            metadata: { from: beneficiary.status, to: rule.to, reason: body.reason ?? null },
+        });
+
+        return { ok: true, id: body.beneficiary_id, status: rule.to };
     }
 );

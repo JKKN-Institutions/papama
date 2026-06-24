@@ -1,6 +1,8 @@
-import { defineRoute } from "@/lib/api/handler";
+import { BadRequestError, NotFoundError, defineRoute, parseBody } from "@/lib/api/handler";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import type { FraudFlagDetailResponse } from "@/lib/validation/schemas";
+import type { FraudStatus } from "@/lib/types/enums";
+import { fraudActionRequestSchema, type FraudFlagDetailResponse } from "@/lib/validation/schemas";
 
 /**
  * GET /api/admin/fraud — fraud flags for the admin console (contract §9).
@@ -38,3 +40,62 @@ export const GET = defineRoute({ feature: "fraud_monitoring", action: "read" }, 
 
     return { fraud_flags, total: fraud_flags.length };
 });
+
+/**
+ * PATCH /api/admin/fraud — resolve or dismiss an open flag (contract §9).
+ *
+ * Gated by `fraud_monitoring/update` — admin only (compliance & vendor_manager
+ * are read-only in the matrix). Only an `open` flag can be actioned (else 400);
+ * a missing flag is 404. Records the resolver + notes and audits the change.
+ * `dismiss` (false positive) also clears any block.
+ */
+export const PATCH = defineRoute(
+    { feature: "fraud_monitoring", action: "update" },
+    async ({ req, user, audit }) => {
+        const body = await parseBody(req, fraudActionRequestSchema);
+
+        const admin = createAdminClient();
+
+        const { data, error: fetchError } = await admin
+            .from("fraud_flags")
+            .select("id, status, flag_type")
+            .eq("id", body.flag_id)
+            .single();
+
+        if (fetchError || !data) throw new NotFoundError("fraud flag not found");
+        const flag = data as { id: string; status: FraudStatus; flag_type: string };
+
+        if (flag.status !== "open") {
+            throw new BadRequestError(`flag is already '${flag.status}'`);
+        }
+
+        const nowIso = new Date().toISOString();
+        const nextStatus: FraudStatus = body.action === "resolve" ? "resolved" : "dismissed";
+        const update: Record<string, unknown> = {
+            status: nextStatus,
+            resolved_by: user.id,
+            resolved_at: nowIso,
+            resolution_notes: body.notes ?? null,
+            updated_at: nowIso,
+        };
+        // A dismissed flag is a false positive — lift any block it imposed.
+        if (body.action === "dismiss") update.blocked = false;
+
+        const { error: updateError } = await admin
+            .from("fraud_flags")
+            .update(update)
+            .eq("id", body.flag_id);
+
+        if (updateError) throw new Error(updateError.message);
+
+        await audit({
+            action: `fraud.${body.action}`,
+            entity_table: "fraud_flags",
+            entity_id: body.flag_id,
+            summary: `${flag.flag_type}: open → ${nextStatus}${body.notes ? ` (${body.notes})` : ""}`,
+            metadata: { from: "open", to: nextStatus, notes: body.notes ?? null },
+        });
+
+        return { ok: true, id: body.flag_id, status: nextStatus };
+    }
+);

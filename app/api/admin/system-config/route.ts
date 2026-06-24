@@ -1,6 +1,10 @@
-import { defineRoute } from "@/lib/api/handler";
+import { BadRequestError, NotFoundError, defineRoute, parseBody } from "@/lib/api/handler";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import type { SystemConfigRow } from "@/lib/validation/schemas";
+import {
+    systemConfigUpdateRequestSchema,
+    type SystemConfigRow,
+} from "@/lib/validation/schemas";
 
 /**
  * GET /api/admin/system-config — all tunable config rows (contract §1).
@@ -30,3 +34,76 @@ export const GET = defineRoute({ feature: "audit_reports", action: "read" }, asy
 
     return { config };
 });
+
+/**
+ * PATCH /api/admin/system-config — update one existing config row's value.
+ *
+ * Gated by `audit_reports/update` — admin only (compliance is read-only). The
+ * value is coerced/validated against the row's `value_type` and stored as text;
+ * `null` unsets the row. Unknown key → 404, bad value for the type → 400. Records
+ * `updated_by` and audits the change. Does NOT create new keys.
+ */
+function toStoredValue(
+    valueType: string,
+    value: string | number | boolean | null
+): string | null {
+    if (value === null) return null;
+    switch (valueType) {
+        case "number": {
+            const n = typeof value === "number" ? value : Number(String(value).trim());
+            if (!Number.isFinite(n)) {
+                throw new BadRequestError("value for a 'number' config must be numeric");
+            }
+            return String(n);
+        }
+        case "boolean": {
+            if (typeof value === "boolean") return value ? "true" : "false";
+            const s = String(value).trim().toLowerCase();
+            if (s === "true" || s === "false") return s;
+            throw new BadRequestError("value for a 'boolean' config must be true or false");
+        }
+        default:
+            return String(value);
+    }
+}
+
+export const PATCH = defineRoute(
+    { feature: "audit_reports", action: "update" },
+    async ({ req, user, audit }) => {
+        const body = await parseBody(req, systemConfigUpdateRequestSchema);
+
+        const admin = createAdminClient();
+
+        const { data, error: fetchError } = await admin
+            .from("system_config")
+            .select("key, value, value_type")
+            .eq("key", body.key)
+            .single();
+
+        if (fetchError || !data) throw new NotFoundError("config key not found");
+        const row = data as { key: string; value: string | null; value_type: string };
+
+        const stored = toStoredValue(row.value_type, body.value);
+
+        const { error: updateError } = await admin
+            .from("system_config")
+            .update({
+                value: stored,
+                updated_by: user.id,
+                updated_at: new Date().toISOString(),
+            })
+            .eq("key", body.key);
+
+        if (updateError) throw new Error(updateError.message);
+
+        await audit({
+            action: "system_config.update",
+            entity_table: "system_config",
+            entity_id: body.key,
+            summary: `${body.key}: ${row.value ?? "unset"} → ${stored ?? "unset"}`,
+            metadata: { from: row.value, to: stored },
+        });
+
+        return { ok: true, key: body.key, value: stored };
+    }
+);

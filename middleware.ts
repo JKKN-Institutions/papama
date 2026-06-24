@@ -36,10 +36,43 @@ export async function middleware(request: NextRequest) {
         data: { user },
     } = await supabase.auth.getUser();
 
-    if (!user && request.nextUrl.pathname.startsWith("/admin")) {
+    const { pathname } = request.nextUrl;
+
+    // Admin area: any unauthenticated hit bounces to the admin /login.
+    if (!user && pathname.startsWith("/admin")) {
         const url = request.nextUrl.clone();
         url.pathname = "/login";
-        url.searchParams.set("redirect", request.nextUrl.pathname);
+        url.searchParams.set("redirect", pathname);
+        return NextResponse.redirect(url);
+    }
+
+    // Donor portal: guarded too, except its own auth pages (avoid redirect loop).
+    // The public /donate and /donate/qr pages are NOT under /donor and stay open.
+    const donorAuthPages = ["/donor/login", "/donor/signup"];
+    if (
+        !user &&
+        pathname.startsWith("/donor") &&
+        !donorAuthPages.includes(pathname)
+    ) {
+        const url = request.nextUrl.clone();
+        url.pathname = "/donor/login";
+        url.searchParams.set("redirect", pathname);
+        return NextResponse.redirect(url);
+    }
+
+    // Vendor portal: guarded too, except its own login page (avoid redirect loop).
+    if (!user && pathname.startsWith("/vendor") && pathname !== "/vendor/login") {
+        const url = request.nextUrl.clone();
+        url.pathname = "/vendor/login";
+        url.searchParams.set("redirect", pathname);
+        return NextResponse.redirect(url);
+    }
+
+    // Volunteer portal: guarded too, except its own login page (avoid redirect loop).
+    if (!user && pathname.startsWith("/volunteer") && pathname !== "/volunteer/login") {
+        const url = request.nextUrl.clone();
+        url.pathname = "/volunteer/login";
+        url.searchParams.set("redirect", pathname);
         return NextResponse.redirect(url);
     }
 
@@ -47,5 +80,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-    matcher: ["/admin/:path*"],
+    matcher: ["/admin/:path*", "/donor/:path*", "/vendor/:path*", "/volunteer/:path*"],
 };

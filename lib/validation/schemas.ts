@@ -103,6 +103,19 @@ export const creditsResponseSchema = z.object({
 export type CreditsResponse = z.infer<typeof creditsResponseSchema>;
 
 /**
+ * POST /api/donations/create — a donor buys credit (fiat → credit). The donor is
+ * taken from the session, never the client. `payment_method` is informational
+ * only for now: the payment provider is an OPEN item (ASSUMPTIONS.md), so the
+ * donation is recorded as completed with a placeholder ref until a real gateway
+ * lands in Phase E. Token minting is a separate step (POST /api/tokens/convert).
+ */
+export const donationPurchaseRequestSchema = z.object({
+    amount_inr: inrAmountSchema.positive(),
+    payment_method: z.string().trim().min(1).max(40).optional(),
+});
+export type DonationPurchaseRequest = z.infer<typeof donationPurchaseRequestSchema>;
+
+/**
  * POST /api/tokens/convert — request. // Section A (touches tokens)
  * Donor mints ONE token of a chosen amount; constrained server-side to
  * standard_token_value <= amount <= available credit (token-flow §1).
@@ -202,6 +215,35 @@ export const campaignResponseSchema = z.object({
 });
 export type CampaignResponse = z.infer<typeof campaignResponseSchema>;
 
+/**
+ * POST /api/tokens/convert — donor mints ONE token of a chosen amount from
+ * credit (token-flow §1–2). Server-constrained: standard_token_value ≤ amount ≤
+ * available credit; minting deducts the amount from credit. `distribution_path`
+ * is the post-mint fork — `use_now` → token goes `live` (donor self-distributes),
+ * `authorize_papama` → token enters the admin pool (`in_admin_pool`).
+ */
+export const tokenMintRequestSchema = z.object({
+    token_type: tokenTypeSchema, // standard | special_care
+    amount_inr: inrAmountSchema.positive(),
+    distribution_path: z.enum(["use_now", "authorize_papama"]),
+    special_instructions: z.string().trim().max(500).optional(),
+});
+export type TokenMintRequest = z.infer<typeof tokenMintRequestSchema>;
+
+/**
+ * PATCH /api/donor/profile — the signed-in donor edits their own profile
+ * (donor_donation_credit/update, scope own). Both fields are optional so the
+ * donor can update just one. `pan_number` is the 80G seam (donors.pan_number,
+ * client Q5): nullable, and normalized/validated against the PAN format in the
+ * route (empty → null). Identity of the donor is taken from the session, never
+ * the client.
+ */
+export const donorProfilePatchSchema = z.object({
+    full_name: z.string().trim().min(1).max(120).optional(),
+    pan_number: z.string().nullable().optional(),
+});
+export type DonorProfilePatch = z.infer<typeof donorProfilePatchSchema>;
+
 // ===========================================================================
 // Beneficiary registration (BEN-1…5) — net-new, no collision
 // ===========================================================================
@@ -240,6 +282,22 @@ export const beneficiaryResponseSchema = z.object({
     registered_at: isoTimestampSchema,
 });
 export type BeneficiaryResponse = z.infer<typeof beneficiaryResponseSchema>;
+
+/**
+ * PATCH /api/admin/beneficiaries — admin record-state control (owner §4.6).
+ * `suspend` = temporary hold, `activate` = lift the hold, `block` = permanent
+ * stop. Operates on the `beneficiaries.status` enum (active|suspended|blocked).
+ * `reason` is recorded in the audit trail.
+ */
+export const beneficiaryActionSchema = z.enum(["suspend", "activate", "block"]);
+export type BeneficiaryAction = z.infer<typeof beneficiaryActionSchema>;
+
+export const beneficiaryActionRequestSchema = z.object({
+    beneficiary_id: z.string().uuid(),
+    action: beneficiaryActionSchema,
+    reason: z.string().trim().max(500).optional(),
+});
+export type BeneficiaryActionRequest = z.infer<typeof beneficiaryActionRequestSchema>;
 
 // ===========================================================================
 // Redemption & validation (RED-1…7, owner §4.4–4.6) — net-new
@@ -301,6 +359,29 @@ export const vendorResponseSchema = z.object({
 });
 export type VendorResponse = z.infer<typeof vendorResponseSchema>;
 
+/**
+ * PATCH /api/admin/vendors — a staff action on one vendor. The action drives a
+ * server-side state machine (approve/reject/suspend/reinstate operate on
+ * `status`; verify_kyc/fail_kyc operate on `kyc_status`). `reason` is recorded
+ * in the audit trail (the vendors table has no reason column).
+ */
+export const vendorActionSchema = z.enum([
+    "approve",
+    "reject",
+    "suspend",
+    "reinstate",
+    "verify_kyc",
+    "fail_kyc",
+]);
+export type VendorAction = z.infer<typeof vendorActionSchema>;
+
+export const vendorActionRequestSchema = z.object({
+    vendor_id: z.string().uuid(),
+    action: vendorActionSchema,
+    reason: z.string().trim().max(500).optional(),
+});
+export type VendorActionRequest = z.infer<typeof vendorActionRequestSchema>;
+
 // ===========================================================================
 // Settlement (contract §8, owner §4.8) — net-new
 // ===========================================================================
@@ -317,6 +398,22 @@ export const settlementResponseSchema = z.object({
 });
 export type SettlementResponse = z.infer<typeof settlementResponseSchema>;
 
+/**
+ * PATCH /api/admin/settlements — admin settlement lifecycle (contract §8, owner
+ * §4.8). Forward cycle lock → reconcile → pay; `unlock` is the admin override
+ * that returns a locked settlement to pending. `pay` stamps `settled_at`.
+ * `note` is appended to the audit trail.
+ */
+export const settlementActionSchema = z.enum(["lock", "unlock", "reconcile", "pay"]);
+export type SettlementAction = z.infer<typeof settlementActionSchema>;
+
+export const settlementActionRequestSchema = z.object({
+    settlement_id: z.string().uuid(),
+    action: settlementActionSchema,
+    note: z.string().trim().max(500).optional(),
+});
+export type SettlementActionRequest = z.infer<typeof settlementActionRequestSchema>;
+
 // ===========================================================================
 // Fraud (contract §9) — net-new
 // ===========================================================================
@@ -332,6 +429,21 @@ export const fraudFlagResponseSchema = z.object({
     created_at: isoTimestampSchema,
 });
 export type FraudFlagResponse = z.infer<typeof fraudFlagResponseSchema>;
+
+/**
+ * PATCH /api/admin/fraud — resolve or dismiss an open flag. `resolve` = a real
+ * issue that has been handled (the block, if any, stands); `dismiss` = a false
+ * positive (any block is cleared). `notes` is stored in `resolution_notes`.
+ */
+export const fraudActionSchema = z.enum(["resolve", "dismiss"]);
+export type FraudAction = z.infer<typeof fraudActionSchema>;
+
+export const fraudActionRequestSchema = z.object({
+    flag_id: z.string().uuid(),
+    action: fraudActionSchema,
+    notes: z.string().trim().max(500).optional(),
+});
+export type FraudActionRequest = z.infer<typeof fraudActionRequestSchema>;
 
 // ===========================================================================
 // System config (GET /api/admin/system-config) — net-new
@@ -356,6 +468,18 @@ export const systemConfigResponseSchema = z.object({
     config: z.array(systemConfigRowSchema),
 });
 export type SystemConfigResponse = z.infer<typeof systemConfigResponseSchema>;
+
+/**
+ * PATCH /api/admin/system-config — update one existing config row's value
+ * (admin only). The value is validated/coerced against the row's `value_type`
+ * server-side and stored as text. `null` intentionally UNSETS the row (e.g.
+ * leaving `max_tokens_per_volunteer` unset) — never a guessed default.
+ */
+export const systemConfigUpdateRequestSchema = z.object({
+    key: z.string().min(1),
+    value: z.union([z.string(), z.number(), z.boolean(), z.null()]),
+});
+export type SystemConfigUpdateRequest = z.infer<typeof systemConfigUpdateRequestSchema>;
 
 // ===========================================================================
 // Admin-only response schemas — net-new Dev-2 tables (M07–M13). Field names &
@@ -424,6 +548,24 @@ export const volunteerResponseSchema = z.object({
 });
 export type VolunteerResponse = z.infer<typeof volunteerResponseSchema>;
 
+/**
+ * PATCH /api/admin/volunteers — admin registry-status control. `suspend` =
+ * temporary hold, `deactivate` = retire, `activate` = restore. Operates on the
+ * `volunteers.status` text+CHECK value (active|inactive|suspended). `reason` is
+ * recorded in the audit trail. NOTE: token allocation / grant decisions and the
+ * `max_tokens_per_volunteer` limit are a separate token-flow slice (they mutate
+ * the tokens table), not part of this status control.
+ */
+export const volunteerActionSchema = z.enum(["suspend", "deactivate", "activate"]);
+export type VolunteerAction = z.infer<typeof volunteerActionSchema>;
+
+export const volunteerActionRequestSchema = z.object({
+    volunteer_id: z.string().uuid(),
+    action: volunteerActionSchema,
+    reason: z.string().trim().max(500).optional(),
+});
+export type VolunteerActionRequest = z.infer<typeof volunteerActionRequestSchema>;
+
 /** GET /api/admin/volunteer-token-requests — allocation request queue row (M09, token-flow §3b). */
 export const volunteerTokenRequestResponseSchema = z.object({
     id: z.string(),
@@ -453,6 +595,29 @@ export const complianceReportResponseSchema = z.object({
     updated_at: isoTimestampSchema,
 });
 export type ComplianceReportResponse = z.infer<typeof complianceReportResponseSchema>;
+
+/**
+ * POST /api/admin/reports — generate a report by aggregating live data into a
+ * `compliance_reports` row (admin only). Optional period (YYYY-MM-DD) filters the
+ * aggregation window. File export (PDF/CSV to storage) is a later slice; for now
+ * the computed `summary` jsonb is the report payload.
+ */
+const reportDateString = z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "expected a YYYY-MM-DD date");
+
+export const reportGenerateRequestSchema = z
+    .object({
+        report_type: reportTypeSchema,
+        title: z.string().trim().max(200).optional(),
+        period_start: reportDateString.optional(),
+        period_end: reportDateString.optional(),
+    })
+    .refine(
+        (r) => !r.period_start || !r.period_end || r.period_start <= r.period_end,
+        { message: "period_start must be on or before period_end", path: ["period_start"] }
+    );
+export type ReportGenerateRequest = z.infer<typeof reportGenerateRequestSchema>;
 
 /**
  * Richer fraud_flags row (M12) — superset of fraudFlagResponseSchema above with

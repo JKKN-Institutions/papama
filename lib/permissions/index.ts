@@ -58,6 +58,23 @@ export function hasCapability(role: UserRole, feature: Feature, cap: Capability)
     return getPermission(role, feature).caps.includes(cap);
 }
 
+/**
+ * Roles the /admin console is for. Used by the admin layout to gate the whole
+ * area server-side (coarse "may you enter at all"); per-feature access is still
+ * enforced by each route's matrix cell and by RLS. Other authenticated roles
+ * (donor, beneficiary, vendor, volunteer, guest) are bounced with Access Denied.
+ */
+export const ADMIN_CONSOLE_ROLES: readonly UserRole[] = [
+    "admin",
+    "compliance",
+    "vendor_manager",
+] as const;
+
+/** True when `role` may enter the /admin console at all. */
+export function isAdminConsoleRole(role: UserRole): boolean {
+    return ADMIN_CONSOLE_ROLES.includes(role);
+}
+
 /** Convenience wrappers operating on an AppUser. */
 export function userCan(
     user: AppUser,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 
 /**
  * Shared admin-console UI primitives + the proven list-fetch state machine,
@@ -24,40 +24,78 @@ export function useAdminList<T>(apiPath: string, dataKey: string, pageHref: stri
     const [state, setState] = useState<ListState>("loading");
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-    useEffect(() => {
-        let active = true;
+    const reload = useCallback(async () => {
+        const res = await fetch(apiPath, { cache: "no-store" });
 
-        (async () => {
-            const res = await fetch(apiPath, { cache: "no-store" });
+        if (res.status === 401) {
+            router.push(`/login?redirect=${pageHref}`);
+            return;
+        }
+        if (res.status === 403) {
+            setState("forbidden");
+            return;
+        }
+        if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            setErrorMsg(body.error ?? `Request failed (${res.status})`);
+            setState("error");
+            return;
+        }
 
-            if (!active) return;
-
-            if (res.status === 401) {
-                router.push(`/login?redirect=${pageHref}`);
-                return;
-            }
-            if (res.status === 403) {
-                setState("forbidden");
-                return;
-            }
-            if (!res.ok) {
-                const body = await res.json().catch(() => ({}));
-                setErrorMsg(body.error ?? `Request failed (${res.status})`);
-                setState("error");
-                return;
-            }
-
-            const body = (await res.json()) as Record<string, T[]>;
-            setItems(body[dataKey] ?? []);
-            setState("ready");
-        })();
-
-        return () => {
-            active = false;
-        };
+        const body = (await res.json()) as Record<string, T[]>;
+        setItems(body[dataKey] ?? []);
+        setState("ready");
     }, [router, apiPath, dataKey, pageHref]);
 
-    return { items, state, errorMsg };
+    useEffect(() => {
+        void reload();
+    }, [reload]);
+
+    return { items, state, errorMsg, reload };
+}
+
+/**
+ * Row-level mutation runner shared by the admin action columns. PATCHes the given
+ * endpoint, tracks a per-row busy id, surfaces the error body, and reloads the
+ * list on success. The server still enforces the matrix — UI gating is cosmetic.
+ *
+ * @param apiPath  the PATCH endpoint (same route as the list's GET)
+ * @param reload   the list reloader (from useAdminList) to run after success
+ */
+export function useRowAction(apiPath: string, reload: () => Promise<void>) {
+    const router = useRouter();
+    const [busyId, setBusyId] = useState<string | null>(null);
+    const [actionError, setActionError] = useState<string | null>(null);
+
+    const run = useCallback(
+        async (rowId: string, payload: Record<string, unknown>, confirmText?: string) => {
+            if (confirmText && !window.confirm(confirmText)) return;
+            setBusyId(rowId);
+            setActionError(null);
+            try {
+                const res = await fetch(apiPath, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload),
+                });
+                if (res.status === 401) {
+                    router.push("/login?redirect=/admin");
+                    return;
+                }
+                if (!res.ok) {
+                    const body = await res.json().catch(() => ({}));
+                    setActionError(body.error ?? `Action failed (${res.status})`);
+                    return;
+                }
+                await reload();
+            } finally {
+                setBusyId(null);
+            }
+        },
+        [apiPath, reload, router]
+    );
+
+    return { run, busyId, actionError };
 }
 
 /** Page title + subtitle + (when ready) a row count, matching the vendors header. */
@@ -204,6 +242,39 @@ export function Notice({
             <p className="font-medium">{title}</p>
             <p className="mt-1 opacity-90">{children}</p>
         </div>
+    );
+}
+
+export type BtnTone = "primary" | "danger" | "warn" | "neutral";
+
+const BTN_TONES: Record<BtnTone, string> = {
+    primary: "border-green-300 bg-green-50 text-green-700 hover:bg-green-100",
+    danger: "border-red-300 bg-red-50 text-red-700 hover:bg-red-100",
+    warn: "border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100",
+    neutral: "border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
+};
+
+/** Small tone-coloured action button used in admin table action columns. */
+export function ActionButton({
+    tone,
+    disabled,
+    onClick,
+    children,
+}: {
+    tone: BtnTone;
+    disabled: boolean;
+    onClick: () => void;
+    children: ReactNode;
+}) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            disabled={disabled}
+            className={`rounded-md border px-2.5 py-1 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${BTN_TONES[tone]}`}
+        >
+            {children}
+        </button>
     );
 }
 
