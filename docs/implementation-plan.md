@@ -78,13 +78,13 @@ matrix cell + `audit()`), then wire UI controls gated by `useCan()`:
   window; audited; UI generate form). _File export (PDF/CSV to storage) deferred._
 
 ### Phase C — Donor module: replace mock with governed backend
-- [ ] **C1** Real donor routes (`donations/create`, `donor/credits`,
-  `tokens/convert`, `donor/tokens`, `donor/dashboard`, `notifications`) via
-  `defineRoute` with donor cells (scope `"own"`).
-- [ ] **C2** Token lifecycle per `docs/token-flow.md` + credit service
-  (threshold, deduct on mint).
-- [ ] **C3** Repoint donor UI from the mock to real routes; **align token-status
-  enums**; keep mock available only behind `NEXT_PUBLIC_USE_MOCK_API`.
+- [~] **C1** Real donor routes (scope `"own"`): credits ✅, donations/create ✅,
+  tokens/convert ✅, donor/tokens ✅. _Remaining: donor/dashboard + notifications routes._
+- [x] **C2** Token mint + credit deduct per `docs/token-flow.md` §1–2
+  (standard_token_value ≤ amount ≤ balance; use_now → live / authorize_papama → in_admin_pool).
+- [~] **C3** Repoint donor UI: donate, mint, credits, tokens now hit the governed
+  routes (session cookie); mock kept behind `NEXT_PUBLIC_USE_MOCK_API`.
+  _Remaining: dashboard + notifications reads still on the old path._
 - [ ] **C4** Replace mock campaigns; align donate flow with real
   `token_types`/`donations`.
 - [ ] **C5** Volunteer token allocation/grant (token-flow §3a/3b): move tokens
