@@ -58,18 +58,50 @@ export const PATCH = defineRoute(
 
         const { data, error: fetchError } = await admin
             .from("fraud_flags")
-            .select("id, status, flag_type")
+            .select("id, status, flag_type, blocked")
             .eq("id", body.flag_id)
             .single();
 
         if (fetchError || !data) throw new NotFoundError("fraud flag not found");
-        const flag = data as { id: string; status: FraudStatus; flag_type: string };
+        const flag = data as {
+            id: string;
+            status: FraudStatus;
+            flag_type: string;
+            blocked: boolean;
+        };
 
+        const nowIso = new Date().toISOString();
+
+        // UNBLOCK — lift a standing block WITHOUT changing status. This is the only
+        // way to release a block left in place by `resolve` (resolve/dismiss are
+        // terminal and open-only, so a resolved-but-blocked entity would otherwise
+        // stay blocked forever). Works on any currently-blocked flag.
+        if (body.action === "unblock") {
+            if (!flag.blocked) throw new BadRequestError("flag is not blocked");
+            const update: Record<string, unknown> = { blocked: false, updated_at: nowIso };
+            if (body.notes) update.resolution_notes = body.notes;
+            const { error: unblockError } = await admin
+                .from("fraud_flags")
+                .update(update)
+                .eq("id", body.flag_id);
+            if (unblockError) throw new Error(unblockError.message);
+
+            await audit({
+                action: "fraud.unblock",
+                entity_table: "fraud_flags",
+                entity_id: body.flag_id,
+                summary: `${flag.flag_type}: block lifted${body.notes ? ` (${body.notes})` : ""}`,
+                metadata: { status: flag.status, blocked: false, notes: body.notes ?? null },
+            });
+
+            return { ok: true, id: body.flag_id, status: flag.status, blocked: false };
+        }
+
+        // RESOLVE / DISMISS — only an open flag can be actioned.
         if (flag.status !== "open") {
             throw new BadRequestError(`flag is already '${flag.status}'`);
         }
 
-        const nowIso = new Date().toISOString();
         const nextStatus: FraudStatus = body.action === "resolve" ? "resolved" : "dismissed";
         const update: Record<string, unknown> = {
             status: nextStatus,

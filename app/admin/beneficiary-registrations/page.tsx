@@ -108,15 +108,24 @@ export default function BeneficiaryRegistrationsPage() {
 function DecisionButtons({ id, onDone }: { id: string; onDone: () => void }) {
     const [busy, setBusy] = useState(false);
     const [err, setErr] = useState<string | null>(null);
+    const [notes, setNotes] = useState("");
+    const [expiry, setExpiry] = useState(""); // YYYY-MM-DD (approve only)
 
     async function decide(decision: "approve" | "reject") {
         setBusy(true);
         setErr(null);
         try {
+            const payload: Record<string, unknown> = { decision };
+            if (notes.trim()) payload.review_notes = notes.trim();
+            // Explicit eligibility expiry (e.g. a patient's treatment-end date). Sent
+            // as ISO; the route otherwise auto-computes the pregnancy window.
+            if (decision === "approve" && expiry) {
+                payload.eligibility_expires_at = new Date(`${expiry}T00:00:00.000Z`).toISOString();
+            }
             const res = await fetch(`/api/admin/beneficiary-registrations/${id}/decide`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ decision }),
+                body: JSON.stringify(payload),
             });
             const data = await res.json().catch(() => ({}));
             if (!res.ok) throw new Error(data.error ?? `Failed (${res.status})`);
@@ -128,24 +137,42 @@ function DecisionButtons({ id, onDone }: { id: string; onDone: () => void }) {
     }
 
     return (
-        <div className="flex flex-wrap items-center gap-1.5">
-            <button
-                type="button"
-                onClick={() => decide("approve")}
+        <div className="flex flex-col gap-1.5">
+            <input
+                type="text"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
                 disabled={busy}
-                className="rounded-lg bg-green-600 px-3 py-1 text-xs font-medium text-white transition hover:bg-green-700 disabled:opacity-60"
-            >
-                Approve
-            </button>
-            <button
-                type="button"
-                onClick={() => decide("reject")}
+                placeholder="Review notes (optional)"
+                className="w-44 rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700"
+            />
+            <input
+                type="date"
+                value={expiry}
+                onChange={(e) => setExpiry(e.target.value)}
                 disabled={busy}
-                className="rounded-lg border border-slate-300 px-3 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
-            >
-                Reject
-            </button>
-            {err && <span className="text-[10px] text-red-700">{err}</span>}
+                title="Eligibility expiry (applies on approve; blank auto-computes for pregnancy)"
+                className="w-44 rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700"
+            />
+            <div className="flex flex-wrap items-center gap-1.5">
+                <button
+                    type="button"
+                    onClick={() => decide("approve")}
+                    disabled={busy}
+                    className="rounded-lg bg-green-600 px-3 py-1 text-xs font-medium text-white transition hover:bg-green-700 disabled:opacity-60"
+                >
+                    Approve
+                </button>
+                <button
+                    type="button"
+                    onClick={() => decide("reject")}
+                    disabled={busy}
+                    className="rounded-lg border border-slate-300 px-3 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+                >
+                    Reject
+                </button>
+                {err && <span className="text-[10px] text-red-700">{err}</span>}
+            </div>
         </div>
     );
 }

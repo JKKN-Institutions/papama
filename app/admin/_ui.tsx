@@ -289,6 +289,75 @@ export function SkeletonTable() {
 }
 
 /**
+ * Shared "run a job" action bar — one POST to a job endpoint with busy/success/
+ * error states. Used by the settlement-run, fraud-scan and token expire-sweep
+ * controls (replaces three near-identical hand-rolled bars). Optional `children`
+ * render extra controls (e.g. a period select) before the button; `body` is a
+ * thunk so it reads the latest of those controls' state at click time.
+ */
+export function RunJobBar({
+    label,
+    endpoint,
+    buttonText,
+    busyText,
+    successMessage,
+    onDone,
+    body,
+    children,
+}: {
+    label: string;
+    endpoint: string;
+    buttonText: string;
+    busyText: string;
+    successMessage: (data: Record<string, unknown>) => string;
+    onDone: () => void;
+    body?: () => Record<string, unknown>;
+    children?: ReactNode;
+}) {
+    const [busy, setBusy] = useState(false);
+    const [msg, setMsg] = useState<string | null>(null);
+    const [err, setErr] = useState<string | null>(null);
+
+    async function run() {
+        setBusy(true);
+        setMsg(null);
+        setErr(null);
+        try {
+            const res = await fetch(endpoint, {
+                method: "POST",
+                headers: body ? { "Content-Type": "application/json" } : undefined,
+                body: body ? JSON.stringify(body()) : undefined,
+            });
+            const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+            if (!res.ok) throw new Error((data.error as string) ?? `Failed (${res.status})`);
+            setMsg(successMessage(data));
+            onDone();
+        } catch (e) {
+            setErr(e instanceof Error ? e.message : "Action failed.");
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    return (
+        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white p-4">
+            <span className="text-sm font-medium text-slate-700">{label}</span>
+            {children}
+            <button
+                type="button"
+                onClick={run}
+                disabled={busy}
+                className="rounded-lg bg-slate-900 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:opacity-60"
+            >
+                {busy ? busyText : buttonText}
+            </button>
+            {msg && <span className="text-xs font-medium text-green-700">{msg}</span>}
+            {err && <span className="text-xs font-medium text-red-700">{err}</span>}
+        </div>
+    );
+}
+
+/**
  * The shared loading/forbidden/error/empty/ready switch. Pass the loaded `table`
  * render only; the four non-ready states are handled identically everywhere.
  */

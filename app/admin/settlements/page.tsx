@@ -11,6 +11,7 @@ import {
     Dash,
     ListStates,
     Notice,
+    RunJobBar,
     StatusBadge,
     TableHead,
     TableShell,
@@ -21,6 +22,7 @@ import {
 /** Admin settlements page — vendor settlement headers, payout status and lifecycle actions (contract §8). */
 export default function AdminSettlementsPage() {
     const canManage = useCan("vendor_settlement", "update");
+    const canRun = useCan("vendor_settlement", "create"); // the /run route requires `create`
     const { items, state, errorMsg, reload } = useAdminList<SettlementResponse>(
         "/api/admin/settlements",
         "settlements",
@@ -39,7 +41,7 @@ export default function AdminSettlementsPage() {
                 count={state === "ready" ? items.length : undefined}
             />
 
-            {canManage && <RunSettlementBar onDone={reload} />}
+            {canRun && <RunSettlementBar onDone={reload} />}
 
             {actionError && (
                 <div className="mb-4">
@@ -72,6 +74,11 @@ export default function AdminSettlementsPage() {
                                     </td>
                                     <td className="px-4 py-3">
                                         <StatusBadge value={s.status} />
+                                        {s.on_hold && (
+                                            <span className="ml-1.5 inline-flex items-center rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-700 ring-1 ring-inset ring-orange-600/20">
+                                                held
+                                            </span>
+                                        )}
                                     </td>
                                     <td className="px-4 py-3 text-slate-600">{s.line_items}</td>
                                     <td className="px-4 py-3 text-slate-500">
@@ -86,6 +93,7 @@ export default function AdminSettlementsPage() {
                                             <SettlementActions
                                                 id={s.settlement_id}
                                                 status={s.status}
+                                                onHold={s.on_hold}
                                                 amount={s.amount}
                                                 busy={busyId === s.settlement_id}
                                                 run={run}
@@ -105,12 +113,14 @@ export default function AdminSettlementsPage() {
 function SettlementActions({
     id,
     status,
+    onHold,
     amount,
     busy,
     run,
 }: {
     id: string;
     status: SettlementResponse["status"];
+    onHold: boolean;
     amount: number;
     busy: boolean;
     run: (rowId: string, payload: Record<string, unknown>, confirmText?: string) => void;
@@ -138,7 +148,7 @@ function SettlementActions({
             {status === "reconciled" && (
                 <ActionButton
                     tone="primary"
-                    disabled={busy}
+                    disabled={busy || onHold}
                     onClick={() =>
                         act(
                             "pay",
@@ -149,6 +159,21 @@ function SettlementActions({
                     Mark paid
                 </ActionButton>
             )}
+            {/* Admin override (owner §4.8): hold/delay any non-paid settlement, release to resume. */}
+            {status !== "paid" &&
+                (onHold ? (
+                    <ActionButton tone="primary" disabled={busy} onClick={() => act("release")}>
+                        Release
+                    </ActionButton>
+                ) : (
+                    <ActionButton
+                        tone="neutral"
+                        disabled={busy}
+                        onClick={() => act("hold", "Hold this settlement? It can't be paid until released.")}
+                    >
+                        Hold
+                    </ActionButton>
+                ))}
             {status === "paid" && <span className="text-xs text-slate-400">—</span>}
         </div>
     );
@@ -157,60 +182,32 @@ function SettlementActions({
 /** Admin control to run a settlement cycle — aggregates released redemptions into payouts. */
 function RunSettlementBar({ onDone }: { onDone: () => void }) {
     const [period, setPeriod] = useState<"daily" | "twice_weekly" | "weekly">("weekly");
-    const [busy, setBusy] = useState(false);
-    const [msg, setMsg] = useState<string | null>(null);
-    const [err, setErr] = useState<string | null>(null);
-
-    async function runIt() {
-        setBusy(true);
-        setMsg(null);
-        setErr(null);
-        try {
-            const res = await fetch("/api/admin/settlements/run", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ period }),
-            });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error(data.error ?? `Failed (${res.status})`);
-            setMsg(
-                data.settlements_created > 0
-                    ? `Created ${data.settlements_created} settlement(s) totalling ₹${Number(
-                          data.total_amount
-                      ).toLocaleString("en-IN")} across ${data.line_items} redemption(s).`
-                    : "No proof-released redemptions are awaiting settlement."
-            );
-            onDone();
-        } catch (e) {
-            setErr(e instanceof Error ? e.message : "Failed to run settlement.");
-        } finally {
-            setBusy(false);
-        }
-    }
 
     return (
-        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white p-4">
-            <span className="text-sm font-medium text-slate-700">Run settlement cycle:</span>
+        <RunJobBar
+            label="Run settlement cycle:"
+            endpoint="/api/admin/settlements/run"
+            buttonText="Run settlement"
+            busyText="Running…"
+            body={() => ({ period })}
+            successMessage={(d) =>
+                Number(d.settlements_created) > 0
+                    ? `Created ${d.settlements_created} settlement(s) totalling ₹${Number(
+                          d.total_amount
+                      ).toLocaleString("en-IN")} across ${d.line_items} redemption(s).`
+                    : "No proof-released redemptions are awaiting settlement."
+            }
+            onDone={onDone}
+        >
             <select
                 value={period}
                 onChange={(e) => setPeriod(e.target.value as typeof period)}
-                disabled={busy}
                 className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700"
             >
                 <option value="daily">Daily</option>
                 <option value="twice_weekly">Twice weekly</option>
                 <option value="weekly">Weekly</option>
             </select>
-            <button
-                type="button"
-                onClick={runIt}
-                disabled={busy}
-                className="rounded-lg bg-slate-900 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:opacity-60"
-            >
-                {busy ? "Running…" : "Run settlement"}
-            </button>
-            {msg && <span className="text-xs font-medium text-green-700">{msg}</span>}
-            {err && <span className="text-xs font-medium text-red-700">{err}</span>}
-        </div>
+        </RunJobBar>
     );
 }

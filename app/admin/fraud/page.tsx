@@ -1,7 +1,5 @@
 "use client";
 
-import { useState } from "react";
-
 import { useCan } from "@/components/auth/AppUserProvider";
 import type { FraudFlagDetailResponse } from "@/lib/validation/schemas";
 
@@ -12,6 +10,7 @@ import {
     Dash,
     ListStates,
     Notice,
+    RunJobBar,
     StatusBadge,
     TableHead,
     TableShell,
@@ -29,6 +28,15 @@ export default function AdminFraudPage() {
         "/admin/fraud"
     );
     const { run, busyId, actionError } = useRowAction("/api/admin/fraud", reload);
+
+    // Prompt for optional resolution notes, then run the action. Cancel aborts.
+    function actionWithNotes(id: string, action: "resolve" | "dismiss" | "unblock") {
+        const label =
+            action === "unblock" ? "Reason for lifting the block" : `Notes for ${action}`;
+        const notes = window.prompt(`${label} (optional):`, "");
+        if (notes === null) return; // cancelled
+        run(id, { flag_id: id, action, notes: notes.trim() || undefined });
+    }
 
     const columns = [
         "Type",
@@ -49,7 +57,20 @@ export default function AdminFraudPage() {
                 count={state === "ready" ? items.length : undefined}
             />
 
-            {canScan && <RunFraudScanBar onDone={reload} />}
+            {canScan && (
+                <RunJobBar
+                    label="Vendor anomaly sweep:"
+                    endpoint="/api/admin/fraud/scan"
+                    buttonText="Run fraud scan"
+                    busyText="Scanning…"
+                    successMessage={(d) =>
+                        Number(d.flags_created) > 0
+                            ? `Sweep raised ${d.flags_created} new vendor-anomaly flag(s).`
+                            : "No vendor volume anomalies detected."
+                    }
+                    onDone={reload}
+                />
+            )}
 
             {actionError && (
                 <div className="mb-4">
@@ -102,29 +123,36 @@ export default function AdminFraudPage() {
                                                     <ActionButton
                                                         tone="primary"
                                                         disabled={busyId === f.id}
-                                                        onClick={() =>
-                                                            run(f.id, {
-                                                                flag_id: f.id,
-                                                                action: "resolve",
-                                                            })
-                                                        }
+                                                        onClick={() => actionWithNotes(f.id, "resolve")}
                                                     >
                                                         Resolve
                                                     </ActionButton>
                                                     <ActionButton
                                                         tone="neutral"
                                                         disabled={busyId === f.id}
-                                                        onClick={() =>
-                                                            run(
-                                                                f.id,
-                                                                { flag_id: f.id, action: "dismiss" },
-                                                                "Dismiss this flag as a false positive? Any block it set will be lifted."
-                                                            )
-                                                        }
+                                                        onClick={() => actionWithNotes(f.id, "dismiss")}
                                                     >
                                                         Dismiss
                                                     </ActionButton>
+                                                    {f.blocked && (
+                                                        <ActionButton
+                                                            tone="neutral"
+                                                            disabled={busyId === f.id}
+                                                            onClick={() => actionWithNotes(f.id, "unblock")}
+                                                        >
+                                                            Unblock
+                                                        </ActionButton>
+                                                    )}
                                                 </div>
+                                            ) : f.blocked ? (
+                                                // Resolved/dismissed but still blocked → the only lever left.
+                                                <ActionButton
+                                                    tone="neutral"
+                                                    disabled={busyId === f.id}
+                                                    onClick={() => actionWithNotes(f.id, "unblock")}
+                                                >
+                                                    Unblock
+                                                </ActionButton>
                                             ) : (
                                                 <span className="text-xs text-slate-400">—</span>
                                             )}
@@ -140,46 +168,3 @@ export default function AdminFraudPage() {
     );
 }
 
-/** Admin control to run the vendor volume-anomaly sweep. */
-function RunFraudScanBar({ onDone }: { onDone: () => void }) {
-    const [busy, setBusy] = useState(false);
-    const [msg, setMsg] = useState<string | null>(null);
-    const [err, setErr] = useState<string | null>(null);
-
-    async function scan() {
-        setBusy(true);
-        setMsg(null);
-        setErr(null);
-        try {
-            const res = await fetch("/api/admin/fraud/scan", { method: "POST" });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error(data.error ?? `Failed (${res.status})`);
-            setMsg(
-                data.flags_created > 0
-                    ? `Sweep raised ${data.flags_created} new vendor-anomaly flag(s).`
-                    : "No vendor volume anomalies detected."
-            );
-            onDone();
-        } catch (e) {
-            setErr(e instanceof Error ? e.message : "Scan failed.");
-        } finally {
-            setBusy(false);
-        }
-    }
-
-    return (
-        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white p-4">
-            <span className="text-sm font-medium text-slate-700">Vendor anomaly sweep:</span>
-            <button
-                type="button"
-                onClick={scan}
-                disabled={busy}
-                className="rounded-lg bg-slate-900 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:opacity-60"
-            >
-                {busy ? "Scanning…" : "Run fraud scan"}
-            </button>
-            {msg && <span className="text-xs font-medium text-green-700">{msg}</span>}
-            {err && <span className="text-xs font-medium text-red-700">{err}</span>}
-        </div>
-    );
-}

@@ -40,6 +40,8 @@ export interface SettlementRunResult {
     total_amount: number;
     line_items: number;
     vendors: { vendor_id: string; settlement_id: string; amount: number; count: number }[];
+    /** Vendors whose settlement failed and was rolled back — the run continues past them. */
+    errors: { vendor_id: string; error: string }[];
 }
 
 /** Platform-owed amount for one redemption (menu value minus beneficiary's over-pay). */
@@ -106,57 +108,73 @@ export async function runSettlement(
         total_amount: 0,
         line_items: 0,
         vendors: [],
+        errors: [],
     };
 
     for (const [vendorId, allReds] of byVendor) {
-        // Honour the vendor's own cycle; fall back to the run's period otherwise.
-        const period = cycleByVendor.get(vendorId) ?? fallbackPeriod;
+        // Each vendor is settled independently inside try/catch: a failure is
+        // isolated (recorded in `errors`) so it can't abort the whole run, and a
+        // half-built settlement is compensated (header deleted).
+        try {
+            // Honour the vendor's own cycle; fall back to the run's period otherwise.
+            const period = cycleByVendor.get(vendorId) ?? fallbackPeriod;
 
-        // Period windowing: only settle redemptions that fall inside the current
-        // cadence window [now − window, now]. Older released redemptions roll into
-        // a later run for that vendor (they remain unsettled until then).
-        const windowStartMs = now.getTime() - CYCLE_WINDOW_MS[period];
-        const reds = allReds.filter((r) => Date.parse(r.redeemed_at) >= windowStartMs);
-        if (reds.length === 0) continue;
+            // Period windowing: only settle redemptions that fall inside the current
+            // cadence window [now − window, now]. Older released redemptions roll
+            // into a later run for that vendor (they remain unsettled until then).
+            const windowStartMs = now.getTime() - CYCLE_WINDOW_MS[period];
+            const reds = allReds.filter((r) => Date.parse(r.redeemed_at) >= windowStartMs);
+            if (reds.length === 0) continue;
 
-        const amount = reds.reduce((s, r) => s + payout(r), 0);
+            const amount = reds.reduce((s, r) => s + payout(r), 0);
 
-        const { data: settlementRow, error: insErr } = await admin
-            .from("vendor_settlements")
-            .insert({
+            const { data: settlementRow, error: insErr } = await admin
+                .from("vendor_settlements")
+                .insert({
+                    vendor_id: vendorId,
+                    period,
+                    period_start: reds[0].redeemed_at, // earliest in-window (ordered asc)
+                    period_end: nowIso,
+                    amount,
+                    line_item_count: reds.length,
+                    status: "pending",
+                })
+                .select("id")
+                .single();
+            if (insErr || !settlementRow) {
+                throw new Error(insErr?.message ?? "failed to create settlement header");
+            }
+            const settlementId = (settlementRow as { id: string }).id;
+
+            const { error: liErr } = await admin.from("settlement_line_items").insert(
+                reds.map((r) => ({
+                    settlement_id: settlementId,
+                    redemption_id: r.id,
+                    amount_inr: payout(r),
+                }))
+            );
+            if (liErr) {
+                // Compensating cleanup: drop the just-created header so no empty/half
+                // settlement is left behind.
+                await admin.from("vendor_settlements").delete().eq("id", settlementId);
+                throw new Error(liErr.message);
+            }
+
+            result.settlements_created += 1;
+            result.total_amount += amount;
+            result.line_items += reds.length;
+            result.vendors.push({
                 vendor_id: vendorId,
-                period,
-                period_start: reds[0].redeemed_at, // earliest in-window (ordered asc)
-                period_end: nowIso,
-                amount,
-                line_item_count: reds.length,
-                status: "pending",
-            })
-            .select("id")
-            .single();
-        if (insErr || !settlementRow) {
-            throw new Error(insErr?.message ?? "failed to create settlement");
-        }
-        const settlementId = (settlementRow as { id: string }).id;
-
-        const { error: liErr } = await admin.from("settlement_line_items").insert(
-            reds.map((r) => ({
                 settlement_id: settlementId,
-                redemption_id: r.id,
-                amount_inr: payout(r),
-            }))
-        );
-        if (liErr) throw new Error(liErr.message);
-
-        result.settlements_created += 1;
-        result.total_amount += amount;
-        result.line_items += reds.length;
-        result.vendors.push({
-            vendor_id: vendorId,
-            settlement_id: settlementId,
-            amount,
-            count: reds.length,
-        });
+                amount,
+                count: reds.length,
+            });
+        } catch (e) {
+            result.errors.push({
+                vendor_id: vendorId,
+                error: e instanceof Error ? e.message : "settlement failed",
+            });
+        }
     }
 
     return result;
