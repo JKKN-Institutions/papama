@@ -9,11 +9,13 @@ import { getNumber } from "@/lib/system-config";
  *
  * Gated by `beneficiary_registration/update` (admin only; volunteers may submit
  * but never approve). APPROVE creates the eligible `beneficiaries` row (status
- * active, eligibility verified) with category-driven auto-expiry — pregnancy →
- * now + `special_care_post_delivery_months` (config, unset → no expiry, never
- * guessed); patient → an optional explicit `eligibility_expires_at`; disability/
- * disaster-affected → no expiry — and links it back to the registration. REJECT
- * just stamps the registration. Idempotent guard: only `pending` may be decided.
+ * active, eligibility verified) with category-driven auto-expiry:
+ *   - pregnant_women → now + `special_care_post_delivery_months` (config, unset → no expiry, never guessed)
+ *   - patient        → now + `patient_eligibility_months` (config, unset → no expiry, never guessed)
+ *   - disability / disaster_affected → no auto-expiry
+ * An explicit `eligibility_expires_at` in the request overrides auto-computation
+ * for all categories. REJECT just stamps the registration. Idempotent guard: only
+ * `pending` may be decided.
  */
 
 const decideSchema = z.object({
@@ -75,6 +77,17 @@ export const POST = defineRoute<{ id: string }>(
                 expiresAt = d.toISOString();
             } catch {
                 // config unset — leave open-ended (no guessed window).
+            }
+        }
+        if (expiresAt == null && reg.category === "patient") {
+            try {
+                const months = await getNumber("patient_eligibility_months", admin as never);
+                const d = new Date();
+                d.setMonth(d.getMonth() + months);
+                expiresAt = d.toISOString();
+            } catch {
+                // config unset — leave open-ended; do NOT invent a duration
+                // (patient_eligibility_months is an open item pending client decision).
             }
         }
 

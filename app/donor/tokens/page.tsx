@@ -60,11 +60,13 @@ export default function TokensLedgerPage() {
     return result;
   }, [searchQuery, selectedStatus, selectedType, tokens]);
 
-  // Filter labels map to the authoritative token_status enum values.
+  // Filter labels map to the authoritative token_status enum values (all 7 states).
   const statuses: { label: string; value: string }[] = [
     { label: "All", value: "All" },
     { label: "Live", value: "live" },
     { label: "In Pool", value: "in_admin_pool" },
+    { label: "With Volunteer", value: "assigned_to_volunteer" },
+    { label: "Distributed", value: "distributed" },
     { label: "Redeemed", value: "redeemed" },
     { label: "Expired", value: "expired" },
   ];

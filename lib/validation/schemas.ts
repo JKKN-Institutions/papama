@@ -327,6 +327,7 @@ export type VendorActionRequest = z.infer<typeof vendorActionRequestSchema>;
 export const settlementResponseSchema = z.object({
     settlement_id: z.string(),
     vendor_id: z.string(),
+    vendor_name: z.string().nullable(), // resolved for the admin table (UUID alone is unreadable)
     period: settlementCycleSchema,
     on_hold: z.boolean(), // admin override (owner §4.8 hold/delay); blocks `pay` while true
     amount: z.number().nonnegative(), // numeric in DB

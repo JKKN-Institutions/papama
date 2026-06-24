@@ -70,40 +70,60 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "payment cannot be confirmed" }, { status: 400 });
         }
 
-        // Credit the donation (guest / no-account; payment_ref = the real UTR).
-        const result = await recordDonation({
-            admin,
-            amountInr: payment.amount_inr as number,
-            donorId: null,
-            method: "upi_qr",
-            paymentRef: `upi:${upiTransactionId}`,
-        });
-
-        // Flip to PAID + back-link the donation. Re-check status to guard a race
-        // where two confirms arrive together (only one should win).
-        const { data: updated, error: updateError } = await admin
+        // Claim the payment FIRST with an optimistic guard so only ONE confirm
+        // wins the race. The old code recorded the donation BEFORE this guard, so
+        // two simultaneous confirms each recorded a donation and only the status
+        // flip was guarded — double-recording the donation with no rollback. Now
+        // we claim PENDING→PAID atomically and record the donation only if we won.
+        const paidAt = new Date().toISOString();
+        const { data: claimed, error: claimError } = await admin
             .from("upi_qr_payments")
             .update({
                 status: "PAID",
                 upi_transaction_id: upiTransactionId,
                 payer_vpa: payerVpa ?? null,
-                paid_at: new Date().toISOString(),
-                donation_id: result.donationId,
+                paid_at: paidAt,
             })
             .eq("transaction_ref", transactionRef)
             .eq("status", "PENDING")
             .select("id")
             .maybeSingle();
 
-        if (updateError) {
-            console.error("[upi-qr/confirm] update error:", updateError.message);
+        if (claimError) {
+            console.error("[upi-qr/confirm] claim error:", claimError.message);
             return NextResponse.json({ error: "failed to confirm payment" }, { status: 500 });
         }
-        if (!updated) {
-            // Lost the race — another confirm already credited it. Donation we just
-            // recorded is a duplicate; surface a friendly already-confirmed state.
+        if (!claimed) {
+            // Lost the race / already confirmed — record NOTHING.
             return NextResponse.json({ error: "payment already confirmed" }, { status: 400 });
         }
+
+        // We own this payment now — record the donation (guest; payment_ref = UTR).
+        let result;
+        try {
+            result = await recordDonation({
+                admin,
+                amountInr: payment.amount_inr as number,
+                donorId: null,
+                method: "upi_qr",
+                paymentRef: `upi:${upiTransactionId}`,
+            });
+        } catch (err) {
+            // Revert the claim so the donor can retry; nothing was recorded.
+            await admin
+                .from("upi_qr_payments")
+                .update({ status: "PENDING", upi_transaction_id: null, payer_vpa: null, paid_at: null })
+                .eq("transaction_ref", transactionRef)
+                .eq("status", "PAID");
+            console.error("[upi-qr/confirm] recordDonation failed:", err);
+            return NextResponse.json({ error: "failed to confirm payment" }, { status: 500 });
+        }
+
+        // Back-link the donation id onto the (already PAID) payment row.
+        await admin
+            .from("upi_qr_payments")
+            .update({ donation_id: result.donationId })
+            .eq("transaction_ref", transactionRef);
 
         return NextResponse.json({
             success: true,

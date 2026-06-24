@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getNumber } from "@/lib/system-config";
 import { tokenMintRequestSchema } from "@/lib/validation/schemas";
 import { deriveQrPayload, qrHashOf } from "@/app/api/_lib/tokenQr";
+import { dispatchNotification } from "@/lib/notifications/dispatch";
 
 /**
  * POST /api/tokens/convert — the signed-in donor mints ONE token from credit
@@ -23,8 +24,13 @@ import { deriveQrPayload, qrHashOf } from "@/app/api/_lib/tokenQr";
  */
 function serialNumber(tokenType: string): string {
     const prefix = tokenType === "special_care" ? "SPC" : "STD";
-    const rand = Math.floor(10000 + Math.random() * 90000);
-    return `PPM-${prefix}-${rand}`;
+    // `tokens.serial_number` has a UNIQUE constraint, so a collision is a hard
+    // mint failure — not a silent duplicate. A 5-digit random suffix collides
+    // often (birthday problem). Combine a base-36 timestamp with random entropy
+    // to make collisions vanishingly unlikely.
+    const stamp = Date.now().toString(36).toUpperCase();
+    const rand = Math.floor(1000 + Math.random() * 9000);
+    return `PPM-${prefix}-${stamp}-${rand}`;
 }
 
 export const POST = defineRoute(
@@ -80,12 +86,37 @@ export const POST = defineRoute(
         const status = body.distribution_path === "use_now" ? "live" : "in_admin_pool";
         const serial = serialNumber(body.token_type);
 
+        const nowIso = new Date().toISOString();
+        const newBalance = balance - body.amount_inr;
+
+        // 1. Atomically deduct credit FIRST, with a compare-and-swap on the
+        //    balance we read. supabase-js can't express `balance = balance - x`
+        //    or wrap a transaction, so we guard on the prior value: if another
+        //    mint/donation changed the balance under us, 0 rows update and we
+        //    reject rather than double-spend. This prevents negative balances and
+        //    orphan tokens without a DB transaction (a hardening RPC is proposed
+        //    separately in docs/proposed-migrations).
+        const { data: deducted, error: deductError } = await admin
+            .from("donor_credits")
+            .update({ balance_inr: newBalance, updated_at: nowIso })
+            .eq("donor_id", donorId)
+            .eq("balance_inr", balance)
+            .select("donor_id")
+            .maybeSingle();
+        if (deductError) throw new Error(deductError.message);
+        if (!deducted) {
+            throw new BadRequestError(
+                "your credit balance just changed — please retry the mint"
+            );
+        }
+
         // One-time QR: derive the payload from the (pre-generated) id + a server
         // secret, store only its non-reversible hash (SEC-5), return the payload.
         const id = randomUUID();
         const qrPayload = deriveQrPayload(id);
 
-        // 1. Mint the token.
+        // 2. Mint the token. If this fails, refund the just-deducted credit
+        //    (compensating CAS: only restore if the balance is still what we set).
         const { data: token, error: tokenError } = await admin
             .from("tokens")
             .insert({
@@ -103,6 +134,11 @@ export const POST = defineRoute(
             .single();
 
         if (tokenError || !token) {
+            await admin
+                .from("donor_credits")
+                .update({ balance_inr: balance, updated_at: new Date().toISOString() })
+                .eq("donor_id", donorId)
+                .eq("balance_inr", newBalance);
             throw new Error(tokenError?.message ?? "failed to mint token");
         }
         const t = token as {
@@ -114,16 +150,6 @@ export const POST = defineRoute(
             expires_at: string | null;
         };
 
-        const nowIso = new Date().toISOString();
-        const newBalance = balance - body.amount_inr;
-
-        // 2. Deduct credit.
-        const { error: creditError } = await admin
-            .from("donor_credits")
-            .update({ balance_inr: newBalance, updated_at: nowIso })
-            .eq("donor_id", donorId);
-        if (creditError) throw new Error(creditError.message);
-
         // 3. Ledger entry (negative).
         await admin.from("credit_transactions").insert({
             donor_id: donorId,
@@ -132,21 +158,30 @@ export const POST = defineRoute(
             description: `Minted a ${body.token_type} token (₹${body.amount_inr})`,
         });
 
-        // 4. Bump donor counters (best-effort).
+        // 4. Bump donor counters — best-effort, but guarded with a compare-and-swap
+        //    on the prior values to prevent concurrent mints silently overwriting
+        //    each other (matches the CAS pattern on balance deduction above).
         const { data: donorRow } = await admin
             .from("donors")
             .select("total_donated_tokens, impact_score")
             .eq("id", donorId)
             .maybeSingle();
         if (donorRow) {
+            const prevTokens = donorRow.total_donated_tokens ?? 0;
+            const prevScore = donorRow.impact_score ?? 0;
             await admin
                 .from("donors")
                 .update({
-                    total_donated_tokens: (donorRow.total_donated_tokens ?? 0) + 1,
-                    impact_score: (donorRow.impact_score ?? 0) + 1,
+                    total_donated_tokens: prevTokens + 1,
+                    impact_score: prevScore + 1,
                     updated_at: nowIso,
                 })
-                .eq("id", donorId);
+                .eq("id", donorId)
+                .eq("total_donated_tokens", prevTokens)
+                .eq("impact_score", prevScore);
+            // If the CAS misses (0 rows affected) because a concurrent mint updated
+            // first, the counter is still correct for the other mint — best-effort
+            // semantics are acceptable for display-only counters (audit §5 L-note).
         }
 
         await audit({
@@ -163,14 +198,16 @@ export const POST = defineRoute(
         });
 
         // Notify the donor their token is ready (TRANS).
-        await admin.from("notifications").insert({
-            donor_id: donorId,
+        await dispatchNotification(admin, {
+            donorId,
             kind: "token_generated",
             title: "Token created",
             message: `A ₹${body.amount_inr} ${body.token_type} token is ready (${
                 status === "live" ? "yours to use" : "authorized to pApAmA"
             }).`,
             metadata: { token_id: t.id, value_inr: body.amount_inr, status },
+            // Default channels = ['in_app']. Pass ['in_app','email','sms'] here once
+            // the email/SMS provider is configured (ASSUMPTIONS.md open item Q4).
         });
 
         return {

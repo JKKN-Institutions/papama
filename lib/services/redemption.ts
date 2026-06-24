@@ -186,6 +186,28 @@ export async function validateRedemption(
               : `token status '${token.status}' is not redeemable`,
     });
 
+    // --- vendor approval (owner §4.5) ----------------------------------------
+    // A pending / suspended / rejected outlet must not be able to redeem a token,
+    // burn it, or lock a payment. HARD: this was previously unchecked, letting any
+    // user with the `vendor` role redeem before approval.
+    const { data: vendorRow } = await admin
+        .from("vendors")
+        .select("status")
+        .eq("id", input.vendor_id)
+        .maybeSingle();
+    const vendorStatus = (vendorRow as { status: string } | null)?.status ?? null;
+    const vendorApproved = vendorStatus === "approved";
+    checks.push({
+        name: "vendor_status",
+        pass: vendorApproved,
+        hard: true,
+        detail: vendorApproved
+            ? "vendor outlet is approved"
+            : vendorStatus
+              ? `vendor outlet is not approved (${vendorStatus})`
+              : "vendor outlet not found",
+    });
+
     // --- menu ----------------------------------------------------------------
     const { data: menuData } = await admin
         .from("vendor_menus")

@@ -54,6 +54,13 @@ function toStoredValue(
             if (!Number.isFinite(n)) {
                 throw new BadRequestError("value for a 'number' config must be numeric");
             }
+            // Every numeric config key (token value, radius, cooldown, meals,
+            // co-pay, rating, …) is inherently non-negative. A negative value
+            // would silently disable a rule (e.g. radius < 0 blocks all
+            // redemptions) — reject it rather than store a foot-gun.
+            if (n < 0) {
+                throw new BadRequestError("value for a 'number' config must be zero or positive");
+            }
             return String(n);
         }
         case "boolean": {

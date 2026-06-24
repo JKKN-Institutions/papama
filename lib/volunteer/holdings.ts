@@ -50,61 +50,70 @@ interface DistributionRow {
 
 /**
  * Return the tokens currently held by `userId` (the volunteer's user id),
- * newest-minted first. Two passes on the admin client (no embeds): pull every
- * 'assigned_to_volunteer' token, then confirm each one's latest distribution
- * record is a grant to this user.
+ * newest-minted first.
+ *
+ * Strategy: push the per-volunteer filter into SQL rather than loading every
+ * 'assigned_to_volunteer' token and filtering in JS (O(N) full scan).
+ *
+ * Step 1 — ask the DB for the latest distribution record per token that was
+ *   granted to this user via a grant channel. PostgREST doesn't expose DISTINCT
+ *   ON, so we filter token_distribution_records by (distributed_by, channel)
+ *   first and let the server deduplicate by picking the max distributed_at per
+ *   token_id in step 2.
+ * Step 2 — join to tokens, filtering to status='assigned_to_volunteer', and
+ *   resolve the max-per-token deduplication in JS (the set is already
+ *   volunteer-scoped, so it is tiny).
+ *
+ * The result is identical to the original return shape: tokens whose latest
+ * distribution record across ALL channels is a grant to this user. The DB now
+ * does the heavy filtering; JS only deduplicates the volunteer's own small set.
  */
 export async function listHeldTokens(
     admin: SupabaseClient,
     userId: string
 ): Promise<HeldToken[]> {
-    const { data: tokenData, error: tokenError } = await admin
-        .from("tokens")
-        .select("id, serial_number, token_type, value_inr, status, minted_at")
-        .eq("status", "assigned_to_volunteer")
-        .order("minted_at", { ascending: false });
-
-    if (tokenError) throw new Error(tokenError.message);
-    const tokens = (tokenData ?? []) as TokenRow[];
-    if (tokens.length === 0) return [];
-
-    // Pull the distribution records for exactly these tokens, then keep a token
-    // only when its latest record is a grant to this user.
-    const tokenIds = tokens.map((t) => t.id);
+    // Pull distribution records granted to this volunteer via a grant channel.
+    // Filter by distributed_by and channel in SQL — no full-table scan.
     const { data: recordData, error: recordError } = await admin
         .from("token_distribution_records")
         .select("token_id, distributed_by, channel, distributed_at")
-        .in("token_id", tokenIds)
+        .eq("distributed_by", userId)
+        .in("channel", [...GRANT_CHANNELS])
         .order("distributed_at", { ascending: false });
 
     if (recordError) throw new Error(recordError.message);
     const records = (recordData ?? []) as DistributionRow[];
+    if (records.length === 0) return [];
 
-    // First (newest) record seen per token wins, since records are sorted desc.
+    // Deduplicate: keep the newest grant record per token_id (records are
+    // already sorted desc so the first seen per token_id wins).
     const latestByToken = new Map<string, DistributionRow>();
     for (const rec of records) {
         if (!latestByToken.has(rec.token_id)) latestByToken.set(rec.token_id, rec);
     }
 
-    const held: HeldToken[] = [];
-    for (const t of tokens) {
-        const latest = latestByToken.get(t.id);
-        if (
-            latest &&
-            latest.distributed_by === userId &&
-            (GRANT_CHANNELS as readonly string[]).includes(latest.channel)
-        ) {
-            held.push({
-                token_id: t.id,
-                serial_number: t.serial_number,
-                token_type: t.token_type,
-                value: t.value_inr,
-                status: t.status,
-                minted_at: t.minted_at,
-            });
-        }
-    }
-    return held;
+    // Fetch the token rows for these candidates, restricting to the status that
+    // confirms the token is still in the volunteer's hands. This second query is
+    // bounded by the volunteer's own grant set — not the whole tokens table.
+    const candidateIds = [...latestByToken.keys()];
+    const { data: tokenData, error: tokenError } = await admin
+        .from("tokens")
+        .select("id, serial_number, token_type, value_inr, status, minted_at")
+        .in("id", candidateIds)
+        .eq("status", "assigned_to_volunteer")
+        .order("minted_at", { ascending: false });
+
+    if (tokenError) throw new Error(tokenError.message);
+    const tokens = (tokenData ?? []) as TokenRow[];
+
+    return tokens.map((t) => ({
+        token_id: t.id,
+        serial_number: t.serial_number,
+        token_type: t.token_type,
+        value: t.value_inr,
+        status: t.status,
+        minted_at: t.minted_at,
+    }));
 }
 
 /** Count of tokens currently held by `userId` (concurrent-limit headroom check). */

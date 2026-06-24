@@ -126,7 +126,11 @@ function NgoCreateForm({ onDone }: { onDone: () => void }) {
     const [regNo, setRegNo] = useState("");
     const [focus, setFocus] = useState("");
     const [contact, setContact] = useState("");
+    const [email, setEmail] = useState("");
+    const [phone, setPhone] = useState("");
+    const [address, setAddress] = useState("");
     const [city, setCity] = useState("");
+    const [notes, setNotes] = useState("");
     const [busy, setBusy] = useState(false);
     const [msg, setMsg] = useState<string | null>(null);
     const [err, setErr] = useState<string | null>(null);
@@ -148,7 +152,11 @@ function NgoCreateForm({ onDone }: { onDone: () => void }) {
                     registration_number: regNo.trim() || undefined,
                     focus_area: focus.trim() || undefined,
                     contact_person: contact.trim() || undefined,
+                    contact_email: email.trim() || undefined,
+                    contact_phone: phone.trim() || undefined,
+                    address: address.trim() || undefined,
                     city: city.trim() || undefined,
+                    notes: notes.trim() || undefined,
                 }),
             });
             const data = await res.json().catch(() => ({}));
@@ -158,7 +166,11 @@ function NgoCreateForm({ onDone }: { onDone: () => void }) {
             setRegNo("");
             setFocus("");
             setContact("");
+            setEmail("");
+            setPhone("");
+            setAddress("");
             setCity("");
+            setNotes("");
             onDone();
         } catch (e) {
             setErr(e instanceof Error ? e.message : "Failed to register partner.");
@@ -175,7 +187,11 @@ function NgoCreateForm({ onDone }: { onDone: () => void }) {
                 <Field label="Registration number" value={regNo} onChange={setRegNo} disabled={busy} />
                 <Field label="Focus area" value={focus} onChange={setFocus} disabled={busy} />
                 <Field label="Contact person" value={contact} onChange={setContact} disabled={busy} />
+                <Field label="Contact email" value={email} onChange={setEmail} disabled={busy} />
+                <Field label="Contact phone" value={phone} onChange={setPhone} disabled={busy} />
                 <Field label="City" value={city} onChange={setCity} disabled={busy} />
+                <Field label="Address" value={address} onChange={setAddress} disabled={busy} />
+                <Field label="Notes" value={notes} onChange={setNotes} disabled={busy} />
             </div>
             <div className="mt-3 flex items-center gap-3">
                 <button

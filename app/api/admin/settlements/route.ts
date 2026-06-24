@@ -25,9 +25,24 @@ export const GET = defineRoute({ feature: "vendor_settlement", action: "read" },
 
     if (error) throw new Error(error.message);
 
+    // Resolve vendor names in one batch so the admin table shows a readable name
+    // instead of a raw UUID.
+    const vendorIds = [...new Set((data ?? []).map((s) => s.vendor_id as string))];
+    const nameByVendor = new Map<string, string>();
+    if (vendorIds.length > 0) {
+        const { data: vendorRows } = await supabase
+            .from("vendors")
+            .select("id, name")
+            .in("id", vendorIds);
+        for (const v of (vendorRows ?? []) as { id: string; name: string }[]) {
+            nameByVendor.set(v.id, v.name);
+        }
+    }
+
     const settlements: SettlementResponse[] = (data ?? []).map((s) => ({
         settlement_id: s.id,
         vendor_id: s.vendor_id,
+        vendor_name: nameByVendor.get(s.vendor_id as string) ?? null,
         period: s.period,
         amount: Number(s.amount),
         status: s.status,

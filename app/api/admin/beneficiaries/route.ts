@@ -1,4 +1,4 @@
-import { BadRequestError, NotFoundError, defineRoute, parseBody } from "@/lib/api/handler";
+import { BadRequestError, NotFoundError, defineRoute, parseBody, parseQuery } from "@/lib/api/handler";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { BeneficiaryStatus } from "@/lib/types/enums";
@@ -6,6 +6,15 @@ import {
     beneficiaryActionRequestSchema,
     type BeneficiaryResponse,
 } from "@/lib/validation/schemas";
+import { z } from "zod";
+
+const DEFAULT_LIMIT = 100;
+const MAX_LIMIT = 200;
+
+const beneficiaryListQuerySchema = z.object({
+    limit: z.coerce.number().int().min(1).max(MAX_LIMIT).optional(),
+    offset: z.coerce.number().int().min(0).optional(),
+});
 
 /**
  * GET /api/admin/beneficiaries — approved-beneficiary registry (contract §6).
@@ -18,13 +27,18 @@ import {
  */
 export const GET = defineRoute(
     { feature: "beneficiary_registration", action: "read" },
-    async () => {
+    async ({ req }) => {
+        const { limit = DEFAULT_LIMIT, offset = 0 } = parseQuery(
+            req.nextUrl.searchParams,
+            beneficiaryListQuerySchema
+        );
         const supabase = await createClient();
 
         const { data, error } = await supabase
             .from("beneficiaries")
             .select("id, category, status, eligibility_status, aadhaar_hash, face_hash, created_at")
-            .order("created_at", { ascending: false });
+            .order("created_at", { ascending: false })
+            .range(offset, offset + limit - 1);
 
         if (error) throw new Error(error.message);
 
@@ -38,7 +52,7 @@ export const GET = defineRoute(
             registered_at: b.created_at,
         }));
 
-        return { beneficiaries, total: beneficiaries.length };
+        return { beneficiaries, total: beneficiaries.length, limit, offset };
     }
 );
 

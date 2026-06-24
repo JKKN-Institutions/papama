@@ -151,7 +151,7 @@ function DecisionButtons({ id, onDone }: { id: string; onDone: () => void }) {
                 value={expiry}
                 onChange={(e) => setExpiry(e.target.value)}
                 disabled={busy}
-                title="Eligibility expiry (applies on approve; blank auto-computes for pregnancy)"
+                title="Eligibility expiry date (optional). Leave blank to auto-compute from config: pregnancy uses special_care_post_delivery_months; patient uses patient_eligibility_months. Other categories get no expiry."
                 className="w-44 rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700"
             />
             <div className="flex flex-wrap items-center gap-1.5">

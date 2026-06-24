@@ -1,5 +1,6 @@
 import { defineRoute } from "@/lib/api/handler";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getNumber } from "@/lib/system-config";
 import type { CreditsResponse } from "@/lib/validation/schemas";
 
@@ -35,7 +36,11 @@ export const GET = defineRoute(
 
         let threshold = 0;
         try {
-            threshold = await getNumber("standard_token_value", supabase as never);
+            // Read config with the service-role client (like every other getNumber
+            // call). The donor's session client must NOT read system_config once
+            // its SELECT policy is restricted to staff (proposed m30 hardening) —
+            // those rows expose fraud/face thresholds.
+            threshold = await getNumber("standard_token_value", createAdminClient() as never);
         } catch {
             // standard_token_value unset — leave threshold 0 / not reached (no guessed default).
         }

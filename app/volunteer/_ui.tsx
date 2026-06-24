@@ -162,6 +162,9 @@ const BADGE_TONES: Record<string, string> = {
   scheduled: "bg-amber-50 text-amber-700 ring-amber-600/20",
   open: "bg-amber-50 text-amber-700 ring-amber-600/20",
   partially_granted: "bg-amber-50 text-amber-700 ring-amber-600/20",
+  // Token pool / in-flight states: amber-adjacent but distinct from pending.
+  in_admin_pool: "bg-amber-50 text-amber-800 ring-amber-700/20",
+  assigned_to_volunteer: "bg-purple-50 text-purple-700 ring-purple-600/20",
   suspended: "bg-orange-50 text-orange-700 ring-orange-600/20",
   locked: "bg-orange-50 text-orange-700 ring-orange-600/20",
   held: "bg-orange-50 text-orange-700 ring-orange-600/20",

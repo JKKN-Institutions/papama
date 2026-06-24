@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import { useCan } from "@/components/auth/AppUserProvider";
 import type { FraudFlagDetailResponse } from "@/lib/validation/schemas";
 
@@ -29,13 +31,28 @@ export default function AdminFraudPage() {
     );
     const { run, busyId, actionError } = useRowAction("/api/admin/fraud", reload);
 
-    // Prompt for optional resolution notes, then run the action. Cancel aborts.
-    function actionWithNotes(id: string, action: "resolve" | "dismiss" | "unblock") {
-        const label =
-            action === "unblock" ? "Reason for lifting the block" : `Notes for ${action}`;
-        const notes = window.prompt(`${label} (optional):`, "");
-        if (notes === null) return; // cancelled
-        run(id, { flag_id: id, action, notes: notes.trim() || undefined });
+    // Inline notes: map of flagId → { action, draft text }. Replaces window.prompt().
+    const [pendingAction, setPendingAction] = useState<
+        Record<string, { action: "resolve" | "dismiss" | "unblock"; notes: string } | undefined>
+    >({});
+
+    function openNotes(id: string, action: "resolve" | "dismiss" | "unblock") {
+        setPendingAction((prev) => ({ ...prev, [id]: { action, notes: "" } }));
+    }
+
+    function cancelNotes(id: string) {
+        setPendingAction((prev) => {
+            const next = { ...prev };
+            delete next[id];
+            return next;
+        });
+    }
+
+    function submitNotes(id: string) {
+        const pending = pendingAction[id];
+        if (!pending) return;
+        cancelNotes(id);
+        run(id, { flag_id: id, action: pending.action, notes: pending.notes.trim() || undefined });
     }
 
     const columns = [
@@ -118,19 +135,66 @@ export default function AdminFraudPage() {
                                     </td>
                                     {canManage && (
                                         <td className="px-4 py-3">
-                                            {f.status === "open" ? (
+                                            {/* Inline notes form replaces window.prompt(). */}
+                                            {pendingAction[f.id] ? (
+                                                <div className="space-y-1.5">
+                                                    <p className="text-[11px] font-medium text-slate-600 capitalize">
+                                                        {pendingAction[f.id]!.action === "unblock"
+                                                            ? "Reason for lifting the block"
+                                                            : `Notes for ${pendingAction[f.id]!.action}`}{" "}
+                                                        <span className="text-slate-400">(optional)</span>
+                                                    </p>
+                                                    <input
+                                                        type="text"
+                                                        autoFocus
+                                                        aria-label="Resolution notes"
+                                                        value={pendingAction[f.id]!.notes}
+                                                        onChange={(e) =>
+                                                            setPendingAction((prev) => ({
+                                                                ...prev,
+                                                                [f.id]: {
+                                                                    ...prev[f.id]!,
+                                                                    notes: e.target.value,
+                                                                },
+                                                            }))
+                                                        }
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === "Enter") submitNotes(f.id);
+                                                            if (e.key === "Escape") cancelNotes(f.id);
+                                                        }}
+                                                        className="block w-full min-w-[160px] rounded-md border border-slate-300 px-2.5 py-1 text-xs text-slate-700 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                                                        placeholder="Optional notes…"
+                                                    />
+                                                    <div className="flex gap-1.5">
+                                                        <ActionButton
+                                                            tone="primary"
+                                                            disabled={busyId === f.id}
+                                                            onClick={() => submitNotes(f.id)}
+                                                        >
+                                                            Confirm
+                                                        </ActionButton>
+                                                        <ActionButton
+                                                            tone="neutral"
+                                                            disabled={busyId === f.id}
+                                                            onClick={() => cancelNotes(f.id)}
+                                                        >
+                                                            Cancel
+                                                        </ActionButton>
+                                                    </div>
+                                                </div>
+                                            ) : f.status === "open" ? (
                                                 <div className="flex flex-wrap gap-1.5">
                                                     <ActionButton
                                                         tone="primary"
                                                         disabled={busyId === f.id}
-                                                        onClick={() => actionWithNotes(f.id, "resolve")}
+                                                        onClick={() => openNotes(f.id, "resolve")}
                                                     >
                                                         Resolve
                                                     </ActionButton>
                                                     <ActionButton
                                                         tone="neutral"
                                                         disabled={busyId === f.id}
-                                                        onClick={() => actionWithNotes(f.id, "dismiss")}
+                                                        onClick={() => openNotes(f.id, "dismiss")}
                                                     >
                                                         Dismiss
                                                     </ActionButton>
@@ -138,7 +202,7 @@ export default function AdminFraudPage() {
                                                         <ActionButton
                                                             tone="neutral"
                                                             disabled={busyId === f.id}
-                                                            onClick={() => actionWithNotes(f.id, "unblock")}
+                                                            onClick={() => openNotes(f.id, "unblock")}
                                                         >
                                                             Unblock
                                                         </ActionButton>
@@ -149,7 +213,7 @@ export default function AdminFraudPage() {
                                                 <ActionButton
                                                     tone="neutral"
                                                     disabled={busyId === f.id}
-                                                    onClick={() => actionWithNotes(f.id, "unblock")}
+                                                    onClick={() => openNotes(f.id, "unblock")}
                                                 >
                                                     Unblock
                                                 </ActionButton>

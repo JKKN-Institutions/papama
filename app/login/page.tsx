@@ -15,7 +15,13 @@ import { createClient } from "@/lib/supabase/client";
 function LoginForm() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const redirectTo = searchParams.get("redirect") || "/admin";
+    // Only allow same-origin relative paths — reject `//evil.com` and absolute
+    // URLs so `?redirect=` can't be used as an open-redirect phishing vector.
+    const rawRedirect = searchParams.get("redirect");
+    const redirectTo =
+        rawRedirect && rawRedirect.startsWith("/") && !rawRedirect.startsWith("//")
+            ? rawRedirect
+            : "/admin";
 
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");

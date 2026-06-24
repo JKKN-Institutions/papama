@@ -69,6 +69,16 @@ export const POST = defineRoute<{ id: string }>(
             throw new NotFoundError("redemption not found");
         }
 
+        // Proof may only release a LOCKED redemption. Reject if it is already
+        // 'released', 'held' (admin override), or 'failed' — re-uploading proof
+        // must not overwrite existing evidence or flip an admin HOLD back to
+        // released.
+        if (redemption.payment_status !== "locked") {
+            throw new BadRequestError(
+                `payment is '${redemption.payment_status}', not locked — proof cannot be (re)submitted`
+            );
+        }
+
         // Upload both binaries before touching payment_status. If either fails, the
         // payment stays locked.
         const prefix = `${vendorId}/${redemptionId}`;
@@ -94,7 +104,7 @@ export const POST = defineRoute<{ id: string }>(
         }
 
         const nowIso = new Date().toISOString();
-        const { error } = await admin
+        const { data: released, error } = await admin
             .from("token_redemptions")
             .update({
                 proof_photo_ref: photoPath,
@@ -103,9 +113,19 @@ export const POST = defineRoute<{ id: string }>(
                 payment_status: "released",
             })
             .eq("id", redemptionId)
-            .eq("vendor_id", vendorId);
+            .eq("vendor_id", vendorId)
+            // CAS: only release if STILL locked — guards an admin hold landing
+            // between the check above and this write.
+            .eq("payment_status", "locked")
+            .select("id")
+            .maybeSingle();
 
         if (error) throw new Error(error.message);
+        if (!released) {
+            throw new BadRequestError(
+                "payment was changed (held or already released) — proof not applied"
+            );
+        }
 
         await audit({
             action: "proof.submit",

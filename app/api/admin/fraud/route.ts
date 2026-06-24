@@ -1,8 +1,17 @@
-import { BadRequestError, NotFoundError, defineRoute, parseBody } from "@/lib/api/handler";
+import { BadRequestError, NotFoundError, defineRoute, parseBody, parseQuery } from "@/lib/api/handler";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { FraudStatus } from "@/lib/types/enums";
 import { fraudActionRequestSchema, type FraudFlagDetailResponse } from "@/lib/validation/schemas";
+import { z } from "zod";
+
+const DEFAULT_LIMIT = 100;
+const MAX_LIMIT = 200;
+
+const fraudListQuerySchema = z.object({
+    limit: z.coerce.number().int().min(1).max(MAX_LIMIT).optional(),
+    offset: z.coerce.number().int().min(0).optional(),
+});
 
 /**
  * GET /api/admin/fraud — fraud flags for the admin console (contract §9).
@@ -11,7 +20,11 @@ import { fraudActionRequestSchema, type FraudFlagDetailResponse } from "@/lib/va
  * the richer detail shape (detection_method + resolution columns) the console
  * needs. `entity` is the polymorphic jsonb target { kind, id }. Newest first.
  */
-export const GET = defineRoute({ feature: "fraud_monitoring", action: "read" }, async () => {
+export const GET = defineRoute({ feature: "fraud_monitoring", action: "read" }, async ({ req }) => {
+    const { limit = DEFAULT_LIMIT, offset = 0 } = parseQuery(
+        req.nextUrl.searchParams,
+        fraudListQuerySchema
+    );
     const supabase = await createClient();
 
     const { data, error } = await supabase
@@ -19,7 +32,8 @@ export const GET = defineRoute({ feature: "fraud_monitoring", action: "read" }, 
         .select(
             "id, flag_type, severity, status, detection_method, entity, blocked, resolved_by, resolution_notes, resolved_at, created_at, updated_at"
         )
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .range(offset, offset + limit - 1);
 
     if (error) throw new Error(error.message);
 
@@ -38,7 +52,7 @@ export const GET = defineRoute({ feature: "fraud_monitoring", action: "read" }, 
         updated_at: f.updated_at,
     }));
 
-    return { fraud_flags, total: fraud_flags.length };
+    return { fraud_flags, total: fraud_flags.length, limit, offset };
 });
 
 /**
