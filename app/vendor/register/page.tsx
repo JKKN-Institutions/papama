@@ -161,7 +161,9 @@ export default function VendorRegisterPage() {
     }
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
-      setError(body.error ?? `Registration failed (${res.status}).`);
+      console.error("[vendor/register] /api/vendor/register failed:", res.status, body);
+      const m = typeof body.error === "string" && body.error.trim() ? body.error : null;
+      setError(m ?? `Registration failed (${res.status}).`);
       return false;
     }
     return true;
@@ -199,7 +201,13 @@ export default function VendorRegisterPage() {
     });
 
     if (signUpError) {
-      setError(signUpError.message);
+      console.error("[vendor/register] sign-up failed:", signUpError);
+      const m = signUpError.message?.trim();
+      setError(
+        m && m !== "{}"
+          ? m
+          : "Sign-up failed on the server (the database rejected the new user). Apply the signup-constraints migration (docs/proposed-migrations/m23) and try again.",
+      );
       setLoading(false);
       return;
     }
