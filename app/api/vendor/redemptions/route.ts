@@ -132,6 +132,28 @@ export const POST = defineRoute(
             },
         });
 
+        // Donor transparency (TRANS / demo step 8): alert the donor who funded it.
+        if (token.donor_id) {
+            const { data: v } = await admin
+                .from("vendors")
+                .select("name, city")
+                .eq("id", vendorId)
+                .maybeSingle();
+            await admin.from("notifications").insert({
+                donor_id: token.donor_id,
+                kind: "redemption",
+                title: "Your token was redeemed",
+                message: `A token you funded was redeemed at ${v?.name ?? "a partner vendor"} for a ₹${value.menu_value} meal.`,
+                metadata: {
+                    vendor: v?.name ?? null,
+                    location: v?.city ?? null,
+                    redeemed_at: nowIso,
+                    value_inr: value.menu_value,
+                    beneficiary_category: result.beneficiary?.category ?? null,
+                },
+            });
+        }
+
         return {
             redemption_id: redemption.id,
             payment_status: redemption.payment_status,

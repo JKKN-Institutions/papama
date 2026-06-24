@@ -43,6 +43,7 @@ interface TokenRow {
     status: string;
     value_inr: number;
     token_type: string;
+    donor_id: string | null;
     beneficiary_id: string | null;
     expires_at: string | null;
     redeemed_at: string | null;
@@ -152,7 +153,7 @@ export async function validateRedemption(
     const { data: tokenData } = await admin
         .from("tokens")
         .select(
-            "id, qr_hash, status, value_inr, token_type, beneficiary_id, expires_at, redeemed_at"
+            "id, qr_hash, status, value_inr, token_type, donor_id, beneficiary_id, expires_at, redeemed_at"
         )
         .eq("qr_hash", qrHash)
         .maybeSingle();

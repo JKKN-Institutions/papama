@@ -1,5 +1,6 @@
 import { defineRoute } from "@/lib/api/handler";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
  * GET /api/donor/dashboard — the signed-in donor's impact summary (credit,
@@ -107,18 +108,60 @@ export const GET = defineRoute(
             at: d.created_at,
         }));
 
-        // Redemption detail (vendor/meal/location) is staff/vendor-gated by RLS;
-        // the donor view is time-only here. Wired richer in a later slice.
-        const redemptionHistory = redeemedTokens
-            .filter((t) => t.redeemed_at)
-            .map((t) => ({
-                token_id: t.id,
-                vendor_name: "Vendor",
-                location: "",
-                time: t.redeemed_at as string,
-                meal_info: "Meal served",
-                beneficiary_category: "patient" as const,
-            }));
+        // Redemption detail (vendor/location/category). token_redemptions is
+        // staff/vendor-gated by RLS, so read it on the service-role client BUT
+        // scoped to this donor's own (RLS-fetched) redeemed token ids — no leakage.
+        const redeemedIds = redeemedTokens.map((t) => t.id);
+        let redemptionHistory: {
+            token_id: string;
+            vendor_name: string;
+            location: string;
+            time: string;
+            meal_info: string;
+            beneficiary_category: string;
+        }[] = [];
+
+        if (redeemedIds.length > 0) {
+            const admin = createAdminClient();
+            const { data: reds } = await admin
+                .from("token_redemptions")
+                .select("token_id, vendor_id, beneficiary_id, menu_value_inr, redeemed_at")
+                .in("token_id", redeemedIds)
+                .order("redeemed_at", { ascending: false });
+            const redemptions = (reds ?? []) as {
+                token_id: string;
+                vendor_id: string | null;
+                beneficiary_id: string | null;
+                menu_value_inr: number | null;
+                redeemed_at: string;
+            }[];
+
+            // Resolve vendor names + (privacy-safe) beneficiary categories.
+            const vendorIds = [...new Set(redemptions.map((r) => r.vendor_id).filter(Boolean))] as string[];
+            const benefIds = [...new Set(redemptions.map((r) => r.beneficiary_id).filter(Boolean))] as string[];
+            const vendorMap = new Map<string, { name: string | null; city: string | null }>();
+            const benefMap = new Map<string, string>();
+            if (vendorIds.length > 0) {
+                const { data: vs } = await admin.from("vendors").select("id, name, city").in("id", vendorIds);
+                for (const v of vs ?? []) vendorMap.set(v.id, { name: v.name, city: v.city });
+            }
+            if (benefIds.length > 0) {
+                const { data: bs } = await admin.from("beneficiaries").select("id, category").in("id", benefIds);
+                for (const b of bs ?? []) benefMap.set(b.id, b.category);
+            }
+
+            redemptionHistory = redemptions.map((r) => {
+                const v = r.vendor_id ? vendorMap.get(r.vendor_id) : undefined;
+                return {
+                    token_id: r.token_id,
+                    vendor_name: v?.name ?? "Partner vendor",
+                    location: v?.city ?? "",
+                    time: r.redeemed_at,
+                    meal_info: r.menu_value_inr != null ? `Meal (₹${r.menu_value_inr})` : "Meal served",
+                    beneficiary_category: (r.beneficiary_id && benefMap.get(r.beneficiary_id)) || "patient",
+                };
+            });
+        }
 
         return {
             total_credit: totalCredit,
