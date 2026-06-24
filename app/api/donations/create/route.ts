@@ -1,7 +1,7 @@
 import { BadRequestError, defineRoute, parseBody } from "@/lib/api/handler";
+import { recordDonation } from "@/app/api/_lib/recordDonation";
 import { resolveDonorId } from "@/lib/donor/server-identity";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getNumber } from "@/lib/system-config";
 import { donationPurchaseRequestSchema } from "@/lib/validation/schemas";
 
 /**
@@ -10,20 +10,14 @@ import { donationPurchaseRequestSchema } from "@/lib/validation/schemas";
  * Gated by `donor_donation_credit/create` (scope own). donations/donor_credits/
  * credit_transactions are all `*_write_admin` under RLS, so the writes run on the
  * service-role client AFTER the matrix check. The donor id comes from the session
- * — never the client body.
+ * — never the client body. Shared crediting logic lives in `recordDonation`.
  *
- * Payment: the provider is an OPEN item (ASSUMPTIONS.md). Until a real gateway
- * lands (Phase E), the donation is recorded as `completed` with a placeholder
- * `payment_ref` so the credit flow is demoable. No provider is invented.
+ * Payment: the card/netbanking providers are an OPEN item (ASSUMPTIONS.md). Until
+ * a real gateway lands, the donation is recorded `completed` with a flagged
+ * `mock:` ref so the credit flow is demoable. The real UPI *manual QR* flow lives
+ * in /api/payment/upi-qr/** (a confirmed UTR is the payment evidence). The guest
+ * (no-account) donation path is POST /api/donations/create-guest.
  */
-
-/** Indian financial year (Apr–Mar) for a date, e.g. "2026-2027". */
-function indianFinancialYear(d: Date): string {
-    const y = d.getUTCFullYear();
-    const startYear = d.getUTCMonth() >= 3 ? y : y - 1; // months are 0-based; 3 = April
-    return `${startYear}-${startYear + 1}`;
-}
-
 export const POST = defineRoute(
     { feature: "donor_donation_credit", action: "create", scope: "own" },
     async ({ req, user, audit }) => {
@@ -33,104 +27,36 @@ export const POST = defineRoute(
         const donorId = await resolveDonorId(user, admin);
         if (!donorId) throw new BadRequestError("no donor profile for this account");
 
-        const nowIso = new Date().toISOString();
         const method = body.payment_method ?? "portal";
-        const paymentRef = `mock:${method}:${nowIso}`; // placeholder until Phase E gateway
+        // MOCK payment seam: card/netbanking provider is an OPEN item. Flagged ref.
+        const paymentRef = `mock:${method}:${new Date().toISOString()}`;
 
-        // 1. Record the donation (completed — payment is mocked until Phase E).
-        const { data: donation, error: donationError } = await admin
-            .from("donations")
-            .insert({
-                donor_id: donorId,
-                amount_inr: body.amount_inr,
-                token_amount: 0, // tokens are minted later via /api/tokens/convert
-                status: "completed",
-                payment_ref: paymentRef,
-                financial_year: indianFinancialYear(new Date()),
-            })
-            .select("id")
-            .single();
-
-        if (donationError || !donation) {
-            throw new Error(donationError?.message ?? "failed to record donation");
-        }
-        const donationId = (donation as { id: string }).id;
-
-        // 2. Add the credit to the donor's balance (upsert the donor_credits row).
-        const { data: creditRow } = await admin
-            .from("donor_credits")
-            .select("balance_inr")
-            .eq("donor_id", donorId)
-            .maybeSingle();
-
-        const oldBalance = creditRow?.balance_inr ?? 0;
-        const newBalance = oldBalance + body.amount_inr;
-
-        const creditWrite = creditRow
-            ? await admin
-                  .from("donor_credits")
-                  .update({ balance_inr: newBalance, updated_at: nowIso })
-                  .eq("donor_id", donorId)
-            : await admin
-                  .from("donor_credits")
-                  .insert({ donor_id: donorId, balance_inr: newBalance });
-
-        if (creditWrite.error) throw new Error(creditWrite.error.message);
-
-        // 3. Ledger entry.
-        const { error: txError } = await admin.from("credit_transactions").insert({
-            donor_id: donorId,
-            amount_inr: body.amount_inr,
-            type: "purchase",
-            description: `Added ₹${body.amount_inr} credit via ${method}`,
+        const result = await recordDonation({
+            admin,
+            amountInr: body.amount_inr,
+            donorId,
+            method,
+            paymentRef,
         });
-        if (txError) throw new Error(txError.message);
-
-        // Threshold (for the UI's "you can mint now" hint); unset → not reached.
-        let threshold: number | null = null;
-        let thresholdReached = false;
-        try {
-            threshold = await getNumber("standard_token_value", admin as never);
-            thresholdReached = newBalance >= threshold;
-        } catch {
-            // standard_token_value unset — no guessed default.
-        }
 
         await audit({
             action: "donation.create",
             entity_table: "donations",
-            entity_id: donationId,
+            entity_id: result.donationId,
             summary: `donor added ₹${body.amount_inr} credit (${method})`,
-            metadata: { amount_inr: body.amount_inr, new_balance: newBalance, payment_ref: paymentRef },
+            metadata: {
+                amount_inr: body.amount_inr,
+                new_balance: result.creditBalance,
+                payment_ref: paymentRef,
+            },
         });
 
-        // Notifications (TRANS): donation receipt + a one-time threshold alert.
-        const notes: Array<Record<string, unknown>> = [
-            {
-                donor_id: donorId,
-                kind: "donation_success",
-                title: "Donation received",
-                message: `Thank you! ₹${body.amount_inr} was added to your credit.`,
-                metadata: { amount_inr: body.amount_inr, balance: newBalance },
-            },
-        ];
-        if (threshold != null && oldBalance < threshold && newBalance >= threshold) {
-            notes.push({
-                donor_id: donorId,
-                kind: "threshold",
-                title: "You can mint a token",
-                message: `Your credit reached ₹${newBalance} — convert it into a food token.`,
-                metadata: { balance: newBalance, threshold },
-            });
-        }
-        await admin.from("notifications").insert(notes);
-
         return {
-            donation_id: donationId,
+            donation_id: result.donationId,
             status: "completed",
-            credit_added: body.amount_inr,
-            credit_balance: newBalance,
-            threshold_reached: thresholdReached,
+            credit_added: result.creditAdded,
+            credit_balance: result.creditBalance,
+            threshold_reached: result.thresholdReached,
         };
     }
 );

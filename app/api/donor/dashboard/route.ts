@@ -158,7 +158,11 @@ export const GET = defineRoute(
                     location: v?.city ?? "",
                     time: r.redeemed_at,
                     meal_info: r.menu_value_inr != null ? `Meal (₹${r.menu_value_inr})` : "Meal served",
-                    beneficiary_category: (r.beneficiary_id && benefMap.get(r.beneficiary_id)) || "patient",
+                    // Neutral fallback when the category is unknown — the UI maps
+                    // an unrecognised value to a generic "Beneficiary" card, so we
+                    // do NOT mislabel as a specific category like "patient".
+                    beneficiary_category:
+                        (r.beneficiary_id && benefMap.get(r.beneficiary_id)) || "beneficiary",
                 };
             });
         }

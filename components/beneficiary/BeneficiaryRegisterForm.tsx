@@ -6,13 +6,14 @@ import FaceCapture from "@/components/face/FaceCapture";
 import type { FaceCapture as FaceCaptureValue } from "@/lib/validation/schemas";
 
 /**
- * Shared beneficiary-registration form (BEN-1, owner §2.2.1). Used by BOTH the
- * admin console and the volunteer app — submitting a registration is the `create`
- * action, which the permission matrix grants to admin AND volunteer (assist).
- * Approval (`update`) stays admin-only and lives on the admin page, not here.
+ * Shared beneficiary-registration form (BEN-1, owner §2.2.1). Used by the admin
+ * console, the volunteer assist flow, AND public self-registration — submitting a
+ * registration is the `create` action, which the permission matrix grants to admin,
+ * volunteer (assist), and guest (self_register). Approval (`update`) stays admin-only
+ * and lives on the admin page, not here.
  *
- * Posts to /api/admin/beneficiary-registrations — the path is under /api/admin but
- * access is governed by the matrix (volunteer `create`), not the URL prefix.
+ * Each caller passes the `endpoint` it is authorised for (admin / volunteer / public
+ * self-register). Access is governed by the matrix + the route, not the URL prefix.
  * Captures the enrolment face on-device via <FaceCapture> (only the vector is sent).
  */
 
@@ -26,9 +27,15 @@ const CATEGORIES = [
 export default function BeneficiaryRegisterForm({
     onDone,
     heading = "Register a beneficiary",
+    endpoint = "/api/admin/beneficiary-registrations",
+    credentials = "same-origin",
 }: {
     onDone?: () => void;
     heading?: string;
+    /** Which create route to POST to (admin / volunteer-assist / public self-register). */
+    endpoint?: string;
+    /** "same-origin" for authenticated routes; "omit" for the public self-register route. */
+    credentials?: RequestCredentials;
 }) {
     const [category, setCategory] = useState<string>("pregnant_women");
     const [fullName, setFullName] = useState("");
@@ -44,10 +51,10 @@ export default function BeneficiaryRegisterForm({
         setMsg(null);
         setErr(null);
         try {
-            const res = await fetch("/api/admin/beneficiary-registrations", {
+            const res = await fetch(endpoint, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                credentials: "same-origin",
+                credentials,
                 body: JSON.stringify({
                     category,
                     full_name: fullName.trim() || undefined,

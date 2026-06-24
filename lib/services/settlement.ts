@@ -28,6 +28,13 @@ interface ReleasedRedemption {
     redeemed_at: string;
 }
 
+/** Window length (ms) for a settlement cadence — used to bound a payout period. */
+const CYCLE_WINDOW_MS: Record<SettlementPeriod, number> = {
+    daily: 24 * 3_600_000,
+    twice_weekly: Math.round(3.5 * 24 * 3_600_000),
+    weekly: 7 * 24 * 3_600_000,
+};
+
 export interface SettlementRunResult {
     settlements_created: number;
     total_amount: number;
@@ -40,8 +47,13 @@ function payout(r: ReleasedRedemption): number {
     return Math.max(0, r.menu_value_inr - r.difference_paid_inr);
 }
 
+/**
+ * @param fallbackPeriod cadence used for vendors that have no `settlement_cycle`
+ *   set on their profile. Vendors WITH a chosen cycle are settled on THEIR cycle,
+ *   honouring the PRD's per-vendor settlement preference.
+ */
 export async function runSettlement(
-    period: SettlementPeriod,
+    fallbackPeriod: SettlementPeriod,
     admin: SupabaseClient
 ): Promise<SettlementRunResult> {
     // Redemptions already on a settlement (have a line item) — exclude.
@@ -71,7 +83,24 @@ export async function runSettlement(
         byVendor.set(r.vendor_id, list);
     }
 
-    const nowIso = new Date().toISOString();
+    // Resolve each vendor's chosen settlement cycle in one query.
+    const vendorIds = [...byVendor.keys()];
+    const cycleByVendor = new Map<string, SettlementPeriod>();
+    if (vendorIds.length > 0) {
+        const { data: vendorRows, error: vErr } = await admin
+            .from("vendors")
+            .select("id, settlement_cycle")
+            .in("id", vendorIds);
+        if (vErr) throw new Error(vErr.message);
+        for (const v of (vendorRows ?? []) as { id: string; settlement_cycle: string | null }[]) {
+            if (v.settlement_cycle) {
+                cycleByVendor.set(v.id, v.settlement_cycle as SettlementPeriod);
+            }
+        }
+    }
+
+    const now = new Date();
+    const nowIso = now.toISOString();
     const result: SettlementRunResult = {
         settlements_created: 0,
         total_amount: 0,
@@ -79,7 +108,17 @@ export async function runSettlement(
         vendors: [],
     };
 
-    for (const [vendorId, reds] of byVendor) {
+    for (const [vendorId, allReds] of byVendor) {
+        // Honour the vendor's own cycle; fall back to the run's period otherwise.
+        const period = cycleByVendor.get(vendorId) ?? fallbackPeriod;
+
+        // Period windowing: only settle redemptions that fall inside the current
+        // cadence window [now − window, now]. Older released redemptions roll into
+        // a later run for that vendor (they remain unsettled until then).
+        const windowStartMs = now.getTime() - CYCLE_WINDOW_MS[period];
+        const reds = allReds.filter((r) => Date.parse(r.redeemed_at) >= windowStartMs);
+        if (reds.length === 0) continue;
+
         const amount = reds.reduce((s, r) => s + payout(r), 0);
 
         const { data: settlementRow, error: insErr } = await admin
@@ -87,7 +126,7 @@ export async function runSettlement(
             .insert({
                 vendor_id: vendorId,
                 period,
-                period_start: reds[0].redeemed_at, // earliest (ordered asc)
+                period_start: reds[0].redeemed_at, // earliest in-window (ordered asc)
                 period_end: nowIso,
                 amount,
                 line_item_count: reds.length,

@@ -111,7 +111,9 @@ export interface RedemptionHistoryItem {
   location: string;
   time: string;
   meal_info: string;
-  beneficiary_category: 'pregnant_women' | 'patient' | 'disability' | 'disaster_affected';
+  // 'beneficiary' is a neutral fallback when the category is unknown/private;
+  // the UI maps any unrecognised value to a generic "Beneficiary" card.
+  beneficiary_category: 'pregnant_women' | 'patient' | 'disability' | 'disaster_affected' | 'beneficiary' | string;
 }
 
 export interface DashboardResponse {

@@ -15,8 +15,10 @@ import {
 /**
  * Volunteer beneficiary-registration assist (owner §2.2.1, BEN-1, matrix volunteer
  * `create`/`assist`). A volunteer submits registrations (with on-device face
- * enrolment); they CANNOT approve — eligibility approval is admin-only. The list
- * below is RLS-scoped to the registrations this volunteer submitted.
+ * enrolment) through the dedicated volunteer route — NOT the admin path — so the
+ * GET is RLS-scoped to this volunteer's own submissions and the POST handles the
+ * face embedding at parity with admin. They CANNOT approve — eligibility approval
+ * is admin-only.
  */
 
 type RegistrationRow = {
@@ -31,7 +33,7 @@ type RegistrationRow = {
 
 export default function VolunteerBeneficiariesPage() {
     const { data, state, errorMsg, reload } = useVolunteerFetch<RegistrationRow[]>(
-        "/api/admin/beneficiary-registrations",
+        "/api/volunteer/beneficiary-registrations",
         "registrations",
         "/volunteer/beneficiaries"
     );
@@ -45,7 +47,11 @@ export default function VolunteerBeneficiariesPage() {
                 count={state === "ready" ? items.length : undefined}
             />
 
-            <BeneficiaryRegisterForm onDone={reload} heading="Register a beneficiary (volunteer assist)" />
+            <BeneficiaryRegisterForm
+                onDone={reload}
+                heading="Register a beneficiary (volunteer assist)"
+                endpoint="/api/volunteer/beneficiary-registrations"
+            />
 
             <ListStates
                 state={state}

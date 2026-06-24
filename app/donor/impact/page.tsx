@@ -131,7 +131,9 @@ export default function ImpactPage() {
               {redemptions.length > 0 ? (
                 <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                   {redemptions.map((red) => {
-                    const category = CATEGORY_MAP[red.beneficiary_category] || {
+                    const category = CATEGORY_MAP[
+                      red.beneficiary_category as keyof typeof CATEGORY_MAP
+                    ] || {
                       label: "Beneficiary",
                       icon: "🍲",
                       color: "bg-zinc-50 text-zinc-700",
@@ -158,7 +160,7 @@ export default function ImpactPage() {
 
                           {/* Heartwarming Thank-You quote */}
                           <div className="italic text-zinc-600 dark:text-zinc-300 text-xs font-semibold leading-relaxed">
-                            "A hot plate of {red.meal_info} was served. Thank you for your care and support!"
+                            &ldquo;A hot plate of {red.meal_info} was served. Thank you for your care and support!&rdquo;
                           </div>
 
                           {/* Details */}

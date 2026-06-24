@@ -12,16 +12,21 @@ import { createHash, createHmac } from "node:crypto";
  * the stored hash (anti-duplication). This replaces the old guessable plaintext
  * `PAPAMA:<serial>`.
  *
- * NOTE: the HMAC secret reuses SUPABASE_SERVICE_ROLE_KEY (already server-only) to
- * avoid introducing an unset env var. A dedicated TOKEN_QR_SECRET should replace
- * it before launch so issued QRs survive a service-key rotation.
+ * SECRET: a dedicated TOKEN_QR_SECRET (server-only) is preferred so issued QRs
+ * survive a Supabase service-key rotation. For backward compatibility it FALLS
+ * BACK to SUPABASE_SERVICE_ROLE_KEY when TOKEN_QR_SECRET is unset, so nothing
+ * breaks before the dedicated secret is provisioned. Set TOKEN_QR_SECRET to a
+ * long random value (see .env.example) before launch and never rotate it, or
+ * every previously-issued QR becomes unverifiable.
  */
 const DOMAIN = "papama-token-qr:v1:";
 
 function qrSecret(): string {
-    const s = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const s = process.env.TOKEN_QR_SECRET ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (!s) {
-        throw new Error("token QR secret unavailable (SUPABASE_SERVICE_ROLE_KEY unset)");
+        throw new Error(
+            "token QR secret unavailable (set TOKEN_QR_SECRET, or SUPABASE_SERVICE_ROLE_KEY as fallback)"
+        );
     }
     return s;
 }

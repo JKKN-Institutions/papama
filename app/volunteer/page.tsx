@@ -141,7 +141,6 @@ function HeldTokensSection({
 function DistributeRow({ token, reload }: { token: HeldToken; reload: () => Promise<void> }) {
   const { post } = useVolunteerPost();
   const [open, setOpen] = useState(false);
-  const [faceHash, setFaceHash] = useState("");
   const [location, setLocation] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -152,7 +151,6 @@ function DistributeRow({ token, reload }: { token: HeldToken; reload: () => Prom
     setError(null);
     try {
       const body: Record<string, unknown> = {};
-      if (faceHash.trim()) body.beneficiary_face_hash = faceHash.trim();
       if (location.trim()) body.distribution_location = location.trim();
       await post(`/api/volunteer/tokens/${token.token_id}/distribute`, body);
       await reload();
@@ -194,15 +192,6 @@ function DistributeRow({ token, reload }: { token: HeldToken; reload: () => Prom
           <td colSpan={6} className="px-4 py-4">
             <form onSubmit={distribute} className="flex flex-wrap items-end gap-3">
               <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
-                Beneficiary face hash (optional)
-                <input
-                  value={faceHash}
-                  onChange={(e) => setFaceHash(e.target.value)}
-                  placeholder="hash…"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-600 focus:ring-1 focus:ring-slate-600 sm:w-56"
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
                 Distribution location (optional)
                 <input
                   value={location}
@@ -220,6 +209,10 @@ function DistributeRow({ token, reload }: { token: HeldToken; reload: () => Prom
               </button>
               {error && <span className="text-xs font-medium text-red-700">{error}</span>}
             </form>
+            <p className="mt-2 text-xs text-slate-400">
+              Face verification happens when the beneficiary redeems the token at a vendor — not at
+              distribution.
+            </p>
           </td>
         </tr>
       )}

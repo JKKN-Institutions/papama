@@ -54,8 +54,8 @@ export default function GuestDonatePage() {
     setIsSubmitting(true);
     setErrorMsg(null);
     try {
-      // Pass null as donor_id for anonymous guest donation
-      const res = await ApiClient.createDonation(values.amount, values.payment_method, null);
+      // Ungated guest donation (no session): records a donor-less donation.
+      const res = await ApiClient.createGuestDonation(values.amount, values.payment_method);
       if (res.status === "success") {
         setReceipt(res);
       } else {

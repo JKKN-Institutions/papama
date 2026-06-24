@@ -20,8 +20,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
  *      distributed_at), which drops the token out of the held set and frees the
  *      volunteer's concurrent-limit headroom.
  */
+// Note: face verification is performed at REDEMPTION (vendor scan), not at
+// distribution (token-flow §4) — so this route deliberately collects no face hash.
 const distributeSchema = z.object({
-    beneficiary_face_hash: z.string().min(1).optional(),
     distribution_location: z.string().min(1).optional(),
 });
 
@@ -103,7 +104,6 @@ export const POST = defineRoute<{ id: string }>(
             metadata: {
                 volunteer_id: volunteerId,
                 distribution_location: body.distribution_location ?? null,
-                face_hash_checked: !!body.beneficiary_face_hash,
             },
         });
 

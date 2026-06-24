@@ -5,7 +5,12 @@ import { useRouter } from "next/navigation";
 
 import { PageHeader, Notice } from "../_ui";
 import FaceCapture from "@/components/face/FaceCapture";
+import QrScanner from "@/components/vendor/QrScanner";
 import type { FaceCapture as FaceCaptureValue } from "@/lib/validation/schemas";
+
+/** Co-pay defaults (mirrors system_config `co_contribution_max`; server clamps too). */
+const CO_PAY_DEFAULT = 0;
+const CO_PAY_MAX = 5;
 
 /* ---- Backend contract types ------------------------------------------------ */
 
@@ -259,19 +264,38 @@ export default function VendorScanPage() {
   async function onUploadProof() {
     if (!redeem) return;
     setActionError(null);
+    // Both images are required — the server gates payment release on them.
+    if (!photoFile || !receiptFile) {
+      setActionError("Upload both the plate photo and the receipt to release payment.");
+      return;
+    }
     setProofBusy(true);
-    // TODO: real binary upload to storage; for now we send the file name(s) as refs.
-    const body: Record<string, unknown> = {};
-    if (photoFile) body.proof_photo_ref = photoFile.name;
-    if (receiptFile) body.proof_receipt_ref = receiptFile.name;
-    const result = await postJson<{ redemption_id: string; payment_status: string }>(
-      `/api/vendor/redemptions/${redeem.redemption_id}/proof`,
-      body,
-      router
-    );
+    // Real binary upload: POST multipart with the actual images. The route stores
+    // them in the vendor-proofs bucket and only then releases the locked payment.
+    const fd = new FormData();
+    fd.append("photo", photoFile);
+    fd.append("receipt", receiptFile);
+
+    let res: Response;
+    try {
+      res = await fetch(`/api/vendor/redemptions/${redeem.redemption_id}/proof`, {
+        method: "POST",
+        credentials: "same-origin",
+        body: fd,
+      });
+    } catch {
+      setProofBusy(false);
+      setActionError("Network error — please try again.");
+      return;
+    }
     setProofBusy(false);
-    if (!result.ok) {
-      setActionError(result.error);
+    if (res.status === 401) {
+      router.push("/vendor/login?redirect=/vendor/scan");
+      return;
+    }
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      setActionError(errBody.error ?? `Upload failed (${res.status}).`);
       return;
     }
     setProofDone(true);
@@ -301,11 +325,21 @@ export default function VendorScanPage() {
                 setQrPayload(e.target.value);
                 resetFlow();
               }}
-              placeholder="PAPAMA:…  (paste the scanned code)"
+              placeholder="PAPAMA:…  (scan with camera or paste the code)"
               className="w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm text-slate-900 outline-none focus:border-slate-600 focus:ring-1 focus:ring-slate-600"
             />
-            {/* TODO: camera-based QR scan as an enhancement. */}
-            <p className="mt-1 text-xs text-slate-400">Camera scan coming soon — paste the code for now.</p>
+            <p className="mt-1 text-xs text-slate-400">
+              Scan the token QR with the camera, or paste the code as a fallback.
+            </p>
+            <div className="mt-2">
+              <QrScanner
+                disabled={previewBusy || redeemBusy}
+                onDecode={(text) => {
+                  setQrPayload(text);
+                  resetFlow();
+                }}
+              />
+            </div>
           </div>
 
           <div>
@@ -362,15 +396,26 @@ export default function VendorScanPage() {
                 id="copay"
                 type="number"
                 min="0"
-                step="0.01"
+                max={CO_PAY_MAX}
+                step="1"
                 value={coPay}
                 onChange={(e) => {
-                  setCoPay(e.target.value);
+                  // Client-side clamp to ₹0..₹5; the server clamps to co_contribution_max too.
+                  const raw = e.target.value;
+                  if (raw === "") {
+                    setCoPay("");
+                  } else {
+                    const n = Number(raw);
+                    setCoPay(isNaN(n) ? "" : String(Math.max(CO_PAY_DEFAULT, Math.min(CO_PAY_MAX, n))));
+                  }
                   resetFlow();
                 }}
-                placeholder="0"
+                placeholder={String(CO_PAY_DEFAULT)}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-600 focus:ring-1 focus:ring-slate-600"
               />
+              <p className="mt-1 text-xs text-slate-400">
+                Optional voluntary contribution — default ₹{CO_PAY_DEFAULT}, max ₹{CO_PAY_MAX}.
+              </p>
             </div>
           </div>
 
@@ -523,15 +568,15 @@ export default function VendorScanPage() {
                 </div>
               </div>
 
-              {/* TODO: real binary upload to storage — currently sends file name(s) as refs. */}
               <p className="text-xs text-slate-400">
-                Photos are previewed locally; only the file name is submitted for now (binary upload deferred).
+                Both the plate photo and the receipt are required. They&apos;re uploaded securely;
+                payment is only released once both are received.
               </p>
 
               <button
                 type="button"
                 onClick={onUploadProof}
-                disabled={proofBusy || (!photoFile && !receiptFile)}
+                disabled={proofBusy || !photoFile || !receiptFile}
                 className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {proofBusy ? "Uploading…" : "Submit proof & release"}

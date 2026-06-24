@@ -256,12 +256,45 @@ export async function validateRedemption(
             }
         }
     } else {
-        checks.push({
-            name: "geofence",
-            pass: true,
-            hard: false,
-            detail: "location not provided",
-        });
+        // No location supplied. Fail CLOSED: if the geofence is enforceable for
+        // this vendor (vendor has geo on file AND redemption_radius_km is
+        // configured), a missing location is a HARD block — otherwise a caller
+        // could bypass the radius simply by omitting `geo`. The geofence only
+        // degrades to a soft skip when it genuinely can't be evaluated (vendor has
+        // no geo on file, or the radius config is unset).
+        const { data: vendorGeo } = await admin
+            .from("vendors")
+            .select("geo_lat, geo_lng")
+            .eq("id", input.vendor_id)
+            .maybeSingle();
+        const hasVendorGeo =
+            vendorGeo?.geo_lat != null && vendorGeo?.geo_lng != null;
+
+        let radiusConfigured = false;
+        try {
+            await getNumber("redemption_radius_km", admin as never);
+            radiusConfigured = true;
+        } catch {
+            radiusConfigured = false;
+        }
+
+        if (hasVendorGeo && radiusConfigured) {
+            checks.push({
+                name: "geofence",
+                pass: false,
+                hard: true,
+                detail: "location required — share your location to redeem within the radius",
+            });
+        } else {
+            checks.push({
+                name: "geofence",
+                pass: true,
+                hard: false,
+                detail: hasVendorGeo
+                    ? "redemption_radius_km unset — geofence skipped"
+                    : "vendor has no geo-location on file — skipped",
+            });
+        }
     }
 
     // --- face capture: liveness + identity (owner §4.5/§4.6/§5.2, SEC-1..4) ---

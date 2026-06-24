@@ -55,13 +55,15 @@ export default function DonatePage() {
     setIsSubmitting(true);
     setErrorMsg(null);
     try {
-      // Anonymous → no donor link; otherwise the signed-in donor from the session.
-      const donorId = values.is_anonymous ? null : await getCurrentDonorId();
-      const res = await ApiClient.createDonation(
-        values.amount,
-        values.payment_method,
-        donorId
-      );
+      // Anonymous → ungated guest donation (no session/credit); otherwise the
+      // signed-in donor's credit purchase via the auth-gated route.
+      const res = values.is_anonymous
+        ? await ApiClient.createGuestDonation(values.amount, values.payment_method)
+        : await ApiClient.createDonation(
+            values.amount,
+            values.payment_method,
+            await getCurrentDonorId()
+          );
 
       if (res.status === "success") {
         router.push(

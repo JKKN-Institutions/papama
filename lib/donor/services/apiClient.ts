@@ -401,6 +401,66 @@ export const ApiClient = {
     };
   },
 
+  // Guest / no-account donation (public /donate, /donate/qr, and the donor
+  // "Donate anonymously" toggle). Hits the UNGATED /api/donations/create-guest
+  // so it succeeds without a session (the gated /create 401s for guests).
+  async createGuestDonation(amount: number, paymentMethod: string): Promise<DonationResponse> {
+    if (isMockMode()) {
+      return mockCreateDonation(amount, paymentMethod, null);
+    }
+    const res = await fetch('/api/donations/create-guest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount_inr: amount, payment_method: paymentMethod }),
+    });
+    if (!res.ok) throw new Error(await readError(res, `Donation failed (${res.status})`));
+    const d = await res.json();
+    return {
+      donation_id: d.donation_id,
+      amount,
+      payment_method: paymentMethod as DonationResponse['payment_method'],
+      status: d.status === 'completed' ? 'success' : (d.status as DonationResponse['status']),
+      credit_added: d.credit_added,
+      credit_balance: d.credit_balance,
+      threshold_reached: d.threshold_reached,
+      created_at: new Date().toISOString(),
+    };
+  },
+
+  // Real UPI manual-QR flow. `generateUpiQr` creates a PENDING payment + QR;
+  // `confirmUpiQr` records the donor's UTR and credits the donation.
+  async generateUpiQr(amount: number): Promise<{
+    qrCode: string;
+    upiString: string;
+    transactionRef: string;
+    expiresAt: string;
+    amount: number;
+    merchantName: string;
+    upiId: string;
+    usingPlaceholder: boolean;
+  }> {
+    const res = await fetch('/api/payment/upi-qr/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount_inr: amount }),
+    });
+    if (!res.ok) throw new Error(await readError(res, `Could not generate QR (${res.status})`));
+    return res.json();
+  },
+
+  async confirmUpiQr(
+    transactionRef: string,
+    upiTransactionId: string
+  ): Promise<{ donation_id: string; amount: number; status: string; upiTransactionId: string }> {
+    const res = await fetch('/api/payment/upi-qr/confirm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ transactionRef, upiTransactionId }),
+    });
+    if (!res.ok) throw new Error(await readError(res, `Could not confirm payment (${res.status})`));
+    return res.json();
+  },
+
   async getCredits(): Promise<CreditsResponse> {
     if (isMockMode()) {
       return mockDb.getCredits();

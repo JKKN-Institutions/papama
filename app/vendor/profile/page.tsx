@@ -23,9 +23,18 @@ interface VendorProfile {
   bank_ifsc: string | null;
   geo_lat: number | null;
   geo_lng: number | null;
+  settlement_cycle: SettlementCycle | null;
   status: string;
   kyc_status: string;
 }
+
+type SettlementCycle = "daily" | "twice_weekly" | "weekly";
+
+const SETTLEMENT_CYCLES: { value: SettlementCycle; label: string }[] = [
+  { value: "daily", label: "Daily" },
+  { value: "twice_weekly", label: "Twice a week" },
+  { value: "weekly", label: "Weekly" },
+];
 
 interface VendorDocument {
   id: string;
@@ -87,6 +96,7 @@ export default function VendorProfilePage() {
 
   const [vendor, setVendor] = useState<VendorProfile | null>(null);
   const [form, setForm] = useState<FormState | null>(null);
+  const [cycle, setCycle] = useState<SettlementCycle | "">("");
   const [state, setState] = useState<"loading" | "ready" | "forbidden" | "error">("loading");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -125,6 +135,7 @@ export default function VendorProfilePage() {
       const body = (await res.json()) as { vendor: VendorProfile };
       setVendor(body.vendor);
       setForm(toForm(body.vendor));
+      setCycle(body.vendor.settlement_cycle ?? "");
       setState("ready");
     } catch {
       setErrorMsg("Network error — please try again.");
@@ -181,6 +192,8 @@ export default function VendorProfilePage() {
       const v = form[key].trim();
       payload[key] = v === "" ? null : v;
     }
+    // Settlement cycle is an enum (omit if unset — the column has no null value).
+    if (cycle) payload.settlement_cycle = cycle;
 
     setSaving(true);
     try {
@@ -206,6 +219,7 @@ export default function VendorProfilePage() {
       const body = (await res.json()) as { vendor: VendorProfile };
       setVendor(body.vendor);
       setForm(toForm(body.vendor));
+      setCycle(body.vendor.settlement_cycle ?? cycle);
       setSaved(true);
     } catch {
       setSaveError("Network error — please try again.");
@@ -317,6 +331,32 @@ export default function VendorProfilePage() {
                   />
                 </div>
               ))}
+            </div>
+
+            {/* Settlement cycle — vendor chooses how often they're paid out. */}
+            <div className="mt-5">
+              <label htmlFor="settlement_cycle" className="mb-1 block text-sm font-medium text-slate-700">
+                Settlement cycle
+              </label>
+              <select
+                id="settlement_cycle"
+                value={cycle}
+                onChange={(e) => {
+                  setCycle(e.target.value as SettlementCycle | "");
+                  setSaved(false);
+                }}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-600 focus:ring-1 focus:ring-slate-600 sm:w-1/2"
+              >
+                <option value="">Select a payout cadence…</option>
+                {SETTLEMENT_CYCLES.map((c) => (
+                  <option key={c.value} value={c.value}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-slate-400">
+                How often your proof-released redemptions are bundled into a payout.
+              </p>
             </div>
 
             {/* Location is read-only here (captured during onboarding). */}

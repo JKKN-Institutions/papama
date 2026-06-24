@@ -20,9 +20,14 @@ export const GET = defineRoute(
     async ({ user }) => {
         const supabase = await createClient();
 
+        // Return the FULL flat contract the profile edit form + dashboard expect
+        // (legal_name, address, bank_*, geo_lat/geo_lng, …). Keeping geo flat (not
+        // nested) means the edit form populates AND saves through the same shape.
         const { data, error } = await supabase
             .from("vendors")
-            .select("id, name, status, kyc_status, city, geo_lat, geo_lng, hygiene_rating, created_at")
+            .select(
+                "id, name, legal_name, address, city, pincode, phone, email, emergency_contact, fssai_license, gst_number, bank_account_name, bank_account_number, bank_ifsc, geo_lat, geo_lng, status, kyc_status, hygiene_rating, settlement_cycle, created_at"
+            )
             .eq("owner_id", user.id)
             .maybeSingle();
 
@@ -34,14 +39,24 @@ export const GET = defineRoute(
             vendor: {
                 vendor_id: data.id,
                 name: data.name,
+                legal_name: data.legal_name,
+                address: data.address,
+                city: data.city,
+                pincode: data.pincode,
+                phone: data.phone,
+                email: data.email,
+                emergency_contact: data.emergency_contact,
+                fssai_license: data.fssai_license,
+                gst_number: data.gst_number,
+                bank_account_name: data.bank_account_name,
+                bank_account_number: data.bank_account_number,
+                bank_ifsc: data.bank_ifsc,
+                geo_lat: data.geo_lat != null ? Number(data.geo_lat) : null,
+                geo_lng: data.geo_lng != null ? Number(data.geo_lng) : null,
                 status: data.status,
                 kyc_status: data.kyc_status,
-                city: data.city,
-                geo:
-                    data.geo_lat != null && data.geo_lng != null
-                        ? { lat: Number(data.geo_lat), lng: Number(data.geo_lng) }
-                        : null,
                 hygiene_rating: data.hygiene_rating,
+                settlement_cycle: data.settlement_cycle,
                 created_at: data.created_at,
             },
         };
@@ -66,6 +81,8 @@ const vendorProfilePatchSchema = z
         bank_ifsc: z.string().trim().nullable().optional(),
         geo_lat: z.number().nullable().optional(),
         geo_lng: z.number().nullable().optional(),
+        // Vendor-chosen payout cadence (PRD). Constrained to the settlement_cycle enum.
+        settlement_cycle: z.enum(["daily", "twice_weekly", "weekly"]).optional(),
     })
     .strict();
 
@@ -91,7 +108,7 @@ export const PATCH = defineRoute(
             .update(update)
             .eq("owner_id", user.id)
             .select(
-                "id, name, legal_name, address, city, pincode, phone, email, emergency_contact, fssai_license, gst_number, bank_account_name, bank_account_number, bank_ifsc, geo_lat, geo_lng, status, kyc_status, hygiene_rating, created_at"
+                "id, name, legal_name, address, city, pincode, phone, email, emergency_contact, fssai_license, gst_number, bank_account_name, bank_account_number, bank_ifsc, geo_lat, geo_lng, status, kyc_status, hygiene_rating, settlement_cycle, created_at"
             )
             .maybeSingle();
 
