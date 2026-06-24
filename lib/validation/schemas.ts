@@ -11,6 +11,15 @@
  * tagged `// Section A` — their *route wiring* waits on the mentor's collision
  * decision, but the validators are safe to define now.
  *
+ * Reconciliation note (2026-06-22): the token-flow migration has since RESHAPED
+ * the token tables. `tokens.id`/`token_type_id` are now uuid; `tokens.status` &
+ * `tokens.token_type` are Postgres enums (values unchanged); holder columns
+ * (`current_holder_type`/`current_holder_id`) were added. The original campaign
+ * `token_types` table was RENAMED to `token_types_campaign_archive` (still text
+ * id) and a NEW two-tier `token_types` (uuid) took its place. The schemas below
+ * are reconciled to that live shape; see `campaignResponseSchema` (the archived
+ * campaign catalog) vs `tokenTypeRowSchema` (the new two-tier table).
+ *
  * Requires the `zod` package (`npm install zod`).
  */
 
@@ -106,17 +115,92 @@ export const tokenConvertRequestSchema = z.object({
 });
 export type TokenConvertRequest = z.infer<typeof tokenConvertRequestSchema>;
 
-/** A token as returned to the donor (GET /api/donor/tokens). */
+/**
+ * A token as returned to the donor (GET /api/donor/tokens).
+ * Reconciled to the migrated `tokens` table: `token_id`/`token_type_id` are uuid
+ * (carried as strings), `status`/`token_type` are enums (values unchanged), and
+ * `value`/`qr_payload` are nullable in the column.
+ */
 export const tokenResponseSchema = z.object({
-    token_id: z.string(),
+    token_id: z.string(), // uuid (post-migration)
     serial_number: z.string(),
+    token_type_id: z.string().nullable(), // uuid FK → token_types (two-tier); added by migration
     token_type: tokenTypeSchema,
     status: tokenStatusSchema,
-    value: inrAmountSchema,
-    qr_payload: z.string(), // stable signed payload consumed by Developer 1
+    // Whole RUPEES (decided 2026-06-22, ASSUMPTIONS.md). NB: the live column
+    // `token_types.default_value_in_paise` is a misnomer — its values are rupees,
+    // not paise. No /100 conversion anywhere. Nullable to match the column.
+    value: inrAmountSchema.nullable(),
+    qr_payload: z.string().nullable(), // signed payload; nullable until minted-with-QR
     expires_at: isoTimestampSchema.nullable(),
 });
 export type TokenResponse = z.infer<typeof tokenResponseSchema>;
+
+/**
+ * GET /api/admin/tokens — admin token-console row. Superset of the donor token
+ * with the holder tracking added by the token-flow migration
+ * (`current_holder_type`/`current_holder_id`, token-flow §7 bullet 2). The
+ * holder-type values are the documented set (donor | pool | volunteer); the
+ * column itself is plain text in the DB (no CHECK), so this enum is the contract,
+ * not a DB-enforced constraint.
+ */
+export const adminTokenResponseSchema = z.object({
+    id: z.string(), // uuid
+    serial_number: z.string(),
+    token_type_id: z.string().nullable(), // uuid FK → token_types (two-tier)
+    token_type: tokenTypeSchema,
+    status: tokenStatusSchema,
+    value: z.number().int().nonnegative().nullable(), // whole rupees (ASSUMPTIONS.md 2026-06-22)
+    current_holder_type: z.enum(["donor", "pool", "volunteer"]).nullable(),
+    current_holder_id: z.string().nullable(),
+    qr_payload: z.string().nullable(),
+    minted_at: isoTimestampSchema,
+    expires_at: isoTimestampSchema.nullable(),
+});
+export type AdminTokenResponse = z.infer<typeof adminTokenResponseSchema>;
+
+/**
+ * A row of the NEW two-tier `token_types` table (uuid id). This classifies a
+ * token as standard vs special-care and carries its default value — it is NOT
+ * the old donor campaign catalog (that moved to `token_types_campaign_archive`;
+ * see `campaignResponseSchema`).
+ */
+export const tokenTypeRowSchema = z.object({
+    id: z.string(), // uuid
+    name: z.string(),
+    description: z.string().nullable(),
+    // Whole RUPEES (ASSUMPTIONS.md 2026-06-22) — no /100. STAGED AHEAD OF DB:
+    // this expects the proposed `default_value_in_paise → default_value_in_inr`
+    // rename. Until Developer 1 applies that rename, reads of this field return
+    // undefined (live column is still `default_value_in_paise`).
+    default_value_in_inr: z.number().int().nonnegative(),
+    created_at: isoTimestampSchema,
+    updated_at: isoTimestampSchema,
+});
+export type TokenTypeRow = z.infer<typeof tokenTypeRowSchema>;
+
+/**
+ * The donor-facing campaign catalog. IMPORTANT: the token-flow migration RENAMED
+ * the original `token_types` campaign table to `token_types_campaign_archive`
+ * (id stays text). Donor campaign reads — and `donations.token_type_id` — now
+ * resolve HERE, not to the two-tier `token_types` above. Columns mirror the
+ * archived campaign table 1:1.
+ */
+export const campaignResponseSchema = z.object({
+    id: z.string(), // text (legacy campaign id)
+    title: z.string(),
+    description: z.string(),
+    target_tokens: z.number().int().nonnegative(),
+    raised_tokens: z.number().int().nonnegative(),
+    token_price_in_inr: z.number().int().nonnegative(),
+    organization_name: z.string(),
+    category: z.string(),
+    location: z.string(),
+    image_url: z.string().nullable(),
+    status: z.enum(["active", "completed"]),
+    created_at: isoTimestampSchema,
+});
+export type CampaignResponse = z.infer<typeof campaignResponseSchema>;
 
 // ===========================================================================
 // Beneficiary registration (BEN-1…5) — net-new, no collision

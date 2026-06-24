@@ -47,10 +47,10 @@ export type TokenType = ValueOf<typeof TOKEN_TYPES>;
 
 /**
  * Token lifecycle states — authoritative per docs/token-flow.md §6.
- * NOTE (Section A): Developer-1's existing `tokens.status` uses a different
- * value set (`unused|redeemed|expired|cancelled`). This enum is for Developer-2
- * tokens only and is NOT migrated into their table. Reconciliation is a mentor
- * decision, not encoded here.
+ * UPDATE (2026-06-22): reconciliation is DONE. The token-flow migration converted
+ * the live `tokens.status` column to the `token_status` Postgres enum with exactly
+ * these values (the old text set `unused|redeemed|expired|cancelled` is gone).
+ * This array is now the single source of truth for that column too.
  */
 export const TOKEN_STATUSES = [
     "generated", // transient: minted, before the donor picks a path

@@ -9,6 +9,7 @@ Per the Phase 1 Definition of Done, this file records decisions made in the abse
 - **Admin pool → volunteer:** admin assigns tokens to a selected volunteer, OR grants a volunteer's request, both within `max_tokens_per_volunteer`.
 - **`max_tokens_per_volunteer`:** a **concurrent** holding limit (max undistributed tokens a volunteer may hold at once), stored as an admin-editable `system_config` row. The **feature is decided and committed** — the allocation/grant service MUST read this row and enforce it. Only the **numeric value is pending** (mentor input). The seeded row therefore has `value = NULL`; code treats `NULL` as **"limit not yet set"** (do not block, do not invent a number). Do NOT remove the limit concept and do NOT hard-code a default.
 - **Option-1 recipient:** donor distributes the live token themselves; the beneficiary is not selected in-app. Beneficiary-side rules apply only at redemption.
+- **Monetary unit = whole RUPEES (decided 2026-06-22).** All amount columns — `tokens.value`, `token_types.default_value_in_paise`, `donations.fiat_amount`, credit balances, and `system_config.standard_token_value` (50) — are interpreted as **whole rupees**, consistent with the contract and `inrAmountSchema`. ⚠️ The live column `token_types.default_value_in_paise` is therefore a **misnomer** (its values are rupees, e.g. `3000` = ₹3000, not ₹30) — flag to Developer 1 for a rename; do NOT divide by 100 anywhere. No paise sub-unit is used in Phase 1.
 
 ## Open — needs client/mentor input (do NOT invent)
 
