@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { useCan } from "@/components/auth/AppUserProvider";
+import BeneficiaryRegisterForm from "@/components/beneficiary/BeneficiaryRegisterForm";
 
 import {
     AdminPageHeader,
@@ -29,15 +30,10 @@ type RegistrationRow = {
     created_at: string;
 };
 
-const CATEGORIES = [
-    { value: "pregnant_women", label: "Pregnant women" },
-    { value: "patient", label: "Patient" },
-    { value: "disability", label: "Disability" },
-    { value: "disaster_affected", label: "Disaster-affected" },
-] as const;
-
 /** Admin beneficiary-registration queue — submit, review, approve/reject (BEN, demo step 2). */
 export default function BeneficiaryRegistrationsPage() {
+    // Submitting a registration is `create`; approving/rejecting is `update`.
+    const canCreate = useCan("beneficiary_registration", "create");
     const canManage = useCan("beneficiary_registration", "update");
     const { items, state, errorMsg, reload } = useAdminList<RegistrationRow>(
         "/api/admin/beneficiary-registrations",
@@ -56,7 +52,7 @@ export default function BeneficiaryRegistrationsPage() {
                 count={state === "ready" ? items.length : undefined}
             />
 
-            {canManage && <RegisterForm onDone={reload} />}
+            {canCreate && <BeneficiaryRegisterForm onDone={reload} heading="Register a beneficiary (staff)" />}
 
             <ListStates
                 state={state}
@@ -106,116 +102,6 @@ export default function BeneficiaryRegistrationsPage() {
                 }
             />
         </div>
-    );
-}
-
-function RegisterForm({ onDone }: { onDone: () => void }) {
-    const [category, setCategory] = useState<string>("pregnant_women");
-    const [fullName, setFullName] = useState("");
-    const [contact, setContact] = useState("");
-    const [locationHint, setLocationHint] = useState("");
-    const [faceHash, setFaceHash] = useState("");
-    const [busy, setBusy] = useState(false);
-    const [msg, setMsg] = useState<string | null>(null);
-    const [err, setErr] = useState<string | null>(null);
-
-    async function submit() {
-        setBusy(true);
-        setMsg(null);
-        setErr(null);
-        try {
-            const res = await fetch("/api/admin/beneficiary-registrations", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    category,
-                    full_name: fullName.trim() || undefined,
-                    contact: contact.trim() || undefined,
-                    location_hint: locationHint.trim() || undefined,
-                    face_hash: faceHash.trim() || undefined,
-                }),
-            });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error(data.error ?? `Failed (${res.status})`);
-            setMsg("Registration submitted (pending review).");
-            setFullName("");
-            setContact("");
-            setLocationHint("");
-            setFaceHash("");
-            onDone();
-        } catch (e) {
-            setErr(e instanceof Error ? e.message : "Failed to submit.");
-        } finally {
-            setBusy(false);
-        }
-    }
-
-    return (
-        <div className="mb-5 rounded-xl border border-slate-200 bg-white p-4">
-            <p className="mb-3 text-sm font-medium text-slate-700">Register a beneficiary (volunteer-assisted)</p>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                <label className="text-xs text-slate-600">
-                    Category
-                    <select
-                        value={category}
-                        onChange={(e) => setCategory(e.target.value)}
-                        disabled={busy}
-                        className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700"
-                    >
-                        {CATEGORIES.map((c) => (
-                            <option key={c.value} value={c.value}>
-                                {c.label}
-                            </option>
-                        ))}
-                    </select>
-                </label>
-                <Field label="Full name (optional)" value={fullName} onChange={setFullName} disabled={busy} />
-                <Field label="Contact (optional)" value={contact} onChange={setContact} disabled={busy} />
-                <Field label="Location hint (optional)" value={locationHint} onChange={setLocationHint} disabled={busy} />
-                <Field label="Face hash (enrolment)" value={faceHash} onChange={setFaceHash} disabled={busy} mono />
-            </div>
-            <div className="mt-3 flex items-center gap-3">
-                <button
-                    type="button"
-                    onClick={submit}
-                    disabled={busy}
-                    className="rounded-lg bg-slate-900 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:opacity-60"
-                >
-                    {busy ? "Submitting…" : "Submit registration"}
-                </button>
-                {msg && <span className="text-xs font-medium text-green-700">{msg}</span>}
-                {err && <span className="text-xs font-medium text-red-700">{err}</span>}
-            </div>
-        </div>
-    );
-}
-
-function Field({
-    label,
-    value,
-    onChange,
-    disabled,
-    mono,
-}: {
-    label: string;
-    value: string;
-    onChange: (v: string) => void;
-    disabled: boolean;
-    mono?: boolean;
-}) {
-    return (
-        <label className="text-xs text-slate-600">
-            {label}
-            <input
-                type="text"
-                value={value}
-                onChange={(e) => onChange(e.target.value)}
-                disabled={disabled}
-                className={`mt-1 block w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 ${
-                    mono ? "font-mono" : ""
-                }`}
-            />
-        </label>
     );
 }
 

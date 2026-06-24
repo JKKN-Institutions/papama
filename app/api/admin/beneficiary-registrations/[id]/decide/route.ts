@@ -31,7 +31,7 @@ export const POST = defineRoute<{ id: string }>(
 
         const { data: reg, error: regErr } = await admin
             .from("beneficiary_registrations")
-            .select("id, full_name, category, face_hash, aadhaar_hash, registration_status")
+            .select("id, full_name, category, face_hash, face_embedding, aadhaar_hash, registration_status")
             .eq("id", params.id)
             .maybeSingle();
         if (regErr) throw new Error(regErr.message);
@@ -85,6 +85,7 @@ export const POST = defineRoute<{ id: string }>(
                 category: reg.category,
                 eligibility_status: "verified",
                 face_hash: reg.face_hash,
+                face_embedding: reg.face_embedding, // carry the enrolled vector for 1:1 redemption match
                 aadhaar_hash: reg.aadhaar_hash,
                 eligibility_expires_at: expiresAt,
                 registered_by: user.id,

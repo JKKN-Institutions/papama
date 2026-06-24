@@ -6,7 +6,10 @@ import { useState } from "react";
 
 import { createClient } from "@/lib/supabase/client";
 
-const NAV = [{ href: "/volunteer", label: "Home" }];
+const NAV = [
+  { href: "/volunteer", label: "Home" },
+  { href: "/volunteer/beneficiaries", label: "Register beneficiary" },
+];
 
 /** Volunteer top bar: brand, nav links, and a sign-out action. Client component. */
 export function VolunteerHeader() {

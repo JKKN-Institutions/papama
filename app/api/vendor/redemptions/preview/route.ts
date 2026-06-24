@@ -4,6 +4,7 @@ import { BadRequestError, defineRoute, parseBody } from "@/lib/api/handler";
 import { resolveVendorId } from "@/lib/vendor/server-identity";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { validateRedemption } from "@/lib/services/redemption";
+import { faceCaptureSchema } from "@/lib/validation/schemas";
 
 /**
  * POST /api/vendor/redemptions/preview — dry-run a redemption (RED-1..7).
@@ -18,7 +19,9 @@ const previewSchema = z.object({
     qr_payload: z.string().min(1),
     menu_item_id: z.string().uuid(),
     geo: z.object({ lat: z.number(), lng: z.number() }).optional(),
-    face_hash: z.string().min(1).optional(),
+    // Optional in preview (the real redeem requires it) so the till can see the
+    // value split before capturing the face.
+    face_capture: faceCaptureSchema.optional(),
     co_pay: z.number().int().min(0).optional(),
 });
 
@@ -37,7 +40,7 @@ export const POST = defineRoute(
                 vendor_id: vendorId,
                 menu_item_id: body.menu_item_id,
                 geo: body.geo,
-                face_hash: body.face_hash,
+                face: body.face_capture,
                 co_pay: body.co_pay,
             },
             admin
