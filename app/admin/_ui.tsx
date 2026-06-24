@@ -122,8 +122,8 @@ export function AdminPageHeader({
 /** Card shell around a `<table>`, identical chrome to the vendors table. */
 export function TableShell({ children }: { children: ReactNode }) {
     return (
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-            <table className="w-full text-left text-sm">{children}</table>
+        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+            <table className="w-full min-w-[640px] text-left text-sm">{children}</table>
         </div>
     );
 }

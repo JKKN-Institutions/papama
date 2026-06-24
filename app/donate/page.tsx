@@ -81,16 +81,17 @@ export default function GuestDonatePage() {
               <span className="bg-gradient-to-r from-emerald-600 to-teal-500 bg-clip-text text-2xl font-black tracking-wider text-transparent dark:from-emerald-400 dark:to-teal-300">
                 pApAmA
               </span>
-              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
+              <span className="hidden rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 sm:inline-block">
                 Guest Donation
               </span>
             </Link>
           </div>
           <Link
             href="/donor/dashboard"
-            className="text-xs font-bold text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200"
+            className="shrink-0 text-xs font-bold text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200"
           >
-            Access Dashboard Account →
+            <span className="sm:hidden">Dashboard →</span>
+            <span className="hidden sm:inline">Access Dashboard Account →</span>
           </Link>
         </div>
       </header>
@@ -201,7 +202,7 @@ export default function GuestDonatePage() {
                 )}
 
                 {/* Presets */}
-                <div className="grid grid-cols-4 gap-2 pt-1">
+                <div className="grid grid-cols-2 gap-2 pt-1 sm:grid-cols-4">
                   {presetAmounts.map((amt) => (
                     <button
                       key={amt}

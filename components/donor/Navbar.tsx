@@ -17,6 +17,67 @@ function initialsFromEmail(email: string | null): string {
   return letters.toUpperCase();
 }
 
+type IconName = "home" | "heart" | "wallet" | "ticket" | "clock" | "impact";
+
+// Compact stroke icons for the mobile bottom bar. Inherit color via `currentColor`.
+function NavIcon({ name }: { name: IconName }) {
+  const common = {
+    xmlns: "http://www.w3.org/2000/svg",
+    fill: "none",
+    viewBox: "0 0 24 24",
+    strokeWidth: 2,
+    stroke: "currentColor",
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    className: "h-5 w-5",
+  };
+  switch (name) {
+    case "home":
+      return (
+        <svg {...common}>
+          <path d="M3 9.5 12 3l9 6.5" />
+          <path d="M5 10v10h14V10" />
+        </svg>
+      );
+    case "heart":
+      return (
+        <svg {...common}>
+          <path d="M12 20s-7-4.3-9.3-8.5C1.2 8.7 2.8 5.5 6 5.5c1.9 0 3.2 1.1 4 2.3.8-1.2 2.1-2.3 4-2.3 3.2 0 4.8 3.2 3.3 6C19 15.7 12 20 12 20Z" />
+        </svg>
+      );
+    case "wallet":
+      return (
+        <svg {...common}>
+          <rect x="2.5" y="6" width="19" height="13" rx="2.5" />
+          <path d="M2.5 10h19" />
+          <circle cx="17" cy="14.5" r="1" />
+        </svg>
+      );
+    case "ticket":
+      return (
+        <svg {...common}>
+          <path d="M3 8.5A1.5 1.5 0 0 1 4.5 7h15A1.5 1.5 0 0 1 21 8.5v2a2 2 0 0 0 0 3.8v1.2A1.5 1.5 0 0 1 19.5 17h-15A1.5 1.5 0 0 1 3 15.5v-1.2a2 2 0 0 0 0-3.8Z" />
+          <path d="M12 7v10" strokeDasharray="2 2.5" />
+        </svg>
+      );
+    case "clock":
+      return (
+        <svg {...common}>
+          <circle cx="12" cy="12" r="8.5" />
+          <path d="M12 7.5V12l3 1.8" />
+        </svg>
+      );
+    case "impact":
+      return (
+        <svg {...common}>
+          <path d="M4 19V5" />
+          <path d="M4 16l4.5-4.5 3.5 3.5L20 7" />
+          <path d="M16 7h4v4" />
+        </svg>
+      );
+  }
+}
+
 export default function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -72,15 +133,16 @@ export default function Navbar() {
   };
 
   const navItems = [
-    { name: "Dashboard", href: "/donor/dashboard" },
-    { name: "Donate", href: "/donor/donate" },
-    { name: "Credit", href: "/donor/credit" },
-    { name: "Tokens", href: "/donor/tokens" },
-    { name: "History", href: "/donor/history" },
-    { name: "Impact", href: "/donor/impact" },
+    { name: "Dashboard", href: "/donor/dashboard", icon: "home" as const },
+    { name: "Donate", href: "/donor/donate", icon: "heart" as const },
+    { name: "Credit", href: "/donor/credit", icon: "wallet" as const },
+    { name: "Tokens", href: "/donor/tokens", icon: "ticket" as const },
+    { name: "History", href: "/donor/history", icon: "clock" as const },
+    { name: "Impact", href: "/donor/impact", icon: "impact" as const },
   ];
 
   return (
+    <>
     <header className="sticky top-0 z-40 w-full border-b border-zinc-200/60 bg-white/80 backdrop-blur-md dark:border-zinc-800/60 dark:bg-zinc-950/80">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Logo */}
@@ -119,7 +181,7 @@ export default function Navbar() {
         </nav>
 
         {/* Right Side: Credits & Profile */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           {credits !== null && (
             <Link
               href="/donor/credit"
@@ -135,7 +197,9 @@ export default function Navbar() {
                 <rect width="20" height="14" x="2" y="5" rx="2" />
                 <line x1="2" x2="22" y1="10" y2="10" />
               </svg>
-              <span>Balance: ₹{credits.credit_balance}</span>
+              <span>
+                <span className="hidden sm:inline">Balance: </span>₹{credits.credit_balance}
+              </span>
             </Link>
           )}
 
@@ -264,35 +328,73 @@ export default function Navbar() {
             <button
               type="button"
               onClick={handleSignOut}
-              className="rounded-full border border-zinc-200 px-3 py-1 text-xs font-semibold text-zinc-600 transition hover:bg-zinc-50 hover:text-zinc-900 dark:border-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800"
+              aria-label="Sign out"
+              className="flex items-center gap-1.5 rounded-full border border-zinc-200 p-2 text-xs font-semibold text-zinc-600 transition hover:bg-zinc-50 hover:text-zinc-900 dark:border-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800 sm:px-3 sm:py-1"
             >
-              Sign out
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={2}
+                stroke="currentColor"
+                className="h-4 w-4 sm:hidden"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l-3 3m0 0 3 3m-3-3h12.75"
+                />
+              </svg>
+              <span className="hidden sm:inline">Sign out</span>
             </button>
           </div>
         </div>
       </div>
+    </header>
 
-      {/* Mobile Nav Bar - Bottom bar on mobile for native feel */}
-      <div className="border-t border-zinc-200/60 bg-white/95 px-2 py-1.5 dark:border-zinc-800/60 dark:bg-zinc-950/95 md:hidden">
-        <div className="flex items-center justify-around">
+      {/* Mobile bottom tab bar — fixed to the bottom for a native, thumb-reachable feel.
+          Rendered OUTSIDE <header> so the header's backdrop-blur doesn't become its
+          containing block (which would pin it to the header instead of the viewport).
+          Safe-area padding keeps it clear of the iPhone home indicator. */}
+      <nav
+        aria-label="Donor sections"
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-zinc-200/70 bg-white/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-md dark:border-zinc-800/70 dark:bg-zinc-950/90 md:hidden"
+      >
+        <div className="mx-auto flex max-w-md items-stretch justify-around px-1">
           {navItems.map((item) => {
-            const isActive = pathname === item.href || (item.href === "/donor/credit" && pathname === "/donor/credits");
+            const isActive =
+              pathname === item.href ||
+              (item.href === "/donor/credit" && pathname === "/donor/credits");
             return (
               <Link
                 key={item.name}
                 href={item.href}
-                className={`flex flex-col items-center text-[10px] font-bold transition-colors duration-200 ${
-                  isActive
-                    ? "text-emerald-600 dark:text-emerald-400"
-                    : "text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
-                }`}
+                aria-current={isActive ? "page" : undefined}
+                className="flex flex-1 flex-col items-center gap-1 py-1.5"
               >
-                {item.name}
+                <span
+                  className={`flex h-7 w-12 items-center justify-center rounded-full transition-colors duration-200 ${
+                    isActive
+                      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                      : "text-zinc-500 dark:text-zinc-400"
+                  }`}
+                >
+                  <NavIcon name={item.icon} />
+                </span>
+                <span
+                  className={`text-[10px] font-semibold leading-none transition-colors duration-200 ${
+                    isActive
+                      ? "text-emerald-700 dark:text-emerald-300"
+                      : "text-zinc-500 dark:text-zinc-400"
+                  }`}
+                >
+                  {item.name}
+                </span>
               </Link>
             );
           })}
         </div>
-      </div>
-    </header>
+      </nav>
+    </>
   );
 }

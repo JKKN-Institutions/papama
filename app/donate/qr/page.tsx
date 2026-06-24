@@ -124,9 +124,9 @@ export default function GuestQRDonatePage() {
                   <span className="text-zinc-400">Amount Verified:</span>
                   <span className="text-zinc-900 dark:text-zinc-50 font-bold">₹{receipt.amount}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-zinc-400">Reference Input:</span>
-                  <span className="font-mono text-[10px] text-zinc-800 dark:text-zinc-200">{watchRefNumber}</span>
+                <div className="flex justify-between gap-2">
+                  <span className="text-zinc-400 shrink-0">Reference Input:</span>
+                  <span className="font-mono text-[10px] text-zinc-800 dark:text-zinc-200 break-all text-right">{watchRefNumber}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-zinc-400">Verify Status:</span>

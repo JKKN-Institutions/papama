@@ -199,7 +199,7 @@ function DistributeRow({ token, reload }: { token: HeldToken; reload: () => Prom
                   value={faceHash}
                   onChange={(e) => setFaceHash(e.target.value)}
                   placeholder="hash…"
-                  className="w-56 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-600 focus:ring-1 focus:ring-slate-600"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-600 focus:ring-1 focus:ring-slate-600 sm:w-56"
                 />
               </label>
               <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
@@ -208,7 +208,7 @@ function DistributeRow({ token, reload }: { token: HeldToken; reload: () => Prom
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
                   placeholder="e.g. Relief camp 3"
-                  className="w-56 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-600 focus:ring-1 focus:ring-slate-600"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-600 focus:ring-1 focus:ring-slate-600 sm:w-56"
                 />
               </label>
               <button

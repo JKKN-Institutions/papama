@@ -131,7 +131,7 @@ export default function DonatePage() {
               )}
 
               {/* Preset Buttons */}
-              <div className="grid grid-cols-4 gap-2.5 pt-1.5">
+              <div className="grid grid-cols-2 gap-2.5 pt-1.5 sm:grid-cols-4">
                 {presetAmounts.map((amt) => (
                   <button
                     key={amt}
