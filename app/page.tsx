@@ -1,9 +1,10 @@
 import Link from "next/link";
 
 /**
- * pApAmA landing page — the public entry point. Routes visitors to the three
- * surfaces of the platform: the no-app donation page, the donor portal, and
- * the admin console (auth-gated). Replaces the create-next-app boilerplate.
+ * pApAmA landing page — the public entry point. Routes visitors to every surface
+ * of the platform: the no-app donation page, the donor portal, the vendor portal
+ * (scan/redeem + onboarding), the volunteer portal (distribution), and the admin
+ * console (all auth-gated).
  */
 export default function Home() {
   return (
@@ -45,6 +46,36 @@ export default function Home() {
             </p>
             <span className="mt-4 inline-block text-sm font-medium text-emerald-700 dark:text-emerald-400">
               Open dashboard →
+            </span>
+          </Link>
+
+          <Link
+            href="/vendor/login"
+            className="group rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm transition hover:border-emerald-300 dark:border-zinc-800 dark:bg-zinc-900"
+          >
+            <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">
+              Vendor portal
+            </h2>
+            <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+              Scan tokens, serve meals, manage your menu and settlements.
+            </p>
+            <span className="mt-4 inline-block text-sm font-medium text-emerald-700 dark:text-emerald-400">
+              Sign in or apply →
+            </span>
+          </Link>
+
+          <Link
+            href="/volunteer/login"
+            className="group rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm transition hover:border-emerald-300 dark:border-zinc-800 dark:bg-zinc-900"
+          >
+            <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">
+              Volunteer portal
+            </h2>
+            <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+              Receive and distribute tokens to beneficiaries.
+            </p>
+            <span className="mt-4 inline-block text-sm font-medium text-emerald-700 dark:text-emerald-400">
+              Sign in →
             </span>
           </Link>
 
