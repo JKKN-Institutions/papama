@@ -8,6 +8,7 @@ import { BugReporterWrapper } from "@/components/bug-reporter-wrapper";
 import { getAppUser } from "@/lib/auth";
 import { isAdminConsoleRole } from "@/lib/permissions";
 
+import { AdminBottomNav } from "./AdminBottomNav";
 import { AdminHeader } from "./AdminHeader";
 import { ToastHost } from "./_ui";
 
@@ -39,8 +40,9 @@ export default async function AdminLayout({ children }: { children: ReactNode })
                     {/* Mounted once here so every admin page's useToast() works
                         without a per-page <ToastHost> wrapper. */}
                     <ToastHost>
-                        <main className="mx-auto max-w-6xl px-6 py-8">{children}</main>
+                        <main className="mx-auto max-w-6xl px-6 py-8 pb-24 md:pb-8">{children}</main>
                     </ToastHost>
+                    <AdminBottomNav />
                 </div>
             </BugReporterWrapper>
         </AppUserProvider>

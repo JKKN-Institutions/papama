@@ -53,7 +53,7 @@ export function AdminHeader() {
 function AdminNavStrip() {
     const pathname = usePathname();
     return (
-        <nav className="mx-auto max-w-6xl overflow-x-auto px-4 pb-2 sm:px-6">
+        <nav className="hidden md:block mx-auto max-w-6xl overflow-x-auto px-4 pb-2 sm:px-6">
             <ul className="flex items-center gap-1 whitespace-nowrap">
                 <NavLink href="/admin" label="Home" pathname={pathname} exact />
                 {ADMIN_SECTIONS.map((s) => (

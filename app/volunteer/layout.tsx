@@ -46,7 +46,8 @@ export default async function VolunteerLayout({ children }: { children: ReactNod
     <BugReporterWrapper>
       <div className="min-h-screen bg-slate-50">
         <VolunteerHeader />
-        <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">{children}</main>
+        {/* pb-24 on mobile clears the fixed bottom bar; removed on md+. */}
+        <main className="mx-auto max-w-5xl px-4 pt-6 pb-24 sm:px-6 sm:pt-8 md:pb-8">{children}</main>
       </div>
     </BugReporterWrapper>
   );

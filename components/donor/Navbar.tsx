@@ -141,6 +141,47 @@ export default function Navbar() {
     { name: "Impact", href: "/donor/impact", icon: "impact" as const },
   ];
 
+  // Mobile bottom-bar tabs that flank the raised Donate FAB. Credit is omitted
+  // here because it's already reachable from the header balance chip; Donate is
+  // promoted to the center FAB as the primary donor action.
+  const mobileTabs = [
+    { name: "Dashboard", href: "/donor/dashboard", icon: "home" as const },
+    { name: "Tokens", href: "/donor/tokens", icon: "ticket" as const },
+    { name: "History", href: "/donor/history", icon: "clock" as const },
+    { name: "Impact", href: "/donor/impact", icon: "impact" as const },
+  ];
+
+  const renderMobileTab = (item: (typeof mobileTabs)[number]) => {
+    const isActive = pathname === item.href;
+    return (
+      <Link
+        key={item.name}
+        href={item.href}
+        aria-current={isActive ? "page" : undefined}
+        className="flex flex-1 flex-col items-center gap-1"
+      >
+        <span
+          className={`flex h-7 w-12 items-center justify-center rounded-full transition-colors duration-200 ${
+            isActive
+              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+              : "text-zinc-500 dark:text-zinc-400"
+          }`}
+        >
+          <NavIcon name={item.icon} />
+        </span>
+        <span
+          className={`text-[10px] font-semibold leading-none transition-colors duration-200 ${
+            isActive
+              ? "text-emerald-700 dark:text-emerald-300"
+              : "text-zinc-500 dark:text-zinc-400"
+          }`}
+        >
+          {item.name}
+        </span>
+      </Link>
+    );
+  };
+
   return (
     <>
     <header className="sticky top-0 z-40 w-full border-b border-zinc-200/60 bg-white/80 backdrop-blur-md dark:border-zinc-800/60 dark:bg-zinc-950/80">
@@ -353,46 +394,37 @@ export default function Navbar() {
     </header>
 
       {/* Mobile bottom tab bar — fixed to the bottom for a native, thumb-reachable feel.
-          Rendered OUTSIDE <header> so the header's backdrop-blur doesn't become its
-          containing block (which would pin it to the header instead of the viewport).
-          Safe-area padding keeps it clear of the iPhone home indicator. */}
+          Donate is promoted to a raised center FAB (the primary donor action);
+          four sections flank it. Rendered OUTSIDE <header> so the header's
+          backdrop-blur doesn't become its containing block (which would pin it to
+          the header instead of the viewport). Safe-area padding keeps it clear of
+          the iPhone home indicator. */}
       <nav
         aria-label="Donor sections"
         className="fixed inset-x-0 bottom-0 z-40 border-t border-zinc-200/70 bg-white/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-md dark:border-zinc-800/70 dark:bg-zinc-950/90 md:hidden"
       >
-        <div className="mx-auto flex max-w-md items-stretch justify-around px-1">
-          {navItems.map((item) => {
-            const isActive =
-              pathname === item.href ||
-              (item.href === "/donor/credit" && pathname === "/donor/credits");
-            return (
-              <Link
-                key={item.name}
-                href={item.href}
-                aria-current={isActive ? "page" : undefined}
-                className="flex flex-1 flex-col items-center gap-1 py-1.5"
-              >
-                <span
-                  className={`flex h-7 w-12 items-center justify-center rounded-full transition-colors duration-200 ${
-                    isActive
-                      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
-                      : "text-zinc-500 dark:text-zinc-400"
-                  }`}
-                >
-                  <NavIcon name={item.icon} />
-                </span>
-                <span
-                  className={`text-[10px] font-semibold leading-none transition-colors duration-200 ${
-                    isActive
-                      ? "text-emerald-700 dark:text-emerald-300"
-                      : "text-zinc-500 dark:text-zinc-400"
-                  }`}
-                >
-                  {item.name}
-                </span>
-              </Link>
-            );
-          })}
+        <div className="relative mx-auto flex h-14 max-w-md items-center justify-around px-1">
+          {mobileTabs.slice(0, 2).map(renderMobileTab)}
+
+          {/* Reserve the center column so the four tabs stay evenly spaced around
+              the raised Donate FAB. */}
+          <div className="w-12 shrink-0" aria-hidden="true" />
+
+          {mobileTabs.slice(2).map(renderMobileTab)}
+
+          {/* Center FAB — Donate (the primary donor action). */}
+          <Link
+            href="/donor/donate"
+            aria-label="Donate"
+            aria-current={pathname === "/donor/donate" ? "page" : undefined}
+            className="absolute left-1/2 top-0 flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-emerald-600 text-white shadow-lg shadow-emerald-600/30 ring-4 ring-white transition hover:bg-emerald-700 active:scale-95 dark:bg-emerald-500 dark:ring-zinc-950 dark:hover:bg-emerald-400"
+          >
+            {/* Solid, balanced heart — reads cleanly centered on the filled FAB
+                (the stroked nav heart looked squeezed/clipped at this size). */}
+            <svg viewBox="0 0 24 24" fill="currentColor" className="h-6 w-6" aria-hidden="true">
+              <path d="M11.645 20.91l-.007-.003-.022-.012a15.247 15.247 0 01-.383-.218 25.18 25.18 0 01-4.244-3.17C4.688 15.36 2.25 12.174 2.25 8.25 2.25 5.322 4.714 3 7.688 3A5.5 5.5 0 0112 5.052 5.5 5.5 0 0116.313 3c2.973 0 5.437 2.322 5.437 5.25 0 3.925-2.438 7.111-4.739 9.256a25.175 25.175 0 01-4.244 3.17 15.247 15.247 0 01-.383.219l-.022.012-.007.004-.003.001a.752.752 0 01-.704 0l-.003-.001z" />
+            </svg>
+          </Link>
         </div>
       </nav>
     </>
