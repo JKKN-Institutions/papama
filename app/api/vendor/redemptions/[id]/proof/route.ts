@@ -9,10 +9,11 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * IMAGES (plate photo + receipt) for a redemption they own; this stores the
  * binaries in the private `vendor-proofs` Storage bucket under a
  * `<vendor_id>/<redemption_id>/...` prefix, records the resulting object paths,
- * and only then flips payment_status 'locked' → 'released' so the redemption can
- * roll into a settlement. Ownership is verified server-side (the redemption's
- * vendor_id must match the resolved vendor) — a vendor cannot release someone
- * else's payment.
+ * and marks proof_status='submitted' — payment STAYS 'locked'. An admin then
+ * reviews the proof (PATCH /api/admin/proofs/[id]/decide); only an APPROVE
+ * releases the payment so the redemption can roll into a settlement. Ownership is
+ * verified server-side (the redemption's vendor_id must match the resolved
+ * vendor) — a vendor cannot submit proof against someone else's redemption.
  *
  * PROOF GATING (closes the audit gap): BOTH the plate photo and the receipt are
  * REQUIRED. An empty / partial submission is rejected with a 400 and the payment
@@ -56,12 +57,12 @@ export const POST = defineRoute<{ id: string }>(
 
         const { data: existing } = await admin
             .from("token_redemptions")
-            .select("id, vendor_id, payment_status")
+            .select("id, vendor_id, payment_status, proof_status")
             .eq("id", redemptionId)
             .maybeSingle();
 
         const redemption = existing as
-            | { id: string; vendor_id: string; payment_status: string }
+            | { id: string; vendor_id: string; payment_status: string; proof_status: string | null }
             | null;
 
         // Not found OR not this vendor's → 404 (never leak another vendor's row).
@@ -69,13 +70,19 @@ export const POST = defineRoute<{ id: string }>(
             throw new NotFoundError("redemption not found");
         }
 
-        // Proof may only release a LOCKED redemption. Reject if it is already
-        // 'released', 'held' (admin override), or 'failed' — re-uploading proof
-        // must not overwrite existing evidence or flip an admin HOLD back to
-        // released.
+        // Proof may only be submitted against a LOCKED redemption. Reject if it is
+        // already 'released' (approved), 'held' (admin override), or 'failed'.
         if (redemption.payment_status !== "locked") {
             throw new BadRequestError(
                 `payment is '${redemption.payment_status}', not locked — proof cannot be (re)submitted`
+            );
+        }
+        // A proof already awaiting review must not be overwritten before the admin
+        // decides. Re-upload is only allowed when there is no proof yet or the
+        // previous one was REJECTED (the vendor is correcting it).
+        if (redemption.proof_status === "submitted") {
+            throw new BadRequestError(
+                "proof already submitted and awaiting admin review"
             );
         }
 
@@ -104,24 +111,29 @@ export const POST = defineRoute<{ id: string }>(
         }
 
         const nowIso = new Date().toISOString();
-        const { data: released, error } = await admin
+        const { data: submitted, error } = await admin
             .from("token_redemptions")
             .update({
                 proof_photo_ref: photoPath,
                 proof_receipt_ref: receiptPath,
                 proof_uploaded_at: nowIso,
-                payment_status: "released",
+                // Proof now goes to admin review; payment STAYS locked until approve.
+                proof_status: "submitted",
+                // Clear any prior rejection so a re-upload starts a fresh review.
+                proof_reviewed_by: null,
+                proof_reviewed_at: null,
+                proof_review_note: null,
             })
             .eq("id", redemptionId)
             .eq("vendor_id", vendorId)
-            // CAS: only release if STILL locked — guards an admin hold landing
+            // CAS: only submit while STILL locked — guards an admin hold landing
             // between the check above and this write.
             .eq("payment_status", "locked")
             .select("id")
             .maybeSingle();
 
         if (error) throw new Error(error.message);
-        if (!released) {
+        if (!submitted) {
             throw new BadRequestError(
                 "payment was changed (held or already released) — proof not applied"
             );
@@ -131,13 +143,17 @@ export const POST = defineRoute<{ id: string }>(
             action: "proof.submit",
             entity_table: "token_redemptions",
             entity_id: redemptionId,
-            summary: `proof submitted (photo + receipt); payment released for redemption ${redemptionId}`,
+            summary: `proof submitted (photo + receipt); awaiting admin review for redemption ${redemptionId}`,
             metadata: {
                 proof_photo_ref: photoPath,
                 proof_receipt_ref: receiptPath,
             },
         });
 
-        return { redemption_id: redemptionId, payment_status: "released" };
+        return {
+            redemption_id: redemptionId,
+            payment_status: "locked",
+            proof_status: "submitted",
+        };
     }
 );

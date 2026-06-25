@@ -42,6 +42,11 @@ const SECTIONS: { href: string; title: string; description: string }[] = [
         description: "Token registry by status/holder; run the expire-sweep for lapsed tokens.",
     },
     {
+        href: "/admin/proofs",
+        title: "Proof review",
+        description: "Verify vendor plate-photo + receipt proofs; approval releases the locked payment for settlement.",
+    },
+    {
         href: "/admin/settlements",
         title: "Settlements",
         description: "Vendor settlement headers and payout status.",
@@ -88,21 +93,21 @@ async function countRows(
 async function loadKpis() {
     const supabase = await createClient();
     // Independent counts run concurrently.
-    const [donations, tokens, redemptions, openFraud, pendingSettlements, heldSettlements] =
+    const [donations, tokens, redemptions, proofsToReview, openFraud, heldSettlements] =
         await Promise.all([
             countRows(supabase, "donations"),
             countRows(supabase, "tokens"),
             countRows(supabase, "token_redemptions"),
+            countRows(supabase, "token_redemptions", { column: "proof_status", value: "submitted" }),
             countRows(supabase, "fraud_flags", { column: "status", value: "open" }),
-            countRows(supabase, "vendor_settlements", { column: "status", value: "pending" }),
             countRows(supabase, "vendor_settlements", { column: "on_hold", value: true }),
         ]);
     return [
         { label: "Donations", value: donations },
         { label: "Tokens minted", value: tokens },
         { label: "Redemptions", value: redemptions },
+        { label: "Proofs to review", value: proofsToReview, alert: proofsToReview > 0 },
         { label: "Open fraud flags", value: openFraud, alert: openFraud > 0 },
-        { label: "Pending settlements", value: pendingSettlements },
         { label: "Settlements on hold", value: heldSettlements, alert: heldSettlements > 0 },
     ];
 }

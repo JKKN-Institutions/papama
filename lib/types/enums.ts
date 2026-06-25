@@ -164,6 +164,15 @@ export type SettlementStatus = ValueOf<typeof SETTLEMENT_STATUSES>;
 export const PAYMENT_STATUSES = ["locked", "released", "held", "failed"] as const;
 export type PaymentStatus = ValueOf<typeof PAYMENT_STATUSES>;
 
+/**
+ * Admin review state of a redemption's uploaded proof-of-service. Distinct from
+ * PAYMENT_STATUSES: the vendor's upload sets `submitted` while payment stays
+ * `locked`; an admin `approve` releases the payment, a `reject` keeps it locked
+ * and the vendor may re-upload. `null` (no value) = proof not yet submitted.
+ */
+export const PROOF_STATUSES = ["submitted", "approved", "rejected"] as const;
+export type ProofStatus = ValueOf<typeof PROOF_STATUSES>;
+
 // --- fraud -----------------------------------------------------------------
 
 /** Fraud flag categories (contract §9). */

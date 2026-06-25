@@ -16,6 +16,7 @@ interface VendorProfile {
 const QUICK_LINKS = [
   { href: "/vendor/scan", title: "Scan & redeem", desc: "Validate a token and serve a meal." },
   { href: "/vendor/menu", title: "My menu", desc: "Review your menu items and approval status." },
+  { href: "/vendor/redemptions", title: "Redemptions & proof", desc: "Upload proof and track approval of each meal." },
   { href: "/vendor/settlements", title: "Settlements", desc: "Track payouts from completed redemptions." },
 ];
 

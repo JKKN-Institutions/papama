@@ -223,7 +223,7 @@ export const GET = defineRoute(
         const { data, error } = await supabase
             .from("token_redemptions")
             .select(
-                "id, token_id, token_value_inr, menu_value_inr, difference_paid_inr, co_pay_inr, payment_status, proof_uploaded_at, redeemed_at, created_at"
+                "id, token_id, token_value_inr, menu_value_inr, difference_paid_inr, co_pay_inr, payment_status, proof_status, proof_review_note, proof_uploaded_at, redeemed_at, created_at"
             )
             .order("redeemed_at", { ascending: false });
 

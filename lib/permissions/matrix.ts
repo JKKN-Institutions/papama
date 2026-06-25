@@ -126,10 +126,12 @@ export const PERMISSION_MATRIX: Record<Feature, Partial<Record<UserRole, Permiss
         vendor: perm({ read: "own" }), // Own (view)
     },
     proof_of_service: {
-        admin: R_ALL,
+        // Admin reviews uploaded proofs: read all + update (approve/reject) →
+        // approval releases the redemption's locked payment for settlement.
+        admin: perm({ read: "all", update: "all", caps: ["approve"] }),
         compliance: R_ALL,
         vendor_manager: R_ALL,
-        vendor: perm({ create: "own" }), // C (Own)
+        vendor: perm({ create: "own" }), // C (Own) — upload proof for own redemptions
     },
     fraud_monitoring: {
         admin: CRUD_ALL,

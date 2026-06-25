@@ -268,7 +268,7 @@ export default function VendorScanPage() {
     setActionError(null);
     // Both images are required — the server gates payment release on them.
     if (!photoFile || !receiptFile) {
-      setActionError("Upload both the plate photo and the receipt to release payment.");
+      setActionError("Upload both the plate photo and the receipt to submit proof for review.");
       return;
     }
     setProofBusy(true);
@@ -520,12 +520,12 @@ export default function VendorScanPage() {
 
           <div className="mt-4 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-800">
             Redemption <span className="font-mono font-medium">{redeem.redemption_id}</span> created — payment
-            locked. Upload proof to release it.
+            locked. Upload proof for admin review.
           </div>
 
           {proofDone ? (
             <div className="mt-4 rounded-lg border border-green-200 bg-green-50 px-3 py-3 text-sm font-medium text-green-800">
-              Payment released ✓ — proof recorded.
+              Proof submitted ✓ — awaiting admin review. Payment is released once an admin approves it.
             </div>
           ) : (
             <div className="mt-4 space-y-4">
@@ -574,8 +574,8 @@ export default function VendorScanPage() {
               </div>
 
               <p className="text-xs text-slate-400">
-                Both the plate photo and the receipt are required. They&apos;re uploaded securely;
-                payment is only released once both are received.
+                Both the plate photo and the receipt are required. They&apos;re uploaded securely
+                and reviewed by an admin; payment is released once your proof is approved.
               </p>
 
               <button
@@ -584,7 +584,7 @@ export default function VendorScanPage() {
                 disabled={proofBusy || !photoFile || !receiptFile}
                 className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {proofBusy ? "Uploading…" : "Submit proof & release"}
+                {proofBusy ? "Uploading…" : "Submit proof for review"}
               </button>
             </div>
           )}

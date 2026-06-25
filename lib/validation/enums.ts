@@ -26,6 +26,7 @@ import {
     NOTIFICATION_CHANNELS,
     NOTIFICATION_STATUSES,
     PAYMENT_STATUSES,
+    PROOF_STATUSES,
     REGISTRATION_STATUSES,
     REPORT_TYPES,
     SETTLEMENT_CYCLES,
@@ -58,6 +59,7 @@ export const escalationStatusSchema = z.enum(ESCALATION_STATUSES);
 export const settlementCycleSchema = z.enum(SETTLEMENT_CYCLES);
 export const settlementStatusSchema = z.enum(SETTLEMENT_STATUSES);
 export const paymentStatusSchema = z.enum(PAYMENT_STATUSES);
+export const proofStatusSchema = z.enum(PROOF_STATUSES);
 
 export const fraudFlagTypeSchema = z.enum(FRAUD_FLAG_TYPES);
 export const fraudSeveritySchema = z.enum(FRAUD_SEVERITIES);
