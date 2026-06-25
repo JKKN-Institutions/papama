@@ -72,8 +72,11 @@ export async function proxy(request: NextRequest) {
         return NextResponse.redirect(url);
     }
 
-    // Volunteer portal: guarded too, except its own login page (avoid redirect loop).
-    if (!user && pathname.startsWith("/volunteer") && pathname !== "/volunteer/login") {
+    // Volunteer portal: guarded too, except its public auth pages — login AND the
+    // self-service /volunteer/register page must be reachable signed-out (mirrors
+    // the vendor rule above).
+    const volunteerPublicPages = ["/volunteer/login", "/volunteer/register"];
+    if (!user && pathname.startsWith("/volunteer") && !volunteerPublicPages.includes(pathname)) {
         const url = request.nextUrl.clone();
         url.pathname = "/volunteer/login";
         url.searchParams.set("redirect", pathname);
