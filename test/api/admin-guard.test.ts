@@ -35,9 +35,10 @@ function makeUser(role: AppUser["role"]): AppUser {
     return { id: "00000000-0000-0000-0000-000000000001", email: "u@papama.test", role, donor_id: null };
 }
 
-/** A fake supabase client whose `.from().select().order()` resolves to rows. */
+/** A fake supabase client whose `.from().select().order().range()` resolves to rows. */
 function fakeClientReturning(rows: unknown[]) {
-    const order = vi.fn().mockResolvedValue({ data: rows, error: null });
+    const range = vi.fn().mockResolvedValue({ data: rows, error: null });
+    const order = vi.fn(() => ({ range }));
     const select = vi.fn(() => ({ order }));
     const from = vi.fn(() => ({ select }));
     return { from } as unknown as Awaited<ReturnType<typeof createClient>>;
