@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { useCan } from "@/components/auth/AppUserProvider";
 import type { NgoPartnerResponse } from "@/lib/validation/schemas";
@@ -9,25 +9,69 @@ import {
     ActionButton,
     AdminPageHeader,
     Dash,
+    DetailDrawer,
+    FilterBar,
     ListStates,
     Notice,
+    Pagination,
     StatusBadge,
     TableHead,
     TableShell,
     useAdminList,
+    useClientTable,
+    useDetailDrawer,
     useRowAction,
+    type DetailSection,
 } from "../_ui";
 
-/** Admin NGO partners page — registry with create + status management (M13, spec §5). */
+type NgoRow = NgoPartnerResponse & {
+    address?: string | null;
+    notes?: string | null;
+    contact_phone?: string | null;
+};
+
+/** Admin NGO partners page — registry with create + status management + detail (M13, spec §5). */
 export default function AdminNgoPartnersPage() {
     const canCreate = useCan("audit_reports", "create");
     const canManage = useCan("audit_reports", "update");
-    const { items, state, errorMsg, reload } = useAdminList<NgoPartnerResponse>(
+    const { items, state, errorMsg, reload } = useAdminList<NgoRow>(
         "/api/admin/ngo-partners",
         "ngo_partners",
         "/admin/ngo-partners"
     );
     const { run, busyId, actionError } = useRowAction("/api/admin/ngo-partners", reload);
+
+    const table = useClientTable(items, {
+        searchKeys: ["name", "focus_area", "city"],
+        tabKey: "status",
+        pageSize: 15,
+    });
+    const tabs = useMemo(
+        () => [
+            { label: "All", value: "all", count: table.tabCounts.all },
+            { label: "Active", value: "active", count: table.tabCounts.active },
+            { label: "Suspended", value: "suspended", count: table.tabCounts.suspended },
+            { label: "Inactive", value: "inactive", count: table.tabCounts.inactive },
+        ],
+        [table.tabCounts]
+    );
+
+    const drawer = useDetailDrawer<NgoRow>();
+    const n = drawer.selected;
+    const sections: DetailSection[] = n
+        ? [
+              { label: "Name", value: n.name },
+              { label: "Status", value: n.status },
+              { label: "Reg. number", value: n.registration_number },
+              { label: "Focus area", value: n.focus_area },
+              { label: "Contact person", value: n.contact_person },
+              { label: "Contact email", value: n.contact_email },
+              { label: "Contact phone", value: n.contact_phone },
+              { label: "City", value: n.city },
+              { label: "Address", value: n.address, full: true },
+              ...(n.notes ? [{ label: "Notes", value: n.notes, full: true }] : []),
+          ]
+        : [];
 
     const columns = ["Name", "Reg. number", "Focus", "Contact", "City", "Status"];
     if (canManage) columns.push("Actions");
@@ -36,7 +80,7 @@ export default function AdminNgoPartnersPage() {
         <div>
             <AdminPageHeader
                 title="NGO partners"
-                subtitle="Partner NGOs and organisations. Register new partners and manage their status."
+                subtitle="Partner NGOs and organisations. Register new partners, manage status, click a row for full contact details."
                 count={state === "ready" ? items.length : undefined}
             />
 
@@ -50,6 +94,17 @@ export default function AdminNgoPartnersPage() {
                 </div>
             )}
 
+            {state === "ready" && items.length > 0 && (
+                <FilterBar
+                    search={table.search}
+                    onSearch={table.setSearch}
+                    searchPlaceholder="Search by name, focus, city…"
+                    tabs={tabs}
+                    activeTab={table.activeTab}
+                    onTab={table.setActiveTab}
+                />
+            )}
+
             <ListStates
                 state={state}
                 errorMsg={errorMsg}
@@ -57,65 +112,81 @@ export default function AdminNgoPartnersPage() {
                 resourceLabel="NGO partners"
                 emptyHint="Register a partner above to start the registry."
                 table={
-                    <TableShell>
-                        <TableHead columns={columns} />
-                        <tbody className="divide-y divide-slate-100">
-                            {items.map((n) => (
-                                <tr key={n.id} className="hover:bg-slate-50">
-                                    <td className="px-4 py-3 font-medium text-slate-900">{n.name}</td>
-                                    <td className="px-4 py-3 text-slate-600">
-                                        <Dash>{n.registration_number}</Dash>
-                                    </td>
-                                    <td className="px-4 py-3 text-slate-600">
-                                        <Dash>{n.focus_area}</Dash>
-                                    </td>
-                                    <td className="px-4 py-3 text-slate-600">
-                                        <Dash>{n.contact_person ?? n.contact_email}</Dash>
-                                    </td>
-                                    <td className="px-4 py-3 text-slate-600">
-                                        <Dash>{n.city}</Dash>
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        <StatusBadge value={n.status} />
-                                    </td>
-                                    {canManage && (
-                                        <td className="px-4 py-3">
-                                            <div className="flex flex-wrap gap-1.5">
-                                                {n.status !== "active" && (
-                                                    <ActionButton
-                                                        tone="primary"
-                                                        disabled={busyId === n.id}
-                                                        onClick={() => run(n.id, { id: n.id, status: "active" })}
-                                                    >
-                                                        Activate
-                                                    </ActionButton>
-                                                )}
-                                                {n.status !== "suspended" && (
-                                                    <ActionButton
-                                                        tone="neutral"
-                                                        disabled={busyId === n.id}
-                                                        onClick={() => run(n.id, { id: n.id, status: "suspended" })}
-                                                    >
-                                                        Suspend
-                                                    </ActionButton>
-                                                )}
-                                                {n.status !== "inactive" && (
-                                                    <ActionButton
-                                                        tone="neutral"
-                                                        disabled={busyId === n.id}
-                                                        onClick={() => run(n.id, { id: n.id, status: "inactive" })}
-                                                    >
-                                                        Deactivate
-                                                    </ActionButton>
-                                                )}
-                                            </div>
+                    <>
+                        <TableShell>
+                            <TableHead columns={columns} />
+                            <tbody className="divide-y divide-slate-100">
+                                {table.rows.map((n) => (
+                                    <tr
+                                        key={n.id}
+                                        onClick={() => drawer.openRow(n)}
+                                        className="cursor-pointer hover:bg-slate-50"
+                                    >
+                                        <td className="px-4 py-3 font-medium text-slate-900">{n.name}</td>
+                                        <td className="px-4 py-3 text-slate-600">
+                                            <Dash>{n.registration_number}</Dash>
                                         </td>
-                                    )}
-                                </tr>
-                            ))}
-                        </tbody>
-                    </TableShell>
+                                        <td className="px-4 py-3 text-slate-600">
+                                            <Dash>{n.focus_area}</Dash>
+                                        </td>
+                                        <td className="px-4 py-3 text-slate-600">
+                                            <Dash>{n.contact_person ?? n.contact_email}</Dash>
+                                        </td>
+                                        <td className="px-4 py-3 text-slate-600">
+                                            <Dash>{n.city}</Dash>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <StatusBadge value={n.status} />
+                                        </td>
+                                        {canManage && (
+                                            <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    {n.status !== "active" && (
+                                                        <ActionButton
+                                                            tone="primary"
+                                                            disabled={busyId === n.id}
+                                                            onClick={() => run(n.id, { id: n.id, status: "active" })}
+                                                        >
+                                                            Activate
+                                                        </ActionButton>
+                                                    )}
+                                                    {n.status !== "suspended" && (
+                                                        <ActionButton
+                                                            tone="neutral"
+                                                            disabled={busyId === n.id}
+                                                            onClick={() => run(n.id, { id: n.id, status: "suspended" })}
+                                                        >
+                                                            Suspend
+                                                        </ActionButton>
+                                                    )}
+                                                    {n.status !== "inactive" && (
+                                                        <ActionButton
+                                                            tone="neutral"
+                                                            disabled={busyId === n.id}
+                                                            onClick={() => run(n.id, { id: n.id, status: "inactive" })}
+                                                        >
+                                                            Deactivate
+                                                        </ActionButton>
+                                                    )}
+                                                </div>
+                                            </td>
+                                        )}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </TableShell>
+                        <Pagination page={table.page} pageCount={table.pageCount} onPage={table.setPage} />
+                    </>
                 }
+            />
+
+            <DetailDrawer
+                open={drawer.open}
+                onClose={drawer.close}
+                title={n?.name ?? "NGO partner"}
+                subtitle={n?.focus_area ?? undefined}
+                status={n?.status}
+                sections={sections}
             />
         </div>
     );

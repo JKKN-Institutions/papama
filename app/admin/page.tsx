@@ -4,17 +4,17 @@ import { createClient } from "@/lib/supabase/server";
 import { ADMIN_SECTIONS } from "./adminSections";
 
 /**
- * Admin console home — KPI strip + a directory of the section pages. Each card
- * routes to a page that fetches its matching GET /api/admin/* route; the route
- * itself enforces the role gate. The KPIs are read server-side through the
- * session client (RLS-scoped), so staff who lack a table's read simply see 0
- * there rather than an error.
+ * Admin console home — KPI strip + recent-activity feed + a directory of the
+ * section pages. Each card routes to a page that fetches its matching GET
+ * /api/admin/* route; the route itself enforces the role gate. The KPIs are read
+ * server-side through the session client (RLS-scoped), so staff who lack a
+ * table's read simply see 0 there rather than an error. Alert KPIs deep-link to
+ * the matching filtered list.
  *
  * The section directory lives in ./adminSections (shared with the AdminHeader
  * nav strip — single source of truth).
  */
 
-/** A single head-only COUNT for a table, with an optional equality filter. RLS-scoped. */
 async function countRows(
     supabase: Awaited<ReturnType<typeof createClient>>,
     table: string,
@@ -26,9 +26,16 @@ async function countRows(
     return count ?? 0;
 }
 
-async function loadKpis() {
+interface Kpi {
+    label: string;
+    value: number;
+    alert?: boolean;
+    /** When set, the card becomes a deep-link to the matching filtered list. */
+    href?: string;
+}
+
+async function loadKpis(): Promise<Kpi[]> {
     const supabase = await createClient();
-    // Independent counts run concurrently.
     const [donations, tokens, redemptions, proofsToReview, openFraud, heldSettlements] =
         await Promise.all([
             countRows(supabase, "donations"),
@@ -40,16 +47,60 @@ async function loadKpis() {
         ]);
     return [
         { label: "Donations", value: donations },
-        { label: "Tokens minted", value: tokens },
+        { label: "Tokens minted", value: tokens, href: "/admin/tokens" },
         { label: "Redemptions", value: redemptions },
-        { label: "Proofs to review", value: proofsToReview, alert: proofsToReview > 0 },
-        { label: "Open fraud flags", value: openFraud, alert: openFraud > 0 },
-        { label: "Settlements on hold", value: heldSettlements, alert: heldSettlements > 0 },
+        { label: "Proofs to review", value: proofsToReview, alert: proofsToReview > 0, href: "/admin/proofs" },
+        { label: "Open fraud flags", value: openFraud, alert: openFraud > 0, href: "/admin/fraud?status=open" },
+        {
+            label: "Settlements on hold",
+            value: heldSettlements,
+            alert: heldSettlements > 0,
+            href: "/admin/settlements?hold=true",
+        },
     ];
 }
 
+interface ActivityRow {
+    id: string;
+    action: string;
+    summary: string | null;
+    actor_role: string | null;
+    created_at: string;
+}
+
+async function loadRecentActivity(): Promise<ActivityRow[]> {
+    const supabase = await createClient();
+    const { data } = await supabase
+        .from("audit_logs")
+        .select("id, action, summary, actor_role, created_at")
+        .order("created_at", { ascending: false })
+        .limit(10);
+    return (data ?? []) as ActivityRow[];
+}
+
+function KpiCard({ k }: { k: Kpi }) {
+    const body = (
+        <>
+            <p className={`text-2xl font-semibold ${k.alert ? "text-orange-600" : "text-slate-900"}`}>
+                {k.value.toLocaleString("en-IN")}
+            </p>
+            <p className="mt-1 text-xs text-slate-500">{k.label}</p>
+        </>
+    );
+    const cls = `block rounded-xl border bg-white p-4 shadow-sm transition ${
+        k.alert ? "border-orange-300" : "border-slate-200"
+    } ${k.href ? "hover:border-slate-400 hover:shadow" : ""}`;
+    return k.href ? (
+        <Link href={k.href} className={cls}>
+            {body}
+        </Link>
+    ) : (
+        <div className={cls}>{body}</div>
+    );
+}
+
 export default async function AdminHomePage() {
-    const kpis = await loadKpis();
+    const [kpis, activity] = await Promise.all([loadKpis(), loadRecentActivity()]);
 
     return (
         <div>
@@ -62,37 +113,55 @@ export default async function AdminHomePage() {
 
             <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
                 {kpis.map((k) => (
-                    <div
-                        key={k.label}
-                        className={`rounded-xl border bg-white p-4 shadow-sm ${
-                            k.alert ? "border-orange-300" : "border-slate-200"
-                        }`}
-                    >
-                        <p
-                            className={`text-2xl font-semibold ${
-                                k.alert ? "text-orange-600" : "text-slate-900"
-                            }`}
-                        >
-                            {k.value.toLocaleString("en-IN")}
-                        </p>
-                        <p className="mt-1 text-xs text-slate-500">{k.label}</p>
-                    </div>
+                    <KpiCard key={k.label} k={k} />
                 ))}
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {ADMIN_SECTIONS.map((s) => (
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                {/* Section directory */}
+                <div className="lg:col-span-2">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        {ADMIN_SECTIONS.map((s) => (
+                            <Link
+                                key={s.href}
+                                href={s.href}
+                                className="group rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-slate-300 hover:shadow"
+                            >
+                                <p className="font-medium text-slate-900 group-hover:text-slate-950">{s.title}</p>
+                                <p className="mt-1 text-sm text-slate-500">{s.description}</p>
+                            </Link>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Recent activity feed */}
+                <aside className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <h2 className="text-sm font-semibold text-slate-900">Recent activity</h2>
+                    <p className="mt-0.5 text-xs text-slate-400">Latest entries from the audit log.</p>
+                    {activity.length === 0 ? (
+                        <p className="mt-4 text-sm text-slate-400">No activity recorded yet.</p>
+                    ) : (
+                        <ul className="mt-4 space-y-3">
+                            {activity.map((a) => (
+                                <li key={a.id} className="border-l-2 border-slate-200 pl-3">
+                                    <p className="text-xs font-medium text-slate-700">{a.action}</p>
+                                    {a.summary && (
+                                        <p className="text-xs text-slate-500 line-clamp-2">{a.summary}</p>
+                                    )}
+                                    <p className="mt-0.5 text-[10px] text-slate-400">
+                                        {a.actor_role ?? "system"} · {new Date(a.created_at).toLocaleString()}
+                                    </p>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
                     <Link
-                        key={s.href}
-                        href={s.href}
-                        className="group rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-slate-300 hover:shadow"
+                        href="/admin/audit-logs"
+                        className="mt-4 inline-block text-xs font-medium text-slate-600 hover:text-slate-900 hover:underline"
                     >
-                        <p className="font-medium text-slate-900 group-hover:text-slate-950">
-                            {s.title}
-                        </p>
-                        <p className="mt-1 text-sm text-slate-500">{s.description}</p>
+                        View all audit logs →
                     </Link>
-                ))}
+                </aside>
             </div>
         </div>
     );
