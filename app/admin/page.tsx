@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { createClient } from "@/lib/supabase/server";
+import { ADMIN_SECTIONS } from "./adminSections";
 
 /**
  * Admin console home — KPI strip + a directory of the section pages. Each card
@@ -8,75 +9,10 @@ import { createClient } from "@/lib/supabase/server";
  * itself enforces the role gate. The KPIs are read server-side through the
  * session client (RLS-scoped), so staff who lack a table's read simply see 0
  * there rather than an error.
+ *
+ * The section directory lives in ./adminSections (shared with the AdminHeader
+ * nav strip — single source of truth).
  */
-
-const SECTIONS: { href: string; title: string; description: string }[] = [
-    {
-        href: "/admin/vendors",
-        title: "Vendors",
-        description: "Registered food vendors and their onboarding/KYC status.",
-    },
-    {
-        href: "/admin/beneficiaries",
-        title: "Beneficiaries",
-        description: "Approved beneficiary registry — category, status, eligibility.",
-    },
-    {
-        href: "/admin/beneficiary-registrations",
-        title: "Beneficiary registrations",
-        description: "Review eligibility submissions; approve to create verified beneficiaries.",
-    },
-    {
-        href: "/admin/vendor-menus",
-        title: "Vendor menus",
-        description: "Approve vendor-proposed menu items (incl. Special-Care equivalents).",
-    },
-    {
-        href: "/admin/volunteers",
-        title: "Volunteers",
-        description: "Volunteer registry for token distribution (Path B).",
-    },
-    {
-        href: "/admin/tokens",
-        title: "Tokens",
-        description: "Token registry by status/holder; run the expire-sweep for lapsed tokens.",
-    },
-    {
-        href: "/admin/proofs",
-        title: "Proof review",
-        description: "Verify vendor plate-photo + receipt proofs; approval releases the locked payment for settlement.",
-    },
-    {
-        href: "/admin/settlements",
-        title: "Settlements",
-        description: "Vendor settlement headers and payout status.",
-    },
-    {
-        href: "/admin/fraud",
-        title: "Fraud",
-        description: "Fraud flags, severity, detection method and resolution.",
-    },
-    {
-        href: "/admin/reports",
-        title: "Reports",
-        description: "Generated compliance & CSR report exports.",
-    },
-    {
-        href: "/admin/audit-logs",
-        title: "Audit logs",
-        description: "Append-only, immutable trail of every admin action.",
-    },
-    {
-        href: "/admin/ngo-partners",
-        title: "NGO partners",
-        description: "Partner NGO/organisation reference registry.",
-    },
-    {
-        href: "/admin/system-config",
-        title: "System config",
-        description: "Admin-tunable rules read at runtime (thresholds, limits).",
-    },
-];
 
 /** A single head-only COUNT for a table, with an optional equality filter. RLS-scoped. */
 async function countRows(
@@ -145,7 +81,7 @@ export default async function AdminHomePage() {
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {SECTIONS.map((s) => (
+                {ADMIN_SECTIONS.map((s) => (
                     <Link
                         key={s.href}
                         href={s.href}

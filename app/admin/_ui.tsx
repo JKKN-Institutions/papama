@@ -1,7 +1,15 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import {
+    createContext,
+    useCallback,
+    useContext,
+    useEffect,
+    useMemo,
+    useState,
+    type ReactNode,
+} from "react";
 
 /**
  * Shared admin-console UI primitives + the proven list-fetch state machine,
@@ -400,4 +408,463 @@ export function ListStates({
         );
 
     return <>{table}</>;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * DESIGN-SYSTEM SPINE (Wave 1) — DetailDrawer, FilterBar, useClientTable,
+ * Pagination, toasts, and a unified action runner. Every section page builds
+ * its drill-down + filtering + actions on these so the uplift is consistent.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/** One label/value row in a DetailDrawer's body grid. */
+export interface DetailSection {
+    label: string;
+    value: ReactNode;
+    /** Render the value in a monospace font (ids, serials, hashes). */
+    mono?: boolean;
+    /** Span the full width of the grid (long text, sub-tables). */
+    full?: boolean;
+}
+
+export interface DetailDrawerProps {
+    open: boolean;
+    /** Wired to backdrop click, Esc, and the close button. */
+    onClose: () => void;
+    title: string;
+    subtitle?: string;
+    /** Renders a <StatusBadge> in the header when set. */
+    status?: string;
+    /** The universal label/value body. */
+    sections: DetailSection[];
+    /** Escape hatch for richer content (timelines, QR, sub-tables). */
+    children?: ReactNode;
+    /** Footer action bar — pass <ActionButton>s. */
+    actions?: ReactNode;
+    /** Show a skeleton body while lazily fetching detail. */
+    loading?: boolean;
+}
+
+/**
+ * Right slide-over drawer that any list row opens for drill-down. Backdrop
+ * click + Esc close it, focus is trapped to the panel, the body scroll is
+ * locked while open, and `aria-modal` marks it for assistive tech. The common
+ * case is just `sections`; richer content goes in `children`.
+ */
+export function DetailDrawer({
+    open,
+    onClose,
+    title,
+    subtitle,
+    status,
+    sections,
+    children,
+    actions,
+    loading,
+}: DetailDrawerProps) {
+    // Esc to close + lock body scroll while open.
+    useEffect(() => {
+        if (!open) return;
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === "Escape") onClose();
+        };
+        document.addEventListener("keydown", onKey);
+        const prevOverflow = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+        return () => {
+            document.removeEventListener("keydown", onKey);
+            document.body.style.overflow = prevOverflow;
+        };
+    }, [open, onClose]);
+
+    if (!open) return null;
+
+    return (
+        <div
+            className="fixed inset-0 z-50 flex justify-end"
+            role="dialog"
+            aria-modal="true"
+            aria-label={title}
+        >
+            {/* Backdrop */}
+            <button
+                type="button"
+                aria-label="Close detail panel"
+                onClick={onClose}
+                className="absolute inset-0 h-full w-full cursor-default bg-slate-900/30"
+            />
+            {/* Panel */}
+            <div className="relative flex h-full w-full max-w-lg flex-col bg-white shadow-xl animate-[slideIn_0.18s_ease-out]">
+                <style>{`@keyframes slideIn{from{transform:translateX(16px);opacity:.4}to{transform:translateX(0);opacity:1}}`}</style>
+                {/* Header */}
+                <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-5 py-4">
+                    <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                            <h2 className="truncate text-base font-semibold text-slate-900">{title}</h2>
+                            {status && <StatusBadge value={status} />}
+                        </div>
+                        {subtitle && <p className="mt-0.5 truncate text-sm text-slate-500">{subtitle}</p>}
+                    </div>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        autoFocus
+                        aria-label="Close"
+                        className="shrink-0 rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                    >
+                        <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
+                            <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+                        </svg>
+                    </button>
+                </div>
+
+                {/* Body */}
+                <div className="flex-1 overflow-y-auto px-5 py-4">
+                    {loading ? (
+                        <SkeletonTable />
+                    ) : (
+                        <>
+                            <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
+                                {sections.map((s, i) => (
+                                    <div key={`${s.label}-${i}`} className={s.full ? "col-span-2" : ""}>
+                                        <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                                            {s.label}
+                                        </dt>
+                                        <dd
+                                            className={`mt-0.5 text-sm text-slate-800 ${
+                                                s.mono ? "break-all font-mono text-xs" : ""
+                                            }`}
+                                        >
+                                            <Dash>{s.value}</Dash>
+                                        </dd>
+                                    </div>
+                                ))}
+                            </dl>
+                            {children && <div className="mt-5">{children}</div>}
+                        </>
+                    )}
+                </div>
+
+                {/* Footer actions */}
+                {actions && (
+                    <div className="flex flex-wrap items-center gap-2 border-t border-slate-200 bg-slate-50 px-5 py-3">
+                        {actions}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
+/**
+ * Drawer open/close + selected-row state. A page does
+ * `const drawer = useDetailDrawer<Row>()`, `onClick={() => drawer.openRow(r)}`
+ * on the `<tr>`, and reads `drawer.selected` inside <DetailDrawer>.
+ */
+export function useDetailDrawer<T>() {
+    const [selected, setSelected] = useState<T | null>(null);
+    const openRow = useCallback((row: T) => setSelected(row), []);
+    const close = useCallback(() => setSelected(null), []);
+    return { selected, open: selected != null, openRow, close };
+}
+
+export interface FilterTab {
+    label: string;
+    value: string;
+    count?: number;
+}
+
+export interface FilterBarProps {
+    search: string;
+    onSearch: (s: string) => void;
+    searchPlaceholder?: string;
+    tabs?: FilterTab[];
+    activeTab?: string;
+    onTab?: (v: string) => void;
+}
+
+/** Search box + optional status tabs above a list. Pairs with useClientTable. */
+export function FilterBar({
+    search,
+    onSearch,
+    searchPlaceholder = "Search…",
+    tabs,
+    activeTab,
+    onTab,
+}: FilterBarProps) {
+    return (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            {tabs && tabs.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                    {tabs.map((t) => {
+                        const active = t.value === activeTab;
+                        return (
+                            <button
+                                key={t.value}
+                                type="button"
+                                onClick={() => onTab?.(t.value)}
+                                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                                    active
+                                        ? "bg-slate-900 text-white"
+                                        : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                                }`}
+                            >
+                                {t.label}
+                                {t.count != null && (
+                                    <span className={`ml-1.5 ${active ? "text-slate-300" : "text-slate-400"}`}>
+                                        {t.count}
+                                    </span>
+                                )}
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
+            <input
+                type="search"
+                value={search}
+                onChange={(e) => onSearch(e.target.value)}
+                placeholder={searchPlaceholder}
+                className="w-full max-w-xs rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-600 focus:ring-1 focus:ring-slate-600 sm:w-64"
+            />
+        </div>
+    );
+}
+
+export interface ClientTableOptions<T> {
+    /** Keys whose stringified values are matched against the search term. */
+    searchKeys: (keyof T)[];
+    /** Key whose value is matched against the active tab (omit for no tabs). */
+    tabKey?: keyof T;
+    /** Rows per page (omit/0 = no pagination). */
+    pageSize?: number;
+}
+
+/**
+ * Client-side filter + status-tab + pagination over an already-loaded list
+ * (admin lists are bounded; useAdminList loads the full array). Returns the
+ * visible slice plus the controls a page wires into <FilterBar>/<Pagination>.
+ * `tabCounts` is keyed by the tabKey value ("all" = full length).
+ */
+export function useClientTable<T>(items: T[], opts: ClientTableOptions<T>) {
+    const { searchKeys, tabKey, pageSize = 0 } = opts;
+    const [search, setSearch] = useState("");
+    const [activeTab, setActiveTab] = useState("all");
+    const [page, setPage] = useState(1);
+
+    // Reset to page 1 whenever the filter inputs change.
+    useEffect(() => {
+        setPage(1);
+    }, [search, activeTab]);
+
+    const tabCounts = useMemo(() => {
+        const counts: Record<string, number> = { all: items.length };
+        if (tabKey) {
+            for (const it of items) {
+                const k = String(it[tabKey]);
+                counts[k] = (counts[k] ?? 0) + 1;
+            }
+        }
+        return counts;
+    }, [items, tabKey]);
+
+    const filtered = useMemo(() => {
+        const term = search.trim().toLowerCase();
+        return items.filter((it) => {
+            if (tabKey && activeTab !== "all" && String(it[tabKey]) !== activeTab) return false;
+            if (!term) return true;
+            return searchKeys.some((k) => {
+                const v = it[k];
+                return v != null && String(v).toLowerCase().includes(term);
+            });
+        });
+    }, [items, search, activeTab, tabKey, searchKeys]);
+
+    const pageCount = pageSize > 0 ? Math.max(1, Math.ceil(filtered.length / pageSize)) : 1;
+    const rows = useMemo(() => {
+        if (pageSize <= 0) return filtered;
+        const start = (page - 1) * pageSize;
+        return filtered.slice(start, start + pageSize);
+    }, [filtered, page, pageSize]);
+
+    return {
+        rows,
+        filteredCount: filtered.length,
+        search,
+        setSearch,
+        activeTab,
+        setActiveTab,
+        page,
+        pageCount,
+        setPage,
+        tabCounts,
+    };
+}
+
+/** Prev/next pager. Hidden when there is a single page. */
+export function Pagination({
+    page,
+    pageCount,
+    onPage,
+}: {
+    page: number;
+    pageCount: number;
+    onPage: (p: number) => void;
+}) {
+    if (pageCount <= 1) return null;
+    return (
+        <div className="mt-4 flex items-center justify-end gap-2 text-sm">
+            <button
+                type="button"
+                onClick={() => onPage(page - 1)}
+                disabled={page <= 1}
+                className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+                Previous
+            </button>
+            <span className="text-xs text-slate-500">
+                Page {page} of {pageCount}
+            </span>
+            <button
+                type="button"
+                onClick={() => onPage(page + 1)}
+                disabled={page >= pageCount}
+                className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+                Next
+            </button>
+        </div>
+    );
+}
+
+/* ── Toasts ─────────────────────────────────────────────────────────────────
+ * Transient success/error notices for row actions. Wrap the admin shell in
+ * <ToastHost> once; any descendant calls useToast().success/error.
+ */
+
+interface Toast {
+    id: number;
+    tone: "success" | "error";
+    message: string;
+}
+
+interface ToastApi {
+    success: (message: string) => void;
+    error: (message: string) => void;
+}
+
+const ToastContext = createContext<ToastApi | null>(null);
+
+/** Provider + on-screen toast stack. Mount once near the admin layout root. */
+export function ToastHost({ children }: { children: ReactNode }) {
+    const [toasts, setToasts] = useState<Toast[]>([]);
+
+    const push = useCallback((tone: Toast["tone"], message: string) => {
+        const id = Date.now() + Math.random();
+        setToasts((prev) => [...prev, { id, tone, message }]);
+        setTimeout(() => {
+            setToasts((prev) => prev.filter((t) => t.id !== id));
+        }, 4000);
+    }, []);
+
+    const api = useMemo<ToastApi>(
+        () => ({
+            success: (m) => push("success", m),
+            error: (m) => push("error", m),
+        }),
+        [push]
+    );
+
+    return (
+        <ToastContext.Provider value={api}>
+            {children}
+            <div className="pointer-events-none fixed bottom-4 right-4 z-[60] flex w-full max-w-sm flex-col gap-2">
+                {toasts.map((t) => (
+                    <div
+                        key={t.id}
+                        role="status"
+                        className={`pointer-events-auto rounded-lg border px-4 py-2.5 text-sm font-medium shadow-md ${
+                            t.tone === "success"
+                                ? "border-green-200 bg-green-50 text-green-800"
+                                : "border-red-200 bg-red-50 text-red-800"
+                        }`}
+                    >
+                        {t.message}
+                    </div>
+                ))}
+            </div>
+        </ToastContext.Provider>
+    );
+}
+
+/**
+ * Toast API. Returns a no-op-safe object when no <ToastHost> is mounted (so a
+ * page renders fine in isolation/tests) — but logs so a missing host is noticed.
+ */
+export function useToast(): ToastApi {
+    const ctx = useContext(ToastContext);
+    if (ctx) return ctx;
+    return {
+        success: (m) => console.log("[toast:success]", m),
+        error: (m) => console.warn("[toast:error]", m),
+    };
+}
+
+/**
+ * Unified row-action runner (replaces the per-page POST/PATCH hand-rollers).
+ * `endpoint` is a function of the row id so POST-to-`/x/[id]/decide` and
+ * PATCH-to-`/x` both fit. Tracks a per-row busy id, raises a toast on
+ * success/failure when a <ToastHost> is mounted, and runs `onDone` on success.
+ *
+ * useRowAction (PATCH-only, no toast) is kept below for back-compat.
+ */
+export function useAction(config: {
+    method: "POST" | "PATCH";
+    endpoint: (rowId: string) => string;
+    onDone: () => void | Promise<void>;
+    /** Optional success-toast text from the response body. */
+    successMessage?: (data: Record<string, unknown>) => string;
+}) {
+    const router = useRouter();
+    const toast = useToast();
+    const [busyId, setBusyId] = useState<string | null>(null);
+    const [error, setError] = useState<string | null>(null);
+
+    const run = useCallback(
+        async (rowId: string, payload: Record<string, unknown>, confirmText?: string) => {
+            if (confirmText && !window.confirm(confirmText)) return;
+            setBusyId(rowId);
+            setError(null);
+            try {
+                const res = await fetch(config.endpoint(rowId), {
+                    method: config.method,
+                    headers: { "Content-Type": "application/json" },
+                    credentials: "same-origin",
+                    body: JSON.stringify(payload),
+                });
+                if (res.status === 401) {
+                    router.push("/login?redirect=/admin");
+                    return;
+                }
+                const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+                if (!res.ok) {
+                    const msg = (data.error as string) ?? `Action failed (${res.status})`;
+                    setError(msg);
+                    toast.error(msg);
+                    return;
+                }
+                toast.success(config.successMessage ? config.successMessage(data) : "Done.");
+                await config.onDone();
+            } catch {
+                const msg = "Network error — please try again.";
+                setError(msg);
+                toast.error(msg);
+            } finally {
+                setBusyId(null);
+            }
+        },
+        // config is recreated per render; depend on its stable parts.
+        [config, router, toast]
+    );
+
+    return { run, busyId, error };
 }

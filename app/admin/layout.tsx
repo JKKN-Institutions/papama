@@ -9,6 +9,7 @@ import { getAppUser } from "@/lib/auth";
 import { isAdminConsoleRole } from "@/lib/permissions";
 
 import { AdminHeader } from "./AdminHeader";
+import { ToastHost } from "./_ui";
 
 /**
  * Shell for every /admin page. Server-side gate (defense beyond middleware,
@@ -35,7 +36,11 @@ export default async function AdminLayout({ children }: { children: ReactNode })
             <BugReporterWrapper>
                 <div className="min-h-screen bg-slate-50">
                     <AdminHeader />
-                    <main className="mx-auto max-w-6xl px-6 py-8">{children}</main>
+                    {/* Mounted once here so every admin page's useToast() works
+                        without a per-page <ToastHost> wrapper. */}
+                    <ToastHost>
+                        <main className="mx-auto max-w-6xl px-6 py-8">{children}</main>
+                    </ToastHost>
                 </div>
             </BugReporterWrapper>
         </AppUserProvider>
