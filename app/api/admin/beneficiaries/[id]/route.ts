@@ -27,6 +27,19 @@ export const GET = defineRoute<{ id: string }>(
         if (error) throw new Error(error.message);
         if (!b) throw new NotFoundError("beneficiary not found");
 
+        // Resolve who registered them to a readable name + role (raw uuid is meaningless).
+        let registeredByName: string | null = null;
+        let registeredByRole: string | null = null;
+        if (b.registered_by) {
+            const { data: u } = await admin
+                .from("users")
+                .select("full_name, role")
+                .eq("id", b.registered_by)
+                .maybeSingle();
+            registeredByName = (u?.full_name as string) ?? null;
+            registeredByRole = (u?.role as string) ?? null;
+        }
+
         // This beneficiary's redemptions (newest first). Identity-free: vendor +
         // values + timestamps only.
         const { data: redemptions, error: redemptionError } = await admin
@@ -48,6 +61,8 @@ export const GET = defineRoute<{ id: string }>(
                 aadhaar_linked: b.aadhaar_hash != null,
                 face_hash_valid: b.face_hash != null,
                 registered_by: b.registered_by,
+                registered_by_name: registeredByName,
+                registered_by_role: registeredByRole,
                 registered_at: b.created_at,
                 updated_at: b.updated_at,
             },

@@ -28,6 +28,8 @@ interface BeneficiaryDetail {
     beneficiary: BeneficiaryResponse & {
         eligibility_expires_at: string | null;
         registered_by: string | null;
+        registered_by_name: string | null;
+        registered_by_role: string | null;
         updated_at: string | null;
     };
     redemptions: {
@@ -125,7 +127,12 @@ export default function AdminBeneficiariesPage() {
               { label: "Aadhaar", value: b.aadhaar_linked ? "Linked" : "Not linked" },
               { label: "Face hash", value: b.face_hash_valid ? "Valid" : "Missing" },
               { label: "Registered", value: date(b.registered_at) },
-              { label: "Registered by", value: b.registered_by, mono: true },
+              {
+                  label: "Registered by",
+                  value: b.registered_by_name
+                      ? `${b.registered_by_name}${b.registered_by_role ? ` (${b.registered_by_role})` : ""}`
+                      : b.registered_by_role,
+              },
           ]
         : [];
 

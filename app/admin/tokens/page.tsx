@@ -45,6 +45,7 @@ interface TokenDetail {
         value_inr: number | null;
         status: string;
         has_donor: boolean;
+        donor_name: string | null;
         has_beneficiary: boolean;
         special_instructions: string | null;
         expires_at: string | null;
@@ -58,6 +59,8 @@ interface TokenDetail {
         id: string;
         channel: string;
         distributed_by: string | null;
+        actor_name: string | null;
+        actor_role: string | null;
         beneficiary_id: string | null;
         distribution_location: string | null;
         notes: string | null;
@@ -202,6 +205,7 @@ export default function AdminTokensPage() {
               { label: "Type", value: t.token_type.replace(/_/g, " ") },
               { label: "Value", value: rupee(t.value_inr) },
               { label: "Holder", value: holderOf(t.status) },
+              ...(t.donor_name ? [{ label: "Donor", value: t.donor_name }] : []),
               { label: "Minted", value: date(t.minted_at) },
               { label: "Expires", value: date(t.expires_at) },
               { label: "Distributed", value: date(t.distributed_at) },
@@ -361,6 +365,11 @@ export default function AdminTokensPage() {
                                             </p>
                                             <p className="text-xs text-slate-400">
                                                 {date(h.distributed_at)}
+                                                {h.actor_name
+                                                    ? ` · by ${h.actor_name}${h.actor_role ? ` (${h.actor_role})` : ""}`
+                                                    : h.actor_role
+                                                      ? ` · by ${h.actor_role}`
+                                                      : ""}
                                                 {h.distribution_location ? ` · ${h.distribution_location}` : ""}
                                                 {h.notes ? ` · ${h.notes}` : ""}
                                             </p>

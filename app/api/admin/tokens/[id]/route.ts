@@ -31,6 +31,17 @@ export const GET = defineRoute<{ id: string }>(
         if (tokenError) throw new Error(tokenError.message);
         if (!token) throw new NotFoundError("token not found");
 
+        // Resolve the donor to a readable name (raw donor_id is meaningless to an admin).
+        let donorName: string | null = null;
+        if (token.donor_id) {
+            const { data: d } = await admin
+                .from("donors")
+                .select("name")
+                .eq("id", token.donor_id)
+                .maybeSingle();
+            donorName = (d?.name as string) ?? null;
+        }
+
         // Hand-off history (oldest first) — every documented channel is auditable.
         const { data: handoffs, error: handoffError } = await admin
             .from("token_distribution_records")
@@ -38,6 +49,22 @@ export const GET = defineRoute<{ id: string }>(
             .eq("token_id", tokenId)
             .order("distributed_at", { ascending: true });
         if (handoffError) throw new Error(handoffError.message);
+
+        // Resolve each hand-off's actor (distributed_by) to a name + role so the
+        // timeline reads "Roja (admin)" instead of a raw uuid.
+        const actorIds = [
+            ...new Set((handoffs ?? []).map((h) => h.distributed_by).filter(Boolean) as string[]),
+        ];
+        const actorById = new Map<string, { name: string | null; role: string | null }>();
+        if (actorIds.length > 0) {
+            const { data: us } = await admin
+                .from("users")
+                .select("id, full_name, role")
+                .in("id", actorIds);
+            for (const u of (us ?? []) as { id: string; full_name: string | null; role: string | null }[]) {
+                actorById.set(u.id, { name: u.full_name, role: u.role });
+            }
+        }
 
         // Redemption + value handling (a token redeems at most once in Phase 1).
         const { data: redemption, error: redemptionError } = await admin
@@ -80,6 +107,7 @@ export const GET = defineRoute<{ id: string }>(
                 value_inr: token.value_inr,
                 status: token.status,
                 has_donor: token.donor_id != null,
+                donor_name: donorName,
                 has_beneficiary: token.beneficiary_id != null,
                 special_instructions: token.special_instructions,
                 expires_at: token.expires_at,
@@ -89,7 +117,14 @@ export const GET = defineRoute<{ id: string }>(
                 expired_at: token.expired_at,
                 cancelled_at: token.cancelled_at,
             },
-            handoffs: handoffs ?? [],
+            handoffs: (handoffs ?? []).map((h) => {
+                const actor = h.distributed_by ? actorById.get(h.distributed_by as string) : null;
+                return {
+                    ...h,
+                    actor_name: actor?.name ?? null,
+                    actor_role: actor?.role ?? null,
+                };
+            }),
             redemption: redemption ?? null,
             forfeited_inr: forfeit?.forfeited_inr ?? null,
             audit: audit ?? [],
