@@ -1,7 +1,6 @@
 import { z } from "zod";
 
 import { BadRequestError, defineRoute, parseBody } from "@/lib/api/handler";
-import { resolveVolunteerId } from "@/lib/volunteer/server-identity";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -29,9 +28,22 @@ export const POST = defineRoute(
         const body = await parseBody(req, createSchema);
 
         const admin = createAdminClient();
-        const volunteerId = await resolveVolunteerId(user, admin);
+
+        // Resolve the volunteer AND its approval status: a pending/rejected/
+        // suspended volunteer must not be able to request tokens.
+        const { data: vol } = await admin
+            .from("volunteers")
+            .select("id, status")
+            .eq("user_id", user.id)
+            .maybeSingle();
+        const volunteerId = (vol?.id as string | undefined) ?? null;
         if (!volunteerId) {
             throw new BadRequestError("no volunteer profile for this account");
+        }
+        if (vol?.status !== "active") {
+            throw new BadRequestError(
+                "your volunteer account is awaiting admin approval — you can't request tokens yet"
+            );
         }
 
         const { data: request, error } = await admin

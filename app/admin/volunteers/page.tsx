@@ -140,6 +140,22 @@ function VolunteerActions({
 
     return (
         <div className="flex flex-wrap items-center gap-1.5">
+            {status === "pending" && (
+                <>
+                    <ActionButton tone="primary" disabled={busy} onClick={() => act("approve")}>
+                        Approve
+                    </ActionButton>
+                    <ActionButton
+                        tone="danger"
+                        disabled={busy}
+                        onClick={() =>
+                            act("reject", "Reject this volunteer application? They will not be able to hold tokens.")
+                        }
+                    >
+                        Reject
+                    </ActionButton>
+                </>
+            )}
             {status === "active" && (
                 <>
                     {/* §3a admin-initiated direct assignment from the admin pool. */}

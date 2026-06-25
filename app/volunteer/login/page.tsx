@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 
@@ -101,6 +102,13 @@ function VolunteerLoginForm() {
             {loading ? "Signing in…" : "Sign in"}
           </button>
         </form>
+
+        <p className="mt-5 text-center text-sm text-slate-500">
+          New volunteer?{" "}
+          <Link href="/volunteer/register" className="font-medium text-slate-900 underline">
+            Register here
+          </Link>
+        </p>
       </div>
     </main>
   );

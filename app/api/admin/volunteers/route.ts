@@ -57,6 +57,8 @@ type VolunteerActionRule = {
 };
 
 const VOLUNTEER_ACTION_RULES: Record<string, VolunteerActionRule> = {
+    approve: { to: "active", from: ["pending"], verb: "volunteer.approve" },
+    reject: { to: "rejected", from: ["pending"], verb: "volunteer.reject" },
     suspend: { to: "suspended", from: ["active"], verb: "volunteer.suspend" },
     deactivate: { to: "inactive", from: ["active"], verb: "volunteer.deactivate" },
     activate: { to: "active", from: ["suspended", "inactive"], verb: "volunteer.activate" },

@@ -4,6 +4,7 @@ import Link from "next/link";
 
 import { BugReporterWrapper } from "@/components/bug-reporter-wrapper";
 import { getAppUser } from "@/lib/auth";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 import { VolunteerHeader } from "./VolunteerHeader";
 
@@ -28,6 +29,19 @@ export default async function VolunteerLayout({ children }: { children: ReactNod
     return <NotVolunteer role={user.role} />;
   }
 
+  // A volunteer must be APPROVED before using the app. Self-registered accounts
+  // start 'pending'; an admin approves (→active) or rejects (→rejected) them.
+  const admin = createAdminClient();
+  const { data: vol } = await admin
+    .from("volunteers")
+    .select("status")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  const status = (vol?.status as string | undefined) ?? "pending";
+  if (status !== "active") {
+    return <AwaitingApproval status={status} />;
+  }
+
   return (
     <BugReporterWrapper>
       <div className="min-h-screen bg-slate-50">
@@ -35,6 +49,39 @@ export default async function VolunteerLayout({ children }: { children: ReactNod
         <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">{children}</main>
       </div>
     </BugReporterWrapper>
+  );
+}
+
+function AwaitingApproval({ status }: { status: string }) {
+  const rejected = status === "rejected";
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+        <h1 className="text-xl font-semibold text-slate-900">
+          {rejected ? "Application not approved" : "Application received"}
+        </h1>
+        <p className="mt-2 text-sm text-slate-500">
+          {rejected ? (
+            <>
+              Your volunteer application was not approved. If you think this is a
+              mistake, please contact the pApAmA team.
+            </>
+          ) : (
+            <>
+              Thanks for registering! An admin needs to approve your volunteer
+              account before you can hold and distribute tokens. You&apos;ll be able
+              to request tokens here as soon as you&apos;re approved.
+            </>
+          )}
+        </p>
+        <Link
+          href="/"
+          className="mt-6 inline-block rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+        >
+          Go home
+        </Link>
+      </div>
+    </main>
   );
 }
 

@@ -492,21 +492,29 @@ export const volunteerResponseSchema = z.object({
     full_name: z.string().nullable(),
     phone: z.string().nullable(),
     email: z.string().nullable(),
-    status: z.enum(["active", "inactive", "suspended"]), // text+CHECK; volunteer status enum is a later slice
+    status: z.enum(["pending", "active", "inactive", "suspended", "rejected"]), // text+CHECK; volunteer status enum is a later slice
     created_at: isoTimestampSchema,
     updated_at: isoTimestampSchema,
 });
 export type VolunteerResponse = z.infer<typeof volunteerResponseSchema>;
 
 /**
- * PATCH /api/admin/volunteers — admin registry-status control. `suspend` =
- * temporary hold, `deactivate` = retire, `activate` = restore. Operates on the
- * `volunteers.status` text+CHECK value (active|inactive|suspended). `reason` is
- * recorded in the audit trail. NOTE: token allocation / grant decisions and the
+ * PATCH /api/admin/volunteers — admin registry-status control. `approve` =
+ * accept a self-registered (pending) volunteer, `reject` = decline one,
+ * `suspend` = temporary hold, `deactivate` = retire, `activate` = restore.
+ * Operates on the `volunteers.status` text+CHECK value
+ * (pending|active|inactive|suspended|rejected). `reason` is recorded in the audit
+ * trail. NOTE: token allocation / grant decisions and the
  * `max_tokens_per_volunteer` limit are a separate token-flow slice (they mutate
  * the tokens table), not part of this status control.
  */
-export const volunteerActionSchema = z.enum(["suspend", "deactivate", "activate"]);
+export const volunteerActionSchema = z.enum([
+    "approve",
+    "reject",
+    "suspend",
+    "deactivate",
+    "activate",
+]);
 export type VolunteerAction = z.infer<typeof volunteerActionSchema>;
 
 export const volunteerActionRequestSchema = z.object({
