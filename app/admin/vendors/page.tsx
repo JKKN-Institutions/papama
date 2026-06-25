@@ -1,150 +1,37 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { Fragment, useCallback, useEffect, type ReactNode, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { useCan } from "@/components/auth/AppUserProvider";
 import type { VendorAction, VendorResponse } from "@/lib/validation/schemas";
 
-/**
- * Admin vendors page — lists vendors and (for staff with vendor_management/update)
- * exposes lifecycle actions. The browser session cookie is sent to the route,
- * which runs requireAppUser → matrix → service-role mutation → audit. Action
- * buttons are also hidden client-side via useCan(), but the server is the real
- * gate (403 → access-denied notice).
- */
-export default function AdminVendorsPage() {
-    const router = useRouter();
-    const canManage = useCan("vendor_management", "update");
-    const [vendors, setVendors] = useState<VendorResponse[]>([]);
-    const [state, setState] = useState<"loading" | "ready" | "forbidden" | "error">("loading");
-    const [errorMsg, setErrorMsg] = useState<string | null>(null);
-    const [busyVendor, setBusyVendor] = useState<string | null>(null);
-    const [actionError, setActionError] = useState<string | null>(null);
+import {
+    ActionButton,
+    AdminPageHeader,
+    Dash,
+    DetailDrawer,
+    FilterBar,
+    ListStates,
+    Pagination,
+    StatusBadge,
+    TableHead,
+    TableShell,
+    useAction,
+    useAdminList,
+    useClientTable,
+    useDetailDrawer,
+    type BtnTone,
+    type DetailSection,
+} from "../_ui";
 
-    const load = useCallback(async () => {
-        const res = await fetch("/api/admin/vendors", { cache: "no-store" });
-
-        if (res.status === 401) {
-            router.push("/login?redirect=/admin/vendors");
-            return;
-        }
-        if (res.status === 403) {
-            setState("forbidden");
-            return;
-        }
-        if (!res.ok) {
-            const body = await res.json().catch(() => ({}));
-            setErrorMsg(body.error ?? `Request failed (${res.status})`);
-            setState("error");
-            return;
-        }
-
-        const body = (await res.json()) as { vendors?: VendorResponse[] };
-        setVendors(body.vendors ?? []); // guard: never set undefined (shared useAdminList does the same)
-        setState("ready");
-    }, [router]);
-
-    useEffect(() => {
-        void load();
-    }, [load]);
-
-    const runAction = useCallback(
-        async (vendorId: string, action: VendorAction) => {
-            if (NEEDS_CONFIRM.has(action) && !window.confirm(CONFIRM_TEXT[action])) {
-                return;
-            }
-            setBusyVendor(vendorId);
-            setActionError(null);
-            try {
-                const res = await fetch("/api/admin/vendors", {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ vendor_id: vendorId, action }),
-                });
-
-                if (res.status === 401) {
-                    router.push("/login?redirect=/admin/vendors");
-                    return;
-                }
-                if (!res.ok) {
-                    const body = await res.json().catch(() => ({}));
-                    setActionError(body.error ?? `Action failed (${res.status})`);
-                    return;
-                }
-                await load();
-            } finally {
-                setBusyVendor(null);
-            }
-        },
-        [load, router]
-    );
-
-    return (
-        <div>
-            <div className="mb-6 flex items-end justify-between">
-                <div>
-                    <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Vendors</h1>
-                    <p className="mt-1 text-sm text-slate-500">
-                        Registered food vendors and their onboarding status.
-                    </p>
-                </div>
-                {state === "ready" && (
-                    <span className="text-sm text-slate-400">{vendors.length} total</span>
-                )}
-            </div>
-
-            {actionError && (
-                <div className="mb-4">
-                    <Notice tone="error" title="Action failed">
-                        {actionError}
-                    </Notice>
-                </div>
-            )}
-
-            {state === "loading" && <SkeletonTable />}
-
-            {state === "forbidden" && (
-                <Notice tone="warn" title="Access denied">
-                    Your role does not have permission to view vendors.
-                </Notice>
-            )}
-
-            {state === "error" && (
-                <Notice tone="error" title="Couldn’t load vendors">
-                    {errorMsg}
-                </Notice>
-            )}
-
-            {state === "ready" &&
-                (vendors.length === 0 ? (
-                    <Notice tone="info" title="No vendors yet">
-                        Vendors will appear here once they are onboarded.
-                    </Notice>
-                ) : (
-                    <VendorTable
-                        vendors={vendors}
-                        canManage={canManage}
-                        busyVendor={busyVendor}
-                        onAction={runAction}
-                    />
-                ))}
-        </div>
-    );
-}
-
-// approve and reinstate bring a vendor online; require explicit confirmation.
-const NEEDS_CONFIRM = new Set<VendorAction>(["approve", "reinstate", "reject", "suspend", "fail_kyc"]);
-const CONFIRM_TEXT: Record<VendorAction, string> = {
+// approve/reinstate/reject/suspend/fail_kyc require explicit confirmation.
+const CONFIRM_TEXT: Partial<Record<VendorAction, string>> = {
     approve: "Approve this vendor? They will be allowed to accept token redemptions.",
     reinstate: "Reinstate this vendor? They will resume accepting token redemptions.",
-    verify_kyc: "",
     reject: "Reject this vendor? They will not be able to operate.",
     suspend: "Suspend this vendor? Redemptions at this vendor will stop.",
     fail_kyc: "Mark this vendor's KYC as failed?",
 };
-
-type BtnTone = "primary" | "danger" | "warn" | "neutral";
 
 function actionsFor(v: VendorResponse): { action: VendorAction; label: string; tone: BtnTone }[] {
     const acts: { action: VendorAction; label: string; tone: BtnTone }[] = [];
@@ -159,107 +46,6 @@ function actionsFor(v: VendorResponse): { action: VendorAction; label: string; t
     return acts;
 }
 
-function VendorTable({
-    vendors,
-    canManage,
-    busyVendor,
-    onAction,
-}: {
-    vendors: VendorResponse[];
-    canManage: boolean;
-    busyVendor: string | null;
-    onAction: (vendorId: string, action: VendorAction) => void;
-}) {
-    // Which vendor's verification detail panel is currently expanded (one at a time).
-    const [openVendor, setOpenVendor] = useState<string | null>(null);
-    // Column span for the full-width detail row (data columns + Details + optional Actions).
-    const colSpan = 8 + (canManage ? 1 : 0);
-
-    return (
-        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-            <table className="w-full min-w-[760px] text-left text-sm">
-                <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                    <tr>
-                        <th className="px-4 py-3 font-medium">Name</th>
-                        <th className="px-4 py-3 font-medium">Status</th>
-                        <th className="px-4 py-3 font-medium">KYC</th>
-                        <th className="px-4 py-3 font-medium">FSSAI</th>
-                        <th className="px-4 py-3 font-medium">GST</th>
-                        <th className="px-4 py-3 font-medium">Hygiene</th>
-                        <th className="px-4 py-3 font-medium">Registered</th>
-                        <th className="px-4 py-3 font-medium">Details</th>
-                        {canManage && <th className="px-4 py-3 font-medium">Actions</th>}
-                    </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                    {vendors.map((v) => {
-                        const busy = busyVendor === v.vendor_id;
-                        const isOpen = openVendor === v.vendor_id;
-                        return (
-                            <Fragment key={v.vendor_id}>
-                                <tr className="hover:bg-slate-50">
-                                    <td className="px-4 py-3 font-medium text-slate-900">{v.name}</td>
-                                    <td className="px-4 py-3">
-                                        <StatusBadge value={v.status} />
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        <StatusBadge value={v.kyc_status} />
-                                    </td>
-                                    <td className="px-4 py-3 text-slate-600">{v.fssai_license ?? "—"}</td>
-                                    <td className="px-4 py-3 text-slate-600">{v.gst_number ?? "—"}</td>
-                                    <td className="px-4 py-3 text-slate-600">
-                                        {v.hygiene_rating != null ? `${v.hygiene_rating}/5` : "—"}
-                                    </td>
-                                    <td className="px-4 py-3 text-slate-500">
-                                        {new Date(v.created_at).toLocaleDateString()}
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        <ActionButton
-                                            tone="neutral"
-                                            disabled={false}
-                                            onClick={() =>
-                                                setOpenVendor(isOpen ? null : v.vendor_id)
-                                            }
-                                        >
-                                            {isOpen ? "Hide" : "Details"}
-                                        </ActionButton>
-                                    </td>
-                                    {canManage && (
-                                        <td className="px-4 py-3">
-                                            <div className="flex flex-wrap gap-1.5">
-                                                {actionsFor(v).map((a) => (
-                                                    <ActionButton
-                                                        key={a.action}
-                                                        tone={a.tone}
-                                                        disabled={busy}
-                                                        onClick={() => onAction(v.vendor_id, a.action)}
-                                                    >
-                                                        {a.label}
-                                                    </ActionButton>
-                                                ))}
-                                                {actionsFor(v).length === 0 && (
-                                                    <span className="text-xs text-slate-400">—</span>
-                                                )}
-                                            </div>
-                                        </td>
-                                    )}
-                                </tr>
-                                {isOpen && (
-                                    <tr className="bg-slate-50/60">
-                                        <td colSpan={colSpan} className="px-4 py-4">
-                                            <VendorDetail vendor={v} />
-                                        </td>
-                                    </tr>
-                                )}
-                            </Fragment>
-                        );
-                    })}
-                </tbody>
-            </table>
-        </div>
-    );
-}
-
 type VendorDocument = {
     id: string;
     doc_type: string;
@@ -269,198 +55,228 @@ type VendorDocument = {
 };
 
 /**
- * The per-vendor verification checklist the admin reviews before Approve / Verify
- * KYC. Shows the full registration fields plus the vendor's uploaded documents,
- * fetched lazily from GET /api/admin/vendors/{id}/documents on first expand.
+ * Admin vendors page — registry + lifecycle actions + a full-profile drawer with
+ * the uploaded documents (signed URLs). Adopts the shared admin spine.
  */
-function VendorDetail({ vendor }: { vendor: VendorResponse }) {
-    const router = useRouter();
-    const [docs, setDocs] = useState<VendorDocument[]>([]);
-    const [docState, setDocState] = useState<"loading" | "ready" | "error">("loading");
-    const [docError, setDocError] = useState<string | null>(null);
+export default function AdminVendorsPage() {
+    const canManage = useCan("vendor_management", "update");
+    const { items, state, errorMsg, reload } = useAdminList<VendorResponse>(
+        "/api/admin/vendors",
+        "vendors",
+        "/admin/vendors"
+    );
 
+    const action = useAction({
+        method: "PATCH",
+        endpoint: () => "/api/admin/vendors",
+        onDone: reload,
+        successMessage: () => "Vendor updated.",
+    });
+
+    const table = useClientTable(items, {
+        searchKeys: ["name", "fssai_license", "gst_number"],
+        tabKey: "status",
+        pageSize: 15,
+    });
+    const tabs = useMemo(
+        () => [
+            { label: "All", value: "all", count: table.tabCounts.all },
+            { label: "Pending", value: "pending", count: table.tabCounts.pending },
+            { label: "Approved", value: "approved", count: table.tabCounts.approved },
+            { label: "Suspended", value: "suspended", count: table.tabCounts.suspended },
+            { label: "Rejected", value: "rejected", count: table.tabCounts.rejected },
+        ],
+        [table.tabCounts]
+    );
+
+    const drawer = useDetailDrawer<VendorResponse>();
+    // Lazily load the vendor's documents when the drawer opens.
+    const [docs, setDocs] = useState<VendorDocument[]>([]);
+    const [docState, setDocState] = useState<"idle" | "loading" | "ready" | "error">("idle");
     useEffect(() => {
-        let cancelled = false;
-        async function loadDocs() {
-            setDocState("loading");
-            setDocError(null);
-            const res = await fetch(`/api/admin/vendors/${vendor.vendor_id}/documents`, {
-                cache: "no-store",
-            });
-            if (cancelled) return;
-            if (res.status === 401) {
-                router.push("/login?redirect=/admin/vendors");
-                return;
-            }
-            if (!res.ok) {
-                const body = await res.json().catch(() => ({}));
-                setDocError(body.error ?? `Couldn’t load documents (${res.status})`);
-                setDocState("error");
-                return;
-            }
-            const body = (await res.json()) as { documents: VendorDocument[] };
-            if (cancelled) return;
-            setDocs(body.documents ?? []);
-            setDocState("ready");
+        const v = drawer.selected;
+        if (!v) {
+            setDocs([]);
+            setDocState("idle");
+            return;
         }
-        void loadDocs();
+        let cancelled = false;
+        setDocState("loading");
+        fetch(`/api/admin/vendors/${v.vendor_id}/documents`, { cache: "no-store", credentials: "same-origin" })
+            .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+            .then((b: { documents: VendorDocument[] }) => {
+                if (!cancelled) {
+                    setDocs(b.documents ?? []);
+                    setDocState("ready");
+                }
+            })
+            .catch(() => !cancelled && setDocState("error"));
         return () => {
             cancelled = true;
         };
-    }, [vendor.vendor_id, router]);
+    }, [drawer.selected]);
 
-    return (
-        <div className="space-y-4">
-            <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs sm:grid-cols-3 lg:grid-cols-4">
-                <Detail label="Name" value={vendor.name} />
-                <Detail label="FSSAI licence" value={vendor.fssai_license} />
-                <Detail label="GST number" value={vendor.gst_number} />
-                <Detail
-                    label="Hygiene rating"
-                    value={vendor.hygiene_rating != null ? `${vendor.hygiene_rating}/5` : null}
-                />
-                <Detail
-                    label="Geo"
-                    value={
-                        vendor.geo
-                            ? `${vendor.geo.lat.toFixed(5)}, ${vendor.geo.lng.toFixed(5)}`
-                            : null
-                    }
-                />
-                <Detail
-                    label="Registered"
-                    value={new Date(vendor.created_at).toLocaleString()}
-                />
-            </dl>
+    const v = drawer.selected;
+    const sections: DetailSection[] = v
+        ? [
+              { label: "Name", value: v.name },
+              { label: "Status", value: v.status },
+              { label: "KYC", value: v.kyc_status },
+              { label: "FSSAI licence", value: v.fssai_license },
+              { label: "GST number", value: v.gst_number },
+              { label: "Hygiene", value: v.hygiene_rating != null ? `${v.hygiene_rating}/5` : null },
+              {
+                  label: "Geo",
+                  value: v.geo ? `${v.geo.lat.toFixed(5)}, ${v.geo.lng.toFixed(5)}` : null,
+              },
+              { label: "Registered", value: new Date(v.created_at).toLocaleString(), full: true },
+          ]
+        : [];
 
-            <div>
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Documents
-                </p>
-                {docState === "loading" && (
-                    <p className="text-xs text-slate-400">Loading documents…</p>
-                )}
-                {docState === "error" && (
-                    <p className="text-xs text-red-700">{docError}</p>
-                )}
-                {docState === "ready" && docs.length === 0 && (
-                    <p className="text-xs text-slate-400">No documents uploaded.</p>
-                )}
-                {docState === "ready" && docs.length > 0 && (
-                    <ul className="divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white">
-                        {docs.map((d) => (
-                            <li
-                                key={d.id}
-                                className="flex items-center justify-between gap-3 px-3 py-2 text-xs"
-                            >
-                                <span className="font-medium capitalize text-slate-700">
-                                    {d.doc_type.replace(/_/g, " ")}
-                                </span>
-                                <StatusBadge value={d.verification_status} />
-                                <a
-                                    href={d.signed_url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="ml-auto rounded-md border border-slate-300 px-2.5 py-1 font-medium text-slate-700 transition hover:bg-slate-50"
-                                >
-                                    View
-                                </a>
-                            </li>
-                        ))}
-                    </ul>
-                )}
-            </div>
-        </div>
-    );
-}
+    const runAction = (id: string, a: VendorAction) =>
+        action.run(id, { vendor_id: id, action: a }, CONFIRM_TEXT[a]);
 
-function Detail({ label, value }: { label: string; value: string | null }) {
+    const columns = ["Name", "Status", "KYC", "FSSAI", "GST", "Hygiene", "Registered"];
+    if (canManage) columns.push("Actions");
+
     return (
         <div>
-            <dt className="text-slate-400">{label}</dt>
-            <dd className="mt-0.5 font-medium text-slate-700">{value ?? "—"}</dd>
-        </div>
-    );
-}
+            <AdminPageHeader
+                title="Vendors"
+                subtitle="Registered food vendors and their onboarding/KYC status. Click a vendor for the full profile + documents."
+                count={state === "ready" ? items.length : undefined}
+            />
 
-const BTN_TONES: Record<BtnTone, string> = {
-    primary: "border-green-300 bg-green-50 text-green-700 hover:bg-green-100",
-    danger: "border-red-300 bg-red-50 text-red-700 hover:bg-red-100",
-    warn: "border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100",
-    neutral: "border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
-};
+            {state === "ready" && items.length > 0 && (
+                <FilterBar
+                    search={table.search}
+                    onSearch={table.setSearch}
+                    searchPlaceholder="Search by name, FSSAI, GST…"
+                    tabs={tabs}
+                    activeTab={table.activeTab}
+                    onTab={table.setActiveTab}
+                />
+            )}
 
-function ActionButton({
-    tone,
-    disabled,
-    onClick,
-    children,
-}: {
-    tone: BtnTone;
-    disabled: boolean;
-    onClick: () => void;
-    children: ReactNode;
-}) {
-    return (
-        <button
-            type="button"
-            onClick={onClick}
-            disabled={disabled}
-            className={`rounded-md border px-2.5 py-1 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${BTN_TONES[tone]}`}
-        >
-            {children}
-        </button>
-    );
-}
+            <ListStates
+                state={state}
+                errorMsg={errorMsg}
+                isEmpty={items.length === 0}
+                resourceLabel="vendors"
+                emptyHint="Vendors will appear here once they are onboarded."
+                table={
+                    <>
+                        <TableShell>
+                            <TableHead columns={columns} />
+                            <tbody className="divide-y divide-slate-100">
+                                {table.rows.map((v) => (
+                                    <tr
+                                        key={v.vendor_id}
+                                        onClick={() => drawer.openRow(v)}
+                                        className="cursor-pointer hover:bg-slate-50"
+                                    >
+                                        <td className="px-4 py-3 font-medium text-slate-900">{v.name}</td>
+                                        <td className="px-4 py-3">
+                                            <StatusBadge value={v.status} />
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <StatusBadge value={v.kyc_status} />
+                                        </td>
+                                        <td className="px-4 py-3 text-slate-600">
+                                            <Dash>{v.fssai_license}</Dash>
+                                        </td>
+                                        <td className="px-4 py-3 text-slate-600">
+                                            <Dash>{v.gst_number}</Dash>
+                                        </td>
+                                        <td className="px-4 py-3 text-slate-600">
+                                            {v.hygiene_rating != null ? `${v.hygiene_rating}/5` : "—"}
+                                        </td>
+                                        <td className="px-4 py-3 text-slate-500">
+                                            {new Date(v.created_at).toLocaleDateString()}
+                                        </td>
+                                        {canManage && (
+                                            <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    {actionsFor(v).map((a) => (
+                                                        <ActionButton
+                                                            key={a.action}
+                                                            tone={a.tone}
+                                                            disabled={action.busyId === v.vendor_id}
+                                                            onClick={() => runAction(v.vendor_id, a.action)}
+                                                        >
+                                                            {a.label}
+                                                        </ActionButton>
+                                                    ))}
+                                                    {actionsFor(v).length === 0 && (
+                                                        <span className="text-xs text-slate-400">—</span>
+                                                    )}
+                                                </div>
+                                            </td>
+                                        )}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </TableShell>
+                        <Pagination page={table.page} pageCount={table.pageCount} onPage={table.setPage} />
+                    </>
+                }
+            />
 
-const BADGE_TONES: Record<string, string> = {
-    approved: "bg-green-50 text-green-700 ring-green-600/20",
-    verified: "bg-green-50 text-green-700 ring-green-600/20",
-    pending: "bg-amber-50 text-amber-700 ring-amber-600/20",
-    suspended: "bg-orange-50 text-orange-700 ring-orange-600/20",
-    rejected: "bg-red-50 text-red-700 ring-red-600/20",
-    failed: "bg-red-50 text-red-700 ring-red-600/20",
-};
-
-function StatusBadge({ value }: { value: string }) {
-    const tone = BADGE_TONES[value] ?? "bg-slate-100 text-slate-600 ring-slate-500/20";
-    return (
-        <span
-            className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium capitalize ring-1 ring-inset ${tone}`}
-        >
-            {value.replace(/_/g, " ")}
-        </span>
-    );
-}
-
-function Notice({
-    tone,
-    title,
-    children,
-}: {
-    tone: "info" | "warn" | "error";
-    title: string;
-    children: ReactNode;
-}) {
-    const tones = {
-        info: "border-slate-200 bg-white text-slate-600",
-        warn: "border-amber-200 bg-amber-50 text-amber-800",
-        error: "border-red-200 bg-red-50 text-red-800",
-    } as const;
-    return (
-        <div className={`rounded-xl border p-6 text-sm ${tones[tone]}`}>
-            <p className="font-medium">{title}</p>
-            <p className="mt-1 opacity-90">{children}</p>
-        </div>
-    );
-}
-
-function SkeletonTable() {
-    return (
-        <div className="space-y-2">
-            {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="h-12 animate-pulse rounded-lg bg-slate-200/60" />
-            ))}
+            <DetailDrawer
+                open={drawer.open}
+                onClose={drawer.close}
+                title={v?.name ?? "Vendor"}
+                subtitle="Profile & documents"
+                status={v?.status}
+                sections={sections}
+                actions={
+                    canManage && v
+                        ? actionsFor(v).map((a) => (
+                              <ActionButton
+                                  key={a.action}
+                                  tone={a.tone}
+                                  disabled={action.busyId === v.vendor_id}
+                                  onClick={() => runAction(v.vendor_id, a.action)}
+                              >
+                                  {a.label}
+                              </ActionButton>
+                          ))
+                        : null
+                }
+            >
+                {v && (
+                    <section>
+                        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                            Documents
+                        </h3>
+                        {docState === "loading" && <p className="text-xs text-slate-400">Loading documents…</p>}
+                        {docState === "error" && <p className="text-xs text-red-700">Couldn’t load documents.</p>}
+                        {docState === "ready" && docs.length === 0 && (
+                            <p className="text-xs text-slate-400">No documents uploaded.</p>
+                        )}
+                        {docState === "ready" && docs.length > 0 && (
+                            <ul className="divide-y divide-slate-200 rounded-lg border border-slate-200">
+                                {docs.map((d) => (
+                                    <li key={d.id} className="flex items-center gap-3 px-3 py-2 text-xs">
+                                        <span className="font-medium capitalize text-slate-700">
+                                            {d.doc_type.replace(/_/g, " ")}
+                                        </span>
+                                        <StatusBadge value={d.verification_status} />
+                                        <a
+                                            href={d.signed_url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="ml-auto rounded-md border border-slate-300 px-2.5 py-1 font-medium text-slate-700 transition hover:bg-slate-50"
+                                        >
+                                            View
+                                        </a>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </section>
+                )}
+            </DetailDrawer>
         </div>
     );
 }
