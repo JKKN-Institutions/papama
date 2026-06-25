@@ -126,23 +126,39 @@ export const POST = defineRoute(
             throw new BadRequestError("token was already redeemed");
         }
 
+        // Steps 3-4 are secondary tracking writes that run AFTER the token is
+        // already burned (step 2). We do NOT throw on their failure — the meal
+        // happened and the token is spent, so failing the request here would
+        // leave an inconsistent state and confuse the vendor. Instead we capture
+        // any error, log it, and surface it in the audit metadata so a silent
+        // failure can't quietly weaken fair-usage / forfeiture tracking.
+        const secondaryWriteWarnings: { step: string; error: string }[] = [];
+
         // 3. Fair-usage cooldown log — stores the face EMBEDDING so future redemptions
         //    can match this person by vector distance (cross-vendor repeat-detection).
-        await admin.from("redemption_cooldown_log").insert({
+        const { error: cooldownError } = await admin.from("redemption_cooldown_log").insert({
             beneficiary_id: beneficiaryId,
             face_hash: faceFingerprint,
             face_embedding: toVectorLiteral(body.face_capture.embedding),
             token_id: token.id,
             vendor_id: vendorId,
         });
+        if (cooldownError) {
+            console.error("redemption.create: cooldown-log insert failed", cooldownError);
+            secondaryWriteWarnings.push({ step: "redemption_cooldown_log", error: cooldownError.message });
+        }
 
         // 4. Forfeited remainder when token value > menu value (owner §4.4).
         if (value.forfeited > 0) {
-            await admin.from("forfeited_balances").insert({
+            const { error: forfeitError } = await admin.from("forfeited_balances").insert({
                 token_id: token.id,
                 redemption_id: redemption.id,
                 forfeited_inr: value.forfeited,
             });
+            if (forfeitError) {
+                console.error("redemption.create: forfeited-balance insert failed", forfeitError);
+                secondaryWriteWarnings.push({ step: "forfeited_balances", error: forfeitError.message });
+            }
         }
 
         await audit({
@@ -155,6 +171,10 @@ export const POST = defineRoute(
                 vendor_id: vendorId,
                 beneficiary_id: beneficiaryId,
                 value,
+                // Present only if a secondary tracking write (steps 3-4) failed.
+                ...(secondaryWriteWarnings.length > 0
+                    ? { secondary_write_warnings: secondaryWriteWarnings }
+                    : {}),
             },
         });
 

@@ -31,6 +31,20 @@ function generateUUID(): string {
       });
 }
 
+// Mock QR payload that MIRRORS the production opaque format (`PAPAMA:<64-hex>`,
+// see app/api/_lib/tokenQr.ts) instead of the old guessable plaintext
+// `PAPAMA:<serial>`. Cosmetic — this path runs only in offline mock mode.
+function mockOpaqueQr(): string {
+  let hex = '';
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    const bytes = crypto.getRandomValues(new Uint8Array(32));
+    hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  } else {
+    for (let i = 0; i < 64; i++) hex += ((Math.random() * 16) | 0).toString(16);
+  }
+  return `PAPAMA:${hex}`;
+}
+
 // Initial Data representing contract-aligned mockup values
 const INITIAL_CREDITS: CreditsResponse = {
   credit_balance: 150,
@@ -51,7 +65,7 @@ const INITIAL_TOKENS: TokenItem[] = [
     serial_number: 'PPM-STD-10001',
     type: 'standard',
     status: 'redeemed',
-    qr_payload: 'PAPAMA:TOKEN:tok_001:sig',
+    qr_payload: 'PAPAMA:9f2c4b7a1e6d8053c2a4f1b9e7d6038a5c1b2e4f7a9d0c3b6e8f1a2d4c5b7e90',
     value: 50,
     issued_at: '2026-06-11T12:30:00Z',
     expires_at: '2026-09-11T12:30:00Z',
@@ -66,7 +80,7 @@ const INITIAL_TOKENS: TokenItem[] = [
     serial_number: 'PPM-STD-10002',
     type: 'standard',
     status: 'live',
-    qr_payload: 'PAPAMA:TOKEN:tok_002:sig',
+    qr_payload: 'PAPAMA:3a1d5e8c0b7f2649d8c3a6f0e1b4d7029c5a8e3f6b1d4097e2c5a8f0b3d6e1c4',
     value: 50,
     issued_at: '2026-06-11T12:30:00Z',
     expires_at: '2026-09-11T12:30:00Z',
@@ -77,7 +91,7 @@ const INITIAL_TOKENS: TokenItem[] = [
     serial_number: 'PPM-STD-10003',
     type: 'standard',
     status: 'redeemed',
-    qr_payload: 'PAPAMA:TOKEN:tok_003:sig',
+    qr_payload: 'PAPAMA:7c0b3e6a9d2f5184b0e3c6a9f2d5081b4e7a0c3d6f9b2e5081a4d7c0b3f6e9a2',
     value: 50,
     issued_at: '2026-06-14T15:00:00Z',
     expires_at: '2026-09-14T15:00:00Z',
@@ -92,7 +106,7 @@ const INITIAL_TOKENS: TokenItem[] = [
     serial_number: 'PPM-STD-10004',
     type: 'standard',
     status: 'expired',
-    qr_payload: 'PAPAMA:TOKEN:tok_004:sig',
+    qr_payload: 'PAPAMA:1e4a7d0c3b6f9285e1b4a7d0c3f6092b5e8a1d4c7f0b3e6a9d2c5f8b1e4a7d0c',
     value: 50,
     issued_at: '2026-03-01T10:00:00Z',
     expires_at: '2026-06-01T00:00:00Z',
@@ -103,7 +117,7 @@ const INITIAL_TOKENS: TokenItem[] = [
     serial_number: 'PPM-STD-10005',
     type: 'standard',
     status: 'in_admin_pool',
-    qr_payload: 'PAPAMA:TOKEN:tok_005:sig',
+    qr_payload: 'PAPAMA:5b8e1a4d7c0f3692b5e8a1d4f7c0b3e6a9d2f5081b4e7a0c3d6f9b2e5a8d1c4f',
     value: 50,
     issued_at: '2026-06-14T15:00:00Z',
     expires_at: '2026-09-14T15:00:00Z',
@@ -326,7 +340,7 @@ function mockConvert(amount: number, distributionPath: 'use_now' | 'authorize_pa
     serial_number: serial,
     type: 'standard',
     status,
-    qr_payload: `PAPAMA:${serial}`,
+    qr_payload: mockOpaqueQr(),
     value: amount,
     issued_at: now,
     expires_at: expiresAt,

@@ -1,6 +1,7 @@
 # Migration Ledger Reconciliation
 
 **Generated:** 2026-06-24  
+**Updated:** 2026-06-25 (added the m31/m32/m34 batch; the live ledger now has 22 rows, not 19)  
 **Live project:** `qxdxefofeykzvegykitt`  
 **Source:** live `supabase_migrations.schema_migrations` inspected via MCP read-only; repo files in `supabase/migrations/`.
 
@@ -8,9 +9,13 @@
 
 ## Summary
 
-The live DB has 19 applied migrations. The repo has 27 SQL files. Three live entries have
-no direct repo source file (m13b, m20, m21 in logical numbering). Two of those are now
-reconstructed as backfill files in `docs/proposed-migrations/`.
+The live DB has **22** applied migrations (re-checked 2026-06-25 via `list_migrations`). The repo
+has 27 `supabase/migrations/*.sql` files. Several live entries have no direct repo source file
+(m13b, m19_advisor_fixes/m20 revoke-anon, the donor-provisioning trigger, and the **m27–m34**
+batch whose SQL still lives only in `docs/proposed-migrations/`). The live schema is correct; the
+gap is purely **reproducibility** — `supabase db reset` would not rebuild prod until the
+docs/ sources are promoted into `supabase/migrations/` (or a baseline is pulled — see the bottom
+of this doc for the recommended robust path).
 
 ---
 
@@ -36,6 +41,13 @@ reconstructed as backfill files in `docs/proposed-migrations/`.
 | 20260624102347 | m28\_beneficiary\_approve\_rpc | `docs/proposed-migrations/m28_beneficiary_approve_rpc.sql` | APPLIED (source in docs/) | Same note as m27. |
 | 20260624102352 | m29\_upi\_transaction\_id\_unique | `docs/proposed-migrations/m29_upi_transaction_id_unique.sql` | APPLIED (source in docs/) | Same note as m27. |
 | 20260624102403 | m30\_rls\_hardening | `docs/proposed-migrations/m30_rls_hardening.sql` | APPLIED (source in docs/) | Same note as m27. |
+| 20260624104336 | m31\_perf\_index\_token\_redemptions | `docs/proposed-migrations/m31_perf_indexes.sql` | APPLIED (source in docs/) | Added 2026-06-25 to this doc. Move source into `supabase/migrations/`. |
+| 20260624104338 | m32\_patient\_eligibility\_config | `docs/proposed-migrations/m32_patient_eligibility_config.sql` | APPLIED (source in docs/) | Added 2026-06-25. Move source into `supabase/migrations/`. |
+| 20260624105730 | m31\_guard\_service\_role\_bypass | `docs/proposed-migrations/m31_guard_service_role_bypass.sql` | APPLIED (source in docs/) | Added 2026-06-25. Note the duplicate logical "m31" prefix (perf-index vs guard) — keep distinct version timestamps. Move source in. |
+| 20260624110138 | m34\_definer\_fns\_to\_private\_schema\_harmonized | `docs/proposed-migrations/m34_definer_fn_private_schema.sql` (SUPERSEDED) + `m34_pre_apply_policy_snapshot.sql` | APPLIED (source in docs/) | Added 2026-06-25. The live entry is the *harmonized* m34; the standalone `m34_definer_fn_private_schema.sql` is marked SUPERSEDED. Promote the harmonized version. |
+
+⚠️ `docs/proposed-migrations/m33_vendor_bank_scoping.sql` has **no `m33` row in the live ledger** —
+confirm whether it was applied under another name or is genuinely unapplied before promoting it.
 
 Repo files in `supabase/migrations/` with **no live counterpart** (applied only on fresh reset):
 
@@ -62,9 +74,11 @@ Repo files in `supabase/migrations/` with **no live counterpart** (applied only 
 
 ## Action items for `supabase db reset` reproducibility
 
-1. **Move m27–m30 sources** from `docs/proposed-migrations/` into `supabase/migrations/` with
-   correct version timestamps matching the live ledger entries
-   (20260624102335, 20260624102347, 20260624102352, 20260624102403).
+1. **Move m27–m34 sources** from `docs/proposed-migrations/` into `supabase/migrations/` with
+   version timestamps matching the live ledger entries
+   (20260624102335, 20260624102347, 20260624102352, 20260624102403,
+   **20260624104336, 20260624104338, 20260624105730, 20260624110138**). Use the *harmonized*
+   m34, not the SUPERSEDED standalone.
 
 2. **Apply m20 backfill** (`docs/proposed-migrations/m20_backfill_revoke_anon_execute.sql`)
    — idempotent, safe to run now. Also commit it into `supabase/migrations/`.
@@ -75,3 +89,33 @@ Repo files in `supabase/migrations/` with **no live counterpart** (applied only 
 
 4. **m13b** — no reconstruction needed. The dropped tables are absent from the live schema;
    their absence is the correct end-state. Document this as intentional.
+
+5. **Resolve m33** — confirm whether `m33_vendor_bank_scoping.sql` is applied (under another name)
+   or unapplied; promote or drop accordingly.
+
+---
+
+## Recommended robust path — baseline from the live DB
+
+The per-file repair above works but is fragile (mismatched timestamps, missing base `m01`–`m13`
+ledger rows, duplicate `m31` prefixes). If you want a guarantee that `db reset` == prod with the
+least hand-wiring, snapshot the live schema into a single baseline instead. All commands run
+against **your** linked project — nothing here mutates prod's ledger except `db pull`, which only
+records the baseline remotely.
+
+```bash
+supabase link --project-ref qxdxefofeykzvegykitt        # once
+
+mkdir -p supabase/migrations_archive_2026-06-25          # archive hand-written history
+git mv supabase/migrations/*.sql supabase/migrations_archive_2026-06-25/
+
+supabase db pull                                          # one baseline migration from live
+# Verify the baseline carries the system_config seed rows (the five validation keys are present
+# LIVE: co_contribution_max=5, face_match_threshold=0.4, meal_cooldown_hours=6,
+# max_meals_per_day=2, redemption_radius_km=20). If you keep seeds separate, move them to
+# supabase/seed.sql.
+
+supabase db reset                                         # local shadow DB only — proves reset==prod
+```
+
+After this, write any *new* forward migrations on top of the baseline.
