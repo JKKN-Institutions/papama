@@ -240,7 +240,7 @@ export default function TokensLedgerPage() {
                           href={`/donor/tokens/${token.token_id}`}
                           className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 hover:text-emerald-800 hover:underline"
                         >
-                          Verify Journey
+                          {token.status === "live" ? "Show QR" : "Verify Journey"}
                           <svg
                             xmlns="http://www.w3.org/2000/svg"
                             fill="none"

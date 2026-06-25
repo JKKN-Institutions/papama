@@ -328,19 +328,30 @@ function CreditContent() {
                     </div>
 
                     <div className="mt-6 flex flex-col gap-2.5">
-                      <button
+                      {/* Primary next step: go straight to THIS token's QR so the
+                          donor can show/print/share it (Path A self-distribute).
+                          Without this the mint dead-ends and the QR is a scavenger
+                          hunt through the ledger. */}
+                      <Link
+                        href={`/donor/tokens/${convertedToken.token_id}`}
                         onClick={closeConvertModal}
-                        className="w-full rounded-xl bg-emerald-600 py-3 text-xs font-bold text-white transition hover:bg-emerald-700 active:scale-95 cursor-pointer"
+                        className="w-full rounded-xl bg-emerald-600 py-3 text-center text-xs font-bold text-white transition hover:bg-emerald-700 active:scale-95 cursor-pointer"
                       >
-                        Great, Close
-                      </button>
+                        Show / print this token&apos;s QR
+                      </Link>
                       <Link
                         href="/donor/tokens"
                         onClick={closeConvertModal}
-                        className="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline py-1.5"
+                        className="text-center text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline py-1.5"
                       >
-                        Track Vouchers in Ledger
+                        Track all vouchers in ledger
                       </Link>
+                      <button
+                        onClick={closeConvertModal}
+                        className="text-center text-xs font-semibold text-zinc-400 hover:text-zinc-600 py-1"
+                      >
+                        Close
+                      </button>
                     </div>
                   </div>
                 ) : (

@@ -12,6 +12,7 @@ import {
   useVolunteerFetch,
   useVolunteerPost,
 } from "./_ui";
+import { TokenQrCode } from "@/components/donor/TokenQrCode";
 
 /** A token currently held by this volunteer, awaiting distribution. */
 interface HeldToken {
@@ -21,6 +22,9 @@ interface HeldToken {
   value: number;
   status: string;
   minted_at: string;
+  // Derived one-time QR payload — what the volunteer SHOWS the beneficiary so it
+  // can be scanned at a vendor. Without this the held token is a dead-end.
+  qr_payload: string;
 }
 
 /** A token-allocation request this volunteer has submitted. */
@@ -60,13 +64,22 @@ export default function VolunteerDashboardPage() {
     "allocation",
     "/volunteer"
   );
+  // GET /api/volunteer/tokens also returns { distributed } — tokens this
+  // volunteer has handed off, kept viewable so the QR can be re-shown.
+  const distributed = useVolunteerFetch<HeldToken[]>(
+    "/api/volunteer/tokens",
+    "distributed",
+    "/volunteer"
+  );
 
   const tokenList = tokens.data ?? [];
   const requestList = requests.data ?? [];
+  const distributedList = distributed.data ?? [];
 
-  // Distributing changes both the held set and the held-count headroom.
+  // Distributing changes the held set, the held-count headroom, AND moves the
+  // token into the distributed list — reload all three.
   async function reloadAfterDistribute() {
-    await Promise.all([tokens.reload(), allocation.reload()]);
+    await Promise.all([tokens.reload(), allocation.reload(), distributed.reload()]);
   }
 
   return (
@@ -92,6 +105,12 @@ export default function VolunteerDashboardPage() {
         state={requests.state}
         errorMsg={requests.errorMsg}
         requests={requestList}
+      />
+
+      <DistributedSection
+        state={distributed.state}
+        errorMsg={distributed.errorMsg}
+        tokens={distributedList}
       />
     </div>
   );
@@ -190,29 +209,127 @@ function DistributeRow({ token, reload }: { token: HeldToken; reload: () => Prom
       {open && (
         <tr className="bg-slate-50/60">
           <td colSpan={6} className="px-4 py-4">
-            <form onSubmit={distribute} className="flex flex-wrap items-end gap-3">
-              <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
-                Distribution location (optional)
-                <input
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  placeholder="e.g. Relief camp 3"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-600 focus:ring-1 focus:ring-slate-600 sm:w-56"
-                />
-              </label>
-              <button
-                type="submit"
-                disabled={busy}
-                className="rounded-lg bg-slate-900 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:opacity-60"
-              >
-                {busy ? "Distributing…" : "Confirm distribution"}
-              </button>
-              {error && <span className="text-xs font-medium text-red-700">{error}</span>}
-            </form>
-            <p className="mt-2 text-xs text-slate-400">
-              Face verification happens when the beneficiary redeems the token at a vendor — not at
-              distribution.
-            </p>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+              {/* The actual hand-off: show the one-time QR so the beneficiary can
+                  scan or save it to redeem at a vendor. */}
+              <div className="flex flex-col items-center gap-1.5 rounded-xl border border-slate-200 bg-white p-3">
+                <TokenQrCode payload={token.qr_payload} size={150} />
+                <span className="font-mono text-[10px] text-slate-500">{token.serial_number}</span>
+                <span className="text-xs font-semibold text-slate-700">
+                  ₹{token.value.toLocaleString("en-IN")}
+                </span>
+              </div>
+              <div className="flex-1">
+                <p className="text-xs font-semibold text-slate-700">
+                  Show this QR to the beneficiary
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  They scan or keep it to redeem at an approved vendor. Then mark it distributed —
+                  it stays viewable below under “Distributed by you”.
+                </p>
+                <form onSubmit={distribute} className="mt-3 flex flex-wrap items-end gap-3">
+                  <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
+                    Distribution location (optional)
+                    <input
+                      value={location}
+                      onChange={(e) => setLocation(e.target.value)}
+                      placeholder="e.g. Relief camp 3"
+                      className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-600 focus:ring-1 focus:ring-slate-600 sm:w-56"
+                    />
+                  </label>
+                  <button
+                    type="submit"
+                    disabled={busy}
+                    className="rounded-lg bg-slate-900 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:opacity-60"
+                  >
+                    {busy ? "Distributing…" : "Mark as distributed"}
+                  </button>
+                  {error && <span className="text-xs font-medium text-red-700">{error}</span>}
+                </form>
+                <p className="mt-2 text-xs text-slate-400">
+                  Face verification happens when the beneficiary redeems the token at a vendor — not
+                  at distribution.
+                </p>
+              </div>
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
+/* ── Section d: distributed tokens (QR stays re-showable) ──────────────────── */
+
+function DistributedSection({
+  state,
+  errorMsg,
+  tokens,
+}: {
+  state: ReturnType<typeof useVolunteerFetch>["state"];
+  errorMsg: string | null;
+  tokens: HeldToken[];
+}) {
+  return (
+    <section>
+      <SectionHeader
+        title="Distributed by you"
+        subtitle="Tokens you've handed off. Re-show the QR if a beneficiary needs it again."
+        count={state === "ready" ? tokens.length : undefined}
+      />
+      <ListStates
+        state={state}
+        errorMsg={errorMsg}
+        isEmpty={tokens.length === 0}
+        resourceLabel="distributed tokens"
+        emptyHint="Tokens you distribute will appear here, with the QR still viewable."
+      >
+        <TableShell>
+          <TableHead columns={["Serial", "Type", "Value", "Status", "Action"]} />
+          <tbody className="divide-y divide-slate-100">
+            {tokens.map((t) => (
+              <DistributedRow key={t.token_id} token={t} />
+            ))}
+          </tbody>
+        </TableShell>
+      </ListStates>
+    </section>
+  );
+}
+
+/** A distributed-token row that can re-show its QR (the beneficiary's copy). */
+function DistributedRow({ token }: { token: HeldToken }) {
+  const [show, setShow] = useState(false);
+  return (
+    <>
+      <tr className="hover:bg-slate-50">
+        <td className="px-4 py-3 font-mono text-xs text-slate-700">{token.serial_number}</td>
+        <td className="px-4 py-3 capitalize text-slate-700">
+          {token.token_type.replace(/_/g, " ")}
+        </td>
+        <td className="px-4 py-3 font-medium text-slate-900">
+          ₹{token.value.toLocaleString("en-IN")}
+        </td>
+        <td className="px-4 py-3">
+          <StatusBadge value={token.status} />
+        </td>
+        <td className="px-4 py-3">
+          <button
+            type="button"
+            onClick={() => setShow((v) => !v)}
+            className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+          >
+            {show ? "Hide QR" : "Show QR"}
+          </button>
+        </td>
+      </tr>
+      {show && (
+        <tr className="bg-slate-50/60">
+          <td colSpan={5} className="px-4 py-4">
+            <div className="flex flex-col items-center gap-1.5">
+              <TokenQrCode payload={token.qr_payload} size={150} />
+              <span className="font-mono text-[10px] text-slate-500">{token.serial_number}</span>
+            </div>
           </td>
         </tr>
       )}

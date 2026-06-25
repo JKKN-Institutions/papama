@@ -1,6 +1,6 @@
 import { defineRoute, BadRequestError } from "@/lib/api/handler";
 import { resolveVolunteerId } from "@/lib/volunteer/server-identity";
-import { listHeldTokens } from "@/lib/volunteer/holdings";
+import { listHeldTokens, listDistributedTokens } from "@/lib/volunteer/holdings";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -23,8 +23,13 @@ export const GET = defineRoute(
             throw new BadRequestError("no volunteer profile for this account");
         }
 
-        const tokens = await listHeldTokens(admin, user.id);
+        // Held = still in the volunteer's hands; distributed = already handed off
+        // (kept so the volunteer can re-show the QR — no dead-end after distribute).
+        const [tokens, distributed] = await Promise.all([
+            listHeldTokens(admin, user.id),
+            listDistributedTokens(admin, user.id),
+        ]);
 
-        return { tokens, total: tokens.length };
+        return { tokens, distributed, total: tokens.length };
     }
 );

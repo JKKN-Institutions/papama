@@ -2,6 +2,8 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { deriveQrPayload } from "@/app/api/_lib/tokenQr";
+
 /**
  * Shared "tokens this volunteer currently HOLDS" computation, used by the
  * volunteer tokens listing, the distribute guard, and the admin concurrent-limit
@@ -30,6 +32,13 @@ export interface HeldToken {
     value: number;
     status: string;
     minted_at: string;
+    /**
+     * The one-time QR payload, derived (not stored) from the token id — the same
+     * value a donor sees. The volunteer SHOWS this to the beneficiary (digital or
+     * printed) so it can be scanned at a vendor; without it the held token is a
+     * dead-end (nothing to hand off).
+     */
+    qr_payload: string;
 }
 
 interface TokenRow {
@@ -113,6 +122,7 @@ export async function listHeldTokens(
         value: t.value_inr,
         status: t.status,
         minted_at: t.minted_at,
+        qr_payload: deriveQrPayload(t.id),
     }));
 }
 
@@ -123,4 +133,53 @@ export async function countHeldTokens(
 ): Promise<number> {
     const held = await listHeldTokens(admin, userId);
     return held.length;
+}
+
+/**
+ * Tokens this volunteer has already DISTRIBUTED onward to beneficiaries, newest
+ * first. Derived like listHeldTokens but on the reverse edge: the latest record
+ * is a `volunteer_to_beneficiary` hand-off by this user. These keep their QR
+ * viewable so the volunteer can re-show it (the beneficiary carries that QR to a
+ * vendor) — closing the "distribute → token vanishes with no QR" dead-end.
+ * Includes tokens that have since been redeemed/expired so the history is honest.
+ */
+export async function listDistributedTokens(
+    admin: SupabaseClient,
+    userId: string
+): Promise<HeldToken[]> {
+    const { data: recordData, error: recordError } = await admin
+        .from("token_distribution_records")
+        .select("token_id, distributed_by, channel, distributed_at")
+        .eq("distributed_by", userId)
+        .eq("channel", "volunteer_to_beneficiary")
+        .order("distributed_at", { ascending: false });
+
+    if (recordError) throw new Error(recordError.message);
+    const records = (recordData ?? []) as DistributionRow[];
+    if (records.length === 0) return [];
+
+    const latestByToken = new Map<string, DistributionRow>();
+    for (const rec of records) {
+        if (!latestByToken.has(rec.token_id)) latestByToken.set(rec.token_id, rec);
+    }
+
+    const candidateIds = [...latestByToken.keys()];
+    const { data: tokenData, error: tokenError } = await admin
+        .from("tokens")
+        .select("id, serial_number, token_type, value_inr, status, minted_at")
+        .in("id", candidateIds)
+        .order("minted_at", { ascending: false });
+
+    if (tokenError) throw new Error(tokenError.message);
+    const tokens = (tokenData ?? []) as TokenRow[];
+
+    return tokens.map((t) => ({
+        token_id: t.id,
+        serial_number: t.serial_number,
+        token_type: t.token_type,
+        value: t.value_inr,
+        status: t.status,
+        minted_at: t.minted_at,
+        qr_payload: deriveQrPayload(t.id),
+    }));
 }
