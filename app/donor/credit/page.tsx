@@ -30,7 +30,10 @@ function CreditContent() {
   // The path the minted token actually committed to (for the success view).
   const [distributionPath, setDistributionPath] = useState<DistributionPath | null>(null);
 
-  const threshold = credits?.threshold ?? 50;
+  // Threshold comes from system_config via /api/donor/credits — never hard-coded.
+  // Falls back to 0 (not an invented ₹50) until credits load; all threshold UI is
+  // gated behind the `credits` guard below, so 0 is never shown to the user.
+  const threshold = credits?.threshold ?? 0;
   const balance = credits?.credit_balance ?? 0;
 
   async function loadCredits() {
@@ -53,7 +56,7 @@ function CreditContent() {
     setDistributionPath(null);
     setConvertError(null);
     setAmountError(null);
-    setAmount(credits && credits.credit_balance >= (credits.threshold ?? 50) ? credits.threshold ?? 50 : 0);
+    setAmount(credits && credits.credit_balance >= credits.threshold ? credits.threshold : 0);
   };
 
   useEffect(() => {
@@ -144,7 +147,7 @@ function CreditContent() {
             <div className="flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-500/5 p-4 text-emerald-800 dark:border-emerald-800/30 dark:bg-emerald-950/20 dark:text-emerald-400 animate-fade-in shadow-sm">
               <span className="text-lg">⭐</span>
               <div>
-                <strong className="font-bold text-sm">₹50 Threshold Achieved</strong>
+                <strong className="font-bold text-sm">₹{threshold} Threshold Achieved</strong>
                 <p className="mt-0.5 text-xs font-semibold leading-relaxed opacity-90">
                   Your balance is ₹{credits.credit_balance}. You can convert these credits into {credits.convertible_tokens} food canteen token(s).
                 </p>

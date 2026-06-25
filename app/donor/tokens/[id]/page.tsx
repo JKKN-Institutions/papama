@@ -4,6 +4,7 @@ import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import Navbar from "@/components/donor/Navbar";
 import { TokenQrCode } from "@/components/donor/TokenQrCode";
+import { PrintableToken } from "@/components/donor/PrintableToken";
 import { ApiClient } from "@/lib/donor/services/apiClient";
 import { TokenItem } from "@/lib/donor/types/contract";
 
@@ -56,6 +57,15 @@ export default function TokenDetailPage({
   const { id } = use(params);
   const [token, setToken] = useState<TokenItem | null>(null);
   const [loading, setLoading] = useState(true);
+  // Printed/anti-copy token view (DIST-5). When open, the print stylesheet hides
+  // everything except `.print-token` so a clean physical token reaches the page.
+  const [showPrint, setShowPrint] = useState(false);
+
+  function handlePrint() {
+    setShowPrint(true);
+    // Let the printable card mount before invoking the browser print dialog.
+    setTimeout(() => window.print(), 50);
+  }
 
   async function loadToken() {
     try {
@@ -313,7 +323,33 @@ export default function TokenDetailPage({
                     <p className="text-[10px] text-zinc-400 mt-2 leading-relaxed">
                       Counter staff will scan this code to issue 1 meal (worth ₹{token.value}).
                     </p>
+                    {/* Printed / anti-copy token (DIST-5): generate a print-ready
+                        physical token with an anti-copy watermark + area-lock. */}
+                    <button
+                      type="button"
+                      onClick={handlePrint}
+                      className="no-print mt-4 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-zinc-300 bg-white py-2.5 text-xs font-bold text-zinc-700 transition hover:bg-zinc-50 active:scale-95 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="h-4 w-4">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0110.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0l.229 2.523a1.125 1.125 0 01-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0021 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 00-1.913-.247M6.34 18H5.25A2.25 2.25 0 013 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 011.913-.247m10.5 0a48.536 48.536 0 00-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659M18 10.5h.008v.008H18V10.5zm-3 0h.008v.008H15V10.5z" />
+                      </svg>
+                      Print anti-copy token
+                    </button>
                   </div>
+                )}
+
+                {/* Schedule for an occasion (DIST-6) — only meaningful while the
+                    token is still distributable (live or in the admin pool). */}
+                {(token.status === "live" || token.status === "in_admin_pool") && (
+                  <Link
+                    href={`/donor/tokens/${id}/schedule`}
+                    className="flex items-center justify-center gap-1.5 rounded-2xl border border-zinc-200/50 bg-white px-4 py-3 text-xs font-bold text-emerald-700 shadow-sm transition hover:bg-emerald-50 dark:border-zinc-800/40 dark:bg-zinc-900/40 dark:text-emerald-400 dark:hover:bg-emerald-950/20"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="h-4 w-4">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+                    </svg>
+                    Schedule for an occasion
+                  </Link>
                 )}
 
                 {/* Verification box — real serial / QR payload */}
@@ -358,6 +394,47 @@ export default function TokenDetailPage({
                 </div>
               </div>
             </div>
+
+            {/* Printed / anti-copy token overlay (DIST-5). On screen this is a
+                dismissible preview; when printing, the `@media print` rules below
+                hide everything except `.print-token`. */}
+            {showPrint && token && (
+              <div className="no-print fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm">
+                <div className="my-auto w-full max-w-md">
+                  <PrintableToken token={token} />
+                  <div className="mt-4 flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowPrint(false)}
+                      className="w-1/3 rounded-xl border border-zinc-200 bg-white py-3 text-xs font-bold text-zinc-700 hover:bg-zinc-50"
+                    >
+                      Close
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => window.print()}
+                      className="flex-1 rounded-xl bg-emerald-600 py-3 text-xs font-bold text-white transition hover:bg-emerald-700 active:scale-95"
+                    >
+                      Print this token
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Print stylesheet: when the browser print dialog is active, render
+                only the printable token card on a clean page. */}
+            <style>{`
+              @media print {
+                body * { visibility: hidden !important; }
+                .print-token, .print-token * { visibility: visible !important; }
+                .print-token {
+                  position: absolute; left: 0; top: 0; width: 100%;
+                  border-color: #18181b !important;
+                }
+                .no-print { display: none !important; }
+              }
+            `}</style>
           </div>
         ) : (
           <div className="text-center py-16 bg-white rounded-2xl border border-zinc-200 dark:bg-zinc-900/40 dark:border-zinc-800">

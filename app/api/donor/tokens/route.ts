@@ -18,7 +18,7 @@ export const GET = defineRoute(
         const { data, error } = await supabase
             .from("tokens")
             .select(
-                "id, serial_number, token_type, status, value_inr, expires_at, minted_at, redeemed_at, special_instructions"
+                "id, serial_number, token_type, status, value_inr, expires_at, minted_at, redeemed_at, special_instructions, area_lock"
             )
             .order("minted_at", { ascending: false });
 
@@ -36,6 +36,7 @@ export const GET = defineRoute(
             redeemed_at: (t.redeemed_at as string | null) ?? null,
             is_special_care: (t.token_type as string) === "special_care",
             special_instructions: (t.special_instructions as string | null) ?? undefined,
+            area_lock: (t.area_lock as string | null) ?? undefined,
         }));
 
         return { tokens, total: tokens.length };

@@ -86,11 +86,14 @@ export type VolunteerRequestStatus = ValueOf<typeof VOLUNTEER_REQUEST_STATUSES>;
 
 /**
  * Credit ledger movement type.
+ * `token_conversion` is the DEBIT written when a donor mints a token from credit
+ * (negative amount; distinct from `donation`/`purchase` inflows).
  * `pooling_supplement` is a // P2 seam (micro-donation pooling, spec §5).
  */
 export const CREDIT_TRANSACTION_TYPES = [
     "purchase",
     "donation",
+    "token_conversion",
     "pooling_supplement", // P2 seam
 ] as const;
 export type CreditTransactionType = ValueOf<typeof CREDIT_TRANSACTION_TYPES>;

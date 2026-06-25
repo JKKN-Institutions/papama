@@ -87,6 +87,10 @@ export interface TokenItem {
   beneficiary_category?: string;
   is_special_care?: boolean;
   special_instructions?: string;
+  // Printed-token area-lock (DIST-5 / owner §4.3): optional city/locality/PIN the
+  // printed token is restricted to. Surfaced on the printable view; undefined when
+  // the token has no per-token lock and no configured default region.
+  area_lock?: string;
 }
 
 export interface TokensResponse {

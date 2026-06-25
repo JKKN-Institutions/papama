@@ -553,6 +553,8 @@ export const ApiClient = {
         redeemed_at: (t.redeemed_at as string | null) ?? null,
         is_special_care: t.is_special_care as boolean | undefined,
         special_instructions: t.special_instructions as string | undefined,
+        // Printed-token area-lock (DIST-5): pass through when the API surfaces it.
+        area_lock: (t.area_lock as string | null) ?? undefined,
       })),
     };
   },

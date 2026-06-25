@@ -61,17 +61,17 @@ export const POST = defineRoute(
             );
         }
 
-        // Minimum = standard_token_value when configured; skip the floor if unset.
-        try {
-            const threshold = await getNumber("standard_token_value", admin as never);
-            if (body.amount_inr < threshold) {
-                throw new BadRequestError(
-                    `amount (₹${body.amount_inr}) is below the token threshold (₹${threshold})`
-                );
-            }
-        } catch (err) {
-            if (err instanceof BadRequestError) throw err;
-            // threshold unset — enforce only the balance ceiling.
+        // Minimum = standard_token_value. This floor is MANDATORY: do NOT swallow a
+        // config-read failure and fall through to ceiling-only — that would let a
+        // donor mint a sub-threshold token. getNumber throws when the key is
+        // unset/non-numeric; let that surface (the handler maps it to a 5xx) rather
+        // than silently dropping the floor. A DB trigger backstops this off-path
+        // too (migration m27_token_value_floor).
+        const threshold = await getNumber("standard_token_value", admin as never);
+        if (body.amount_inr < threshold) {
+            throw new BadRequestError(
+                `amount (₹${body.amount_inr}) is below the token threshold (₹${threshold})`
+            );
         }
 
         // Expiry from token_expiry_days when configured; else open-ended (null).
@@ -150,11 +150,26 @@ export const POST = defineRoute(
             expires_at: string | null;
         };
 
-        // 3. Ledger entry (negative).
+        // Path A (use_now): the token goes `live` and the donor self-distributes
+        // it (token-flow §2). Log that hand-off now so the audit chain is closed
+        // from mint onward — channel `donor_self` (already in distribution_channel).
+        // Path B (authorize_papama) records its hand-offs later when the admin
+        // pool allocates the token to a volunteer.
+        if (body.distribution_path === "use_now") {
+            await admin.from("token_distribution_records").insert({
+                token_id: t.id,
+                distributed_by: user.id,
+                channel: "donor_self",
+            });
+        }
+
+        // 3. Ledger entry — a DEBIT (negative). Typed `token_conversion`, not
+        //    `donation`: a mint draws DOWN credit, it is not an inflow. Reports
+        //    that group the ledger by type depend on this distinction.
         await admin.from("credit_transactions").insert({
             donor_id: donorId,
             amount_inr: -body.amount_inr,
-            type: "donation",
+            type: "token_conversion",
             description: `Minted a ${body.token_type} token (₹${body.amount_inr})`,
         });
 

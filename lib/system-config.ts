@@ -22,6 +22,7 @@ export type SystemConfigKey =
     | "max_meals_per_day"
     | "redemption_radius_km"
     | "city_lock_enabled"
+    | "operating_city"
     | "co_contribution_max"
     | "courier_batch_min_value"
     | "vendor_min_rating"

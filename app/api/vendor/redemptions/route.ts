@@ -105,37 +105,13 @@ export const POST = defineRoute(
         }
         const redemption = redemptionRow as { id: string; payment_status: string };
 
-        // 2. Burn the token — guarded on the still-redeemable status (double-scan safe).
-        const { data: burned, error: burnError } = await admin
-            .from("tokens")
-            .update({ status: "redeemed", redeemed_at: nowIso })
-            .eq("id", token.id)
-            .in("status", ["live", "distributed"])
-            .select("id");
-        if (burnError) throw new Error(burnError.message);
-        if (!burned || burned.length === 0) {
-            // Duplicate-redemption attempt: another scan redeemed it first. Flag + roll back.
-            await flagFraud(admin, {
-                flag_type: "duplicate_token",
-                severity: "high",
-                detection_method: "token_duplication",
-                entity: { kind: "token", id: token.id },
-                blocked: true,
-            });
-            await admin.from("token_redemptions").delete().eq("id", redemption.id);
-            throw new BadRequestError("token was already redeemed");
-        }
-
-        // Steps 3-4 are secondary tracking writes that run AFTER the token is
-        // already burned (step 2). We do NOT throw on their failure — the meal
-        // happened and the token is spent, so failing the request here would
-        // leave an inconsistent state and confuse the vendor. Instead we capture
-        // any error, log it, and surface it in the audit metadata so a silent
-        // failure can't quietly weaken fair-usage / forfeiture tracking.
-        const secondaryWriteWarnings: { step: string; error: string }[] = [];
-
-        // 3. Fair-usage cooldown log — stores the face EMBEDDING so future redemptions
-        //    can match this person by vector distance (cross-vendor repeat-detection).
+        // 2. Fair-usage cooldown log — written BEFORE the burn so a failure ABORTS the
+        //    redemption rather than silently leaving fair-usage un-seeded (which would
+        //    let this person redeem again with no cooldown/meal-limit trip — the gap
+        //    this fix closes). Stores the face EMBEDDING for cross-vendor vector
+        //    repeat-detection AND beneficiary_id for the beneficiary-keyed signal. On
+        //    failure we roll back the redemption row and 500 — the token is NOT yet
+        //    burned, so the vendor can safely retry.
         const { error: cooldownError } = await admin.from("redemption_cooldown_log").insert({
             beneficiary_id: beneficiaryId,
             face_hash: faceFingerprint,
@@ -144,9 +120,44 @@ export const POST = defineRoute(
             vendor_id: vendorId,
         });
         if (cooldownError) {
-            console.error("redemption.create: cooldown-log insert failed", cooldownError);
-            secondaryWriteWarnings.push({ step: "redemption_cooldown_log", error: cooldownError.message });
+            await admin.from("token_redemptions").delete().eq("id", redemption.id);
+            throw new Error(`failed to record fair-usage log: ${cooldownError.message}`);
         }
+
+        // 3. Burn the token — guarded on the still-redeemable status (double-scan safe).
+        const { data: burned, error: burnError } = await admin
+            .from("tokens")
+            .update({ status: "redeemed", redeemed_at: nowIso })
+            .eq("id", token.id)
+            .in("status", ["live", "distributed"])
+            .select("id");
+        if (burnError) throw new Error(burnError.message);
+        if (!burned || burned.length === 0) {
+            // Duplicate-redemption attempt: another scan redeemed it first. Flag + roll back
+            // BOTH the redemption row and the fair-usage log row we just wrote (so a losing
+            // double-scan can't leave a phantom cooldown entry for this token).
+            await flagFraud(admin, {
+                flag_type: "duplicate_token",
+                severity: "high",
+                detection_method: "token_duplication",
+                entity: { kind: "token", id: token.id },
+                blocked: true,
+            });
+            await admin.from("token_redemptions").delete().eq("id", redemption.id);
+            await admin
+                .from("redemption_cooldown_log")
+                .delete()
+                .eq("token_id", token.id)
+                .eq("vendor_id", vendorId);
+            throw new BadRequestError("token was already redeemed");
+        }
+
+        // Step 4 is a secondary tracking write that runs AFTER the token is already
+        // burned. We do NOT throw on its failure — the meal happened and the token is
+        // spent, so failing here would leave an inconsistent state and confuse the
+        // vendor. Instead we capture the error and surface it in the audit metadata so
+        // a silent failure can't quietly weaken forfeiture tracking.
+        const secondaryWriteWarnings: { step: string; error: string }[] = [];
 
         // 4. Forfeited remainder when token value > menu value (owner §4.4).
         if (value.forfeited > 0) {
@@ -185,25 +196,45 @@ export const POST = defineRoute(
                 .select("name, city")
                 .eq("id", vendorId)
                 .maybeSingle();
+            const meta = {
+                // Keys MUST match the donor notifications UI reader
+                // (app/donor/notifications/page.tsx) and NotificationMeta:
+                // it reads `vendor_name` + `meal_info` — the old `vendor` key
+                // and the missing `meal_info` rendered as `undefined`.
+                vendor_name: v?.name ?? null,
+                meal_info: result.menuItem?.item_name ?? null,
+                location: v?.city ?? null,
+                // `time` is the canonical scan timestamp the UI reads; `redeemed_at`
+                // is kept as an alias so neither reader falls back to created_at.
+                time: nowIso,
+                redeemed_at: nowIso,
+                value_inr: value.menu_value,
+                beneficiary_category: result.beneficiary?.category ?? null,
+            };
+
             await dispatchNotification(admin, {
                 donorId: token.donor_id,
                 kind: "redemption",
                 title: "Your token was redeemed",
-                message: `A token you funded was redeemed at ${v?.name ?? "a partner vendor"} for a ₹${value.menu_value} meal.`,
-                metadata: {
-                    // Keys MUST match the donor notifications UI reader
-                    // (app/donor/notifications/page.tsx) and NotificationMeta:
-                    // it reads `vendor_name` + `meal_info` — the old `vendor` key
-                    // and the missing `meal_info` rendered as `undefined`.
-                    vendor_name: v?.name ?? null,
-                    meal_info: result.menuItem?.item_name ?? null,
-                    location: v?.city ?? null,
-                    redeemed_at: nowIso,
-                    value_inr: value.menu_value,
-                    beneficiary_category: result.beneficiary?.category ?? null,
-                },
+                // Folds a thank-you line into the redemption alert — this is the
+                // notification that renders the re-donate ("Donate again") CTA in the
+                // donor UI, so the gratitude + ask land together (TRANS-2).
+                message: `A token you funded was redeemed at ${v?.name ?? "a partner vendor"} for a ₹${value.menu_value} meal. Thank you for making it possible.`,
+                metadata: meta,
                 // Default channels = ['in_app']. Pass ['in_app','email','sms'] here once
                 // the email/SMS provider is configured (ASSUMPTIONS.md open item Q4).
+            });
+
+            // Thank-you (TRANS-2): a warm follow-up with the re-donate link (the donor
+            // UI renders a re-donate CTA for kind:'thank_you'). Separate from the
+            // factual redemption alert above so the donor sees both the impact event
+            // and the gratitude/ask. Same metadata so the UI can show context.
+            await dispatchNotification(admin, {
+                donorId: token.donor_id,
+                kind: "thank_you",
+                title: "Thank you — your gift became a meal",
+                message: `Thanks to you, someone was served a meal at ${v?.name ?? "a partner vendor"}. Tap to donate again and fund the next one.`,
+                metadata: meta,
             });
         }
 

@@ -2,7 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { getNumber } from "@/lib/system-config";
+import { getNumber, getBoolean, getString } from "@/lib/system-config";
 import { qrHashOf } from "@/app/api/_lib/tokenQr";
 import { toVectorLiteral } from "@/lib/face/embedding";
 
@@ -319,6 +319,77 @@ export async function validateRedemption(
         }
     }
 
+    // --- city lock (owner §6 admin protection rule, PRD §7 city_lock_enabled) -
+    // Independent of the radius geofence. There is NO per-beneficiary or per-token
+    // city in the schema, so the authoritative "bound city" is the admin-configured
+    // OPERATING CITY (`system_config.operating_city`) — the single city pApAmA is
+    // operating in for Phase 1. When city_lock_enabled is true and an operating
+    // city is configured and the vendor has a city on file, the vendor's city MUST
+    // match the operating city (case-insensitive, trimmed). This is FAIL-CLOSED for
+    // the radius bypass reason: the only soft-skips are when the rule genuinely
+    // cannot be evaluated — city_lock disabled, operating_city unset, or the vendor
+    // has no city recorded. (If a future migration adds a per-token/beneficiary
+    // city, swap `operating_city` for that bound value here.)
+    {
+        let cityLockOn = false;
+        try {
+            cityLockOn = await getBoolean("city_lock_enabled", admin as never);
+        } catch {
+            cityLockOn = false; // unset → treat as disabled (no guessed default)
+        }
+
+        if (!cityLockOn) {
+            checks.push({
+                name: "city_lock",
+                pass: true,
+                hard: false,
+                detail: "city lock disabled — skipped",
+            });
+        } else {
+            let operatingCity: string | null = null;
+            try {
+                operatingCity = (await getString("operating_city", admin as never)).trim();
+                if (operatingCity.length === 0) operatingCity = null;
+            } catch {
+                operatingCity = null; // operating_city unset — cannot evaluate
+            }
+
+            const { data: vendorCityRow } = await admin
+                .from("vendors")
+                .select("city")
+                .eq("id", input.vendor_id)
+                .maybeSingle();
+            const vendorCity =
+                (vendorCityRow as { city: string | null } | null)?.city?.trim() || null;
+
+            if (operatingCity == null) {
+                checks.push({
+                    name: "city_lock",
+                    pass: true,
+                    hard: false,
+                    detail: "operating_city unset — city lock skipped",
+                });
+            } else if (vendorCity == null) {
+                checks.push({
+                    name: "city_lock",
+                    pass: true,
+                    hard: false,
+                    detail: "vendor has no city on file — city lock skipped",
+                });
+            } else {
+                const match = vendorCity.toLowerCase() === operatingCity.toLowerCase();
+                checks.push({
+                    name: "city_lock",
+                    pass: match,
+                    hard: true,
+                    detail: match
+                        ? `vendor city '${vendorCity}' is within the operating city`
+                        : `vendor city '${vendorCity}' is outside the operating city '${operatingCity}'`,
+                });
+            }
+        }
+    }
+
     // --- face capture: liveness + identity (owner §4.5/§4.6/§5.2, SEC-1..4) ---
     // Identity is resolved by VECTOR DISTANCE, not text equality. A registered
     // beneficiary is identified 1:1 via match_beneficiary_face; fair-usage
@@ -384,8 +455,17 @@ export async function validateRedemption(
             }
         }
 
-        // cooldown + meal-limit, keyed on the face across all vendors (RED-3).
-        if (threshold != null) {
+        // cooldown + meal-limit (RED-3). Fair-usage is evaluated over the UNION of
+        // two independent signals so it cannot be bypassed by a face that fails to
+        // re-match a prior capture:
+        //   (a) FACE signal — prior captures matching this face by vector distance
+        //       (cross-vendor, catches anonymous repeat-redeemers); needs threshold.
+        //   (b) BENEFICIARY signal — when a registered beneficiary is identified,
+        //       that beneficiary's OWN redemption history keyed on beneficiary_id
+        //       (independent of whether the historical face embeddings re-match).
+        // Either signal tripping blocks. The previous version ran ONLY (a) inside
+        // `if (threshold != null)`, so a non-matching face escaped both checks.
+        {
             let cooldownHours = 0;
             let maxPerDay = 0;
             let dedupHours = 0;
@@ -412,16 +492,53 @@ export async function validateRedemption(
                 Math.min(startOfDay.getTime(), nowMs - lookbackMs)
             ).toISOString();
 
-            const { data: recentRows } = await admin.rpc("recent_face_matches", {
-                query: faceVector,
-                max_distance: threshold,
-                since,
-            });
-            const recent = (recentRows as { redeemed_at: string }[] | null) ?? [];
+            // collect prior redemption timestamps (ms) from both signals.
+            const priorMs: number[] = [];
+
+            // (a) face signal — only when a match threshold is configured.
+            if (threshold != null) {
+                const { data: recentRows } = await admin.rpc("recent_face_matches", {
+                    query: faceVector,
+                    max_distance: threshold,
+                    since,
+                });
+                for (const r of (recentRows as { redeemed_at: string }[] | null) ?? []) {
+                    priorMs.push(Date.parse(r.redeemed_at));
+                }
+            }
+
+            // (b) beneficiary signal — independent of face re-match.
+            if (beneficiary) {
+                const { data: benefRows } = await admin
+                    .from("redemption_cooldown_log")
+                    .select("redeemed_at")
+                    .eq("beneficiary_id", beneficiary.id)
+                    .gte("redeemed_at", since)
+                    .order("redeemed_at", { ascending: false });
+                for (const r of (benefRows as { redeemed_at: string }[] | null) ?? []) {
+                    priorMs.push(Date.parse(r.redeemed_at));
+                }
+            }
+
+            // de-dupe (the same redemption seeds both face + beneficiary rows) and
+            // sort newest-first.
+            const recentMs = Array.from(new Set(priorMs)).sort((a, b) => b - a);
+
+            // A fair-usage rule is only enforceable if at least one signal could be
+            // gathered (threshold set, or a registered beneficiary matched). With
+            // neither, the checks degrade to a SOFT skip rather than a false pass.
+            const signalAvailable = threshold != null || beneficiary != null;
 
             if (cooldownHours > 0) {
-                const lastMs = recent.length ? Date.parse(recent[0].redeemed_at) : null; // newest-first
-                if (lastMs != null) {
+                if (!signalAvailable) {
+                    checks.push({
+                        name: "cooldown",
+                        pass: true,
+                        hard: false,
+                        detail: "face_match_threshold unset and no registered beneficiary — cooldown skipped",
+                    });
+                } else if (recentMs.length > 0) {
+                    const lastMs = recentMs[0]; // newest-first
                     const sinceMs = nowMs - lastMs;
                     const within = sinceMs < cooldownHours * 3_600_000;
                     checks.push({
@@ -437,7 +554,7 @@ export async function validateRedemption(
                         name: "cooldown",
                         pass: true,
                         hard: false,
-                        detail: "no prior meals for this face",
+                        detail: "no prior meals for this beneficiary/face",
                     });
                 }
             } else {
@@ -450,18 +567,27 @@ export async function validateRedemption(
             }
 
             if (maxPerDay > 0) {
-                const todayCount = recent.filter(
-                    (r) => Date.parse(r.redeemed_at) >= startOfDay.getTime()
-                ).length;
-                const underLimit = todayCount < maxPerDay;
-                checks.push({
-                    name: "meal_limit",
-                    pass: underLimit,
-                    hard: true,
-                    detail: underLimit
-                        ? `${todayCount}/${maxPerDay} meals today`
-                        : `daily meal limit reached (${todayCount}/${maxPerDay})`,
-                });
+                if (!signalAvailable) {
+                    checks.push({
+                        name: "meal_limit",
+                        pass: true,
+                        hard: false,
+                        detail: "face_match_threshold unset and no registered beneficiary — meal limit skipped",
+                    });
+                } else {
+                    const todayCount = recentMs.filter(
+                        (ms) => ms >= startOfDay.getTime()
+                    ).length;
+                    const underLimit = todayCount < maxPerDay;
+                    checks.push({
+                        name: "meal_limit",
+                        pass: underLimit,
+                        hard: true,
+                        detail: underLimit
+                            ? `${todayCount}/${maxPerDay} meals today`
+                            : `daily meal limit reached (${todayCount}/${maxPerDay})`,
+                    });
+                }
             } else {
                 checks.push({
                     name: "meal_limit",
@@ -470,13 +596,6 @@ export async function validateRedemption(
                     detail: "max_meals_per_day unset — meal limit skipped",
                 });
             }
-        } else {
-            checks.push({
-                name: "cooldown",
-                pass: true,
-                hard: false,
-                detail: "face_match_threshold unset — fair-usage checks skipped",
-            });
         }
 
         // eligibility of the matched registered beneficiary, incl. expiry (owner §2.2.1).
