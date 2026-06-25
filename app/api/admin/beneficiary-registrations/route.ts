@@ -51,6 +51,7 @@ export const GET = defineRoute(
             face_hash_present: r.face_hash != null,
             aadhaar_present: r.aadhaar_hash != null,
             document_count: Array.isArray(r.document_refs) ? r.document_refs.length : 0,
+            document_refs: Array.isArray(r.document_refs) ? r.document_refs : [],
             beneficiary_id: r.beneficiary_id,
             review_notes: r.review_notes,
             created_at: r.created_at,
