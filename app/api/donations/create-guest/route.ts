@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 
 import { recordDonation } from "@/app/api/_lib/recordDonation";
+import { ensureGuestPoolDonor } from "@/lib/donations/guest-pool";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -73,12 +74,18 @@ export async function POST(req: NextRequest) {
         const paymentRef = `mock:guest:${method}:${new Date().toISOString()}`;
 
         const admin = createAdminClient();
+        // Anonymous gifts accumulate on the system Guest Pool donor so the money is
+        // usable (an admin mints its credit into in_admin_pool tokens — Path B),
+        // instead of orphaning as a donor-less donation row. Notifications are
+        // skipped (the pool donor has no user).
+        const poolDonorId = await ensureGuestPoolDonor(admin);
         const result = await recordDonation({
             admin,
             amountInr: parsed.data.amount_inr,
-            donorId: null, // guest: donation row only, no account credit
+            donorId: poolDonorId,
             method,
             paymentRef,
+            notify: false,
         });
 
         return NextResponse.json({

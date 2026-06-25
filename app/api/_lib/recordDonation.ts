@@ -36,6 +36,8 @@ export interface RecordDonationArgs {
     method: string;
     /** Real payment reference (e.g. a confirmed UPI UTR) or a mock placeholder. */
     paymentRef: string;
+    /** Skip donor notifications (e.g. crediting the userless Guest Pool donor). */
+    notify?: boolean;
 }
 
 export interface RecordDonationResult {
@@ -51,6 +53,7 @@ export async function recordDonation({
     donorId,
     method,
     paymentRef,
+    notify = true,
 }: RecordDonationArgs): Promise<RecordDonationResult> {
     const nowIso = new Date().toISOString();
 
@@ -144,7 +147,11 @@ export async function recordDonation({
 
     const thresholdReached = threshold != null && newBalance >= threshold;
 
-    // 4. Notifications: receipt + one-time threshold alert.
+    // 4. Notifications: receipt + one-time threshold alert. Skipped for userless
+    //    system donors (e.g. the Guest Pool) which have no one to notify.
+    if (!notify) {
+        return { donationId, creditAdded: amountInr, creditBalance: newBalance, thresholdReached };
+    }
     await dispatchNotification(admin, {
         donorId,
         kind: "donation_success",

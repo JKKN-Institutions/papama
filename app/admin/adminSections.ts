@@ -27,6 +27,13 @@ export const ADMIN_SECTIONS: AdminSection[] = [
         action: "read",
     },
     {
+        href: "/admin/donations",
+        title: "Donations",
+        description: "All gifts (attributed + anonymous); convert the guest pool into distributable tokens.",
+        feature: "donor_donation_credit",
+        action: "read",
+    },
+    {
         href: "/admin/beneficiaries",
         title: "Beneficiaries",
         description: "Approved beneficiary registry — category, status, eligibility.",
