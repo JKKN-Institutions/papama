@@ -21,6 +21,7 @@ import {
 /** Admin volunteers page — registry of volunteers who hold/distribute tokens (Path B). */
 export default function AdminVolunteersPage() {
     const canManage = useCan("token_distribution", "update");
+    const canCreate = useCan("token_distribution", "create");
     const { items, state, errorMsg, reload } = useAdminList<VolunteerResponse>(
         "/api/admin/volunteers",
         "volunteers",
@@ -39,6 +40,12 @@ export default function AdminVolunteersPage() {
                 subtitle="Volunteers who receive, hold and distribute tokens to beneficiaries."
                 count={state === "ready" ? items.length : undefined}
             />
+
+            {canCreate && (
+                <div className="mb-6">
+                    <AddVolunteerForm onCreated={reload} />
+                </div>
+            )}
 
             {actionError && (
                 <div className="mb-4">
@@ -106,6 +113,158 @@ export default function AdminVolunteersPage() {
                 <VolunteerRequestsSection canManage={canManage} />
             </div>
         </div>
+    );
+}
+
+/**
+ * Admin "Add volunteer" form — collapsible. POSTs to /api/admin/volunteers, which
+ * creates the auth user, flips the role to 'volunteer', and inserts the linked
+ * profile (active). On success the registry reloads and the form resets. This is
+ * the onboarding seam that makes a working volunteer account exist end-to-end.
+ */
+function AddVolunteerForm({ onCreated }: { onCreated: () => Promise<void> }) {
+    const [open, setOpen] = useState(false);
+    const [fullName, setFullName] = useState("");
+    const [email, setEmail] = useState("");
+    const [phone, setPhone] = useState("");
+    const [password, setPassword] = useState("");
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [msg, setMsg] = useState<string | null>(null);
+
+    function reset() {
+        setFullName("");
+        setEmail("");
+        setPhone("");
+        setPassword("");
+    }
+
+    async function submit(e: React.FormEvent) {
+        e.preventDefault();
+        if (!fullName.trim() || !email.trim() || password.length < 6) {
+            setError("Name, email, and a password of at least 6 characters are required.");
+            return;
+        }
+        setBusy(true);
+        setError(null);
+        setMsg(null);
+        try {
+            const res = await fetch("/api/admin/volunteers", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "same-origin",
+                body: JSON.stringify({
+                    full_name: fullName.trim(),
+                    email: email.trim(),
+                    password,
+                    phone: phone.trim() || undefined,
+                }),
+            });
+            if (res.status === 401) {
+                window.location.href = "/login?redirect=/admin/volunteers";
+                return;
+            }
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                setError(data.error ?? `Could not create volunteer (${res.status}).`);
+                return;
+            }
+            setMsg(`Volunteer '${fullName.trim()}' created. They can sign in at /volunteer/login.`);
+            reset();
+            await onCreated();
+        } catch {
+            setError("Network error — please try again.");
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    if (!open) {
+        return (
+            <ActionButton tone="primary" disabled={false} onClick={() => setOpen(true)}>
+                Add volunteer
+            </ActionButton>
+        );
+    }
+
+    return (
+        <form
+            onSubmit={submit}
+            className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+        >
+            <div className="mb-3 flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-slate-900">Add a volunteer</h2>
+                <ActionButton
+                    tone="neutral"
+                    disabled={busy}
+                    onClick={() => {
+                        setOpen(false);
+                        setError(null);
+                        setMsg(null);
+                    }}
+                >
+                    Cancel
+                </ActionButton>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+                <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
+                    Full name
+                    <input
+                        value={fullName}
+                        onChange={(e) => setFullName(e.target.value)}
+                        required
+                        className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-600 focus:ring-1 focus:ring-slate-600"
+                    />
+                </label>
+                <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
+                    Email
+                    <input
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                        autoComplete="off"
+                        className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-600 focus:ring-1 focus:ring-slate-600"
+                    />
+                </label>
+                <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
+                    Phone (optional)
+                    <input
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-600 focus:ring-1 focus:ring-slate-600"
+                    />
+                </label>
+                <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
+                    Temporary password
+                    <input
+                        type="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                        minLength={6}
+                        autoComplete="new-password"
+                        placeholder="at least 6 characters"
+                        className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-600 focus:ring-1 focus:ring-slate-600"
+                    />
+                </label>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+                <button
+                    type="submit"
+                    disabled={busy}
+                    className="rounded-lg bg-slate-900 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:opacity-60"
+                >
+                    {busy ? "Creating…" : "Create volunteer"}
+                </button>
+                {msg && <span className="text-xs font-medium text-green-700">{msg}</span>}
+                {error && <span className="text-xs font-medium text-red-700">{error}</span>}
+            </div>
+            <p className="mt-2 text-xs text-slate-400">
+                Share the email and temporary password with the volunteer — they sign in at
+                /volunteer/login and can hold, distribute, and request tokens.
+            </p>
+        </form>
     );
 }
 

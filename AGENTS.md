@@ -1,4 +1,4 @@
-# AGENTS.md — pApAmA (Developer 2: Admin & Backend Module)
+# AGENTS.md — pApAmA
 
 This file tells AI coding agents how to work in this repository. Read it before generating any code. Follow it strictly. When in doubt, ask the developer rather than guessing.
 
@@ -8,17 +8,15 @@ pApAmA is a token-based meal-donation platform. Donors give money → it becomes
 
 It is **not** a wallet, payment, or discount app. Tokens represent food value only; they can never be withdrawn, exchanged for cash, or used as discounts. Use the word **"credit"**, never **"wallet"**.
 
-## My role and ownership boundary
+## Ownership — the whole app
 
-This developer (Developer 2) owns the **backend and admin**:
+I own the entire codebase end-to-end (there is no Developer 1 / Developer 2 split):
 - The database: all migrations, RLS policies, indexes, seed data, enums, Zod schemas
 - All API route handlers under `app/api/**`
 - Authentication (`lib/auth/**`) and authorization (`lib/permissions/**`)
-- System configuration (`lib/system-config.ts`)
-- Supabase clients (`lib/supabase/**`)
-- All admin console pages under `app/admin/**`
-
-**Do NOT generate or modify** donor-facing pages under `app/donor/**` or the public donate flow — those belong to Developer 1. This developer only *provides the APIs* Developer 1 consumes.
+- System configuration (`lib/system-config.ts`) and Supabase clients (`lib/supabase/**`)
+- All pages — admin console (`app/admin/**`), donor flow (`app/donor/**`), the public
+  donate flow, and shared UI. Bridging frontend gaps and delivering seamless UX is in scope.
 
 ## Source-of-truth documents (read these before building a feature)
 
@@ -26,7 +24,7 @@ Reference docs live in `/docs`:
 - `docs/papama-phase1-spec.md` — **what to build in Phase 1.** The authoritative scope and the 5-layer build checklist. If something is deferred here, do not build it.
 - `docs/papama-owner-scope.md` — **how the logic must behave.** The owner's full requirements. When building redemption, proof, settlement, or fraud logic, follow the rules in this document's §4.4–4.8 and §5 — they are richer than the spec summary.
 - `docs/papama-client-decisions.md` — confirmed values and open items. Honor confirmed decisions; do NOT invent answers for open items (disaster-affected proof, email provider, payment provider).
-- `docs/CONTRACT_Developer_2_Admin_Backend_Module.md` — the API seam with Developer 1. Route response shapes must match this contract.
+- `docs/CONTRACT_Developer_2_Admin_Backend_Module.md` — internal API contract (originally a two-developer seam). Route response shapes must match this contract so the frontend and backend stay in sync.
 
 If a request conflicts with these documents, stop and flag the conflict instead of generating code.
 
@@ -37,8 +35,8 @@ Build every feature in this order, one layer at a time. Do not skip layers or me
 1. **Types** — TypeScript enums and Zod schemas. Enums must mirror the values in the spec (`token_type`, `beneficiary_category`, `eligibility_status`, `settlement_cycle`, `payment_status`, `user_role`, fraud `detection_method`).
 2. **Database** — migrations for tables; RLS policies per the role matrix; indexes; **reversible DOWN migrations**; seed data.
 3. **Services** — plain functions holding business logic (Credit, Token, Distribution, BeneficiaryRegistration, Redemption, ProofOfService, VendorOnboarding, Settlement, Notification, Audit, Fraud). No HTTP or UI concerns inside services.
-4. **Hooks** — data-fetching/state for the admin UI only.
-5. **Pages** — admin console screens only.
+4. **Hooks** — data-fetching/state for the UI.
+5. **Pages** — admin console, donor flow, and public donate screens.
 
 Route handlers (`app/api/**`) are thin: validate input with Zod, check permissions, call a service, return JSON. Business logic lives in services, not in route handlers.
 
@@ -79,7 +77,7 @@ Working toward a deadline; prioritise speed. Do not explain every line. Build in
 
 - **Plan first, once, and get approval.** Then execute in dependency order without per-line approval; pause only to flag a genuine conflict.
 - **Propose migrations as SQL; never apply.** The Supabase MCP is read-only. I apply migrations myself.
-- **Reconcile with the existing 12 tables.** Inspect before building; build on them where they fit; flag conflicts and propose resolutions; never drop/overwrite data without flagging.
+- **Reconcile with the existing 33 tables** (all RLS-enabled; see `docs/db-schema-snapshot.md`). Inspect before building; build on them where they fit; flag conflicts and propose resolutions; never drop/overwrite data without flagging.
 - **Never invent open-item values** (ASSUMPTIONS.md). Use marked placeholders.
 - Auth foundation (users + user_role enum) comes first, because existing RLS needs it.
 

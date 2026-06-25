@@ -3,8 +3,6 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { BadRequestError } from "@/lib/api/handler";
-import { countHeldTokens } from "@/lib/volunteer/holdings";
-import { getNumber } from "@/lib/system-config";
 
 /**
  * The two grant channels that put a pooled token into a volunteer's hands
@@ -26,18 +24,23 @@ export interface AllocationResult {
  * admin-initiated assignment route (§3a, `admin_to_volunteer`) and the
  * request-grant decide route (§3b, `volunteer_request_grant`).
  *
- * Steps, in order:
- *   1. resolve the volunteer's linked user_id (records attribute to it),
- *   2. enforce the concurrent `max_tokens_per_volunteer` limit — ONLY when the
- *      key is set; unset/missing does NOT block and never invents a default,
- *   3. pull `count` tokens from `in_admin_pool`, oldest-minted first (400 if the
- *      pool has fewer),
- *   4. move each to `assigned_to_volunteer` guarding on the still-pooled status
- *      so a concurrent allocation loses the race cleanly, and
- *   5. write one grant distribution record per moved token.
+ * The actual work runs inside the `allocate_pooled_tokens` Postgres function
+ * (supabase/migrations/20260625000004_allocate_pooled_tokens_rpc.sql) so it is
+ * ATOMIC: in one locked transaction it gates on the volunteer being `active`,
+ * enforces the concurrent `max_tokens_per_volunteer` cap (counting only tokens
+ * currently in `assigned_to_volunteer` whose latest distribution record is a
+ * grant to that volunteer — same semantics as lib/volunteer/holdings.ts), pulls
+ * `count` oldest-minted pool tokens, flips them to `assigned_to_volunteer`, and
+ * writes one grant distribution record each. This removes the read-then-write
+ * race the previous JS implementation had (two allocations could both pass the
+ * limit check and overshoot the cap, with no DB backstop).
+ *
+ * A cheap app-layer status pre-check fails fast before the RPC; the RPC repeats
+ * the check authoritatively under the row lock. The migration MUST be applied
+ * before this works at runtime.
  *
  * The caller is responsible for the audit entry (and, for §3b, finalising the
- * request row). Throws BadRequestError on any limit/pool/race failure.
+ * request row). Throws BadRequestError on any limit/pool/status/race failure.
  */
 export async function allocatePooledTokens(
     admin: SupabaseClient,
@@ -45,103 +48,37 @@ export async function allocatePooledTokens(
     count: number,
     channel: GrantChannel
 ): Promise<AllocationResult> {
-    // 1. Resolve the volunteer's user_id.
+    // Resolve the volunteer's user_id (the result attributes records to it) and
+    // fail fast on a non-active volunteer. The RPC re-checks both under a lock.
     const { data: volunteerRow, error: volunteerError } = await admin
         .from("volunteers")
-        .select("user_id")
+        .select("user_id, status")
         .eq("id", volunteerId)
         .maybeSingle();
     if (volunteerError) throw new Error(volunteerError.message);
-    const volunteerUserId = (volunteerRow as { user_id: string | null } | null)?.user_id ?? null;
-    if (!volunteerUserId) {
+    const volunteer = volunteerRow as { user_id: string | null; status: string } | null;
+    if (!volunteer || !volunteer.user_id) {
         throw new BadRequestError("volunteer has no linked user account");
     }
-
-    // 2. Concurrent-limit check — only when max_tokens_per_volunteer is set.
-    let limit: number | null = null;
-    try {
-        limit = await getNumber("max_tokens_per_volunteer", admin as never);
-    } catch {
-        // unset (NULL) or missing — do not block, do not invent a default.
-        limit = null;
+    if (volunteer.status !== "active") {
+        throw new BadRequestError(`cannot allocate to a ${volunteer.status} volunteer`);
     }
-    if (limit !== null) {
-        const currentlyHeld = await countHeldTokens(admin, volunteerUserId);
-        if (currentlyHeld + count > limit) {
-            throw new BadRequestError(
-                `allocation of ${count} would exceed max_tokens_per_volunteer (${limit}); volunteer already holds ${currentlyHeld}`
-            );
-        }
-    }
+    const volunteerUserId = volunteer.user_id;
 
-    // 3. Pull `count` tokens from the admin pool, oldest minted first.
-    const { data: poolData, error: poolError } = await admin
-        .from("tokens")
-        .select("id")
-        .eq("status", "in_admin_pool")
-        .order("minted_at", { ascending: true })
-        .limit(count);
-    if (poolError) throw new Error(poolError.message);
-    const poolTokens = (poolData ?? []) as { id: string }[];
-    if (poolTokens.length < count) {
-        throw new BadRequestError(
-            `admin pool has only ${poolTokens.length} token(s); ${count} requested`
-        );
+    // Atomic allocation: active-gate + concurrent-limit + pool pull + flip +
+    // grant records, all in one locked transaction inside Postgres.
+    const { data, error } = await admin.rpc("allocate_pooled_tokens", {
+        p_volunteer_id: volunteerId,
+        p_count: count,
+        p_channel: channel,
+    });
+    if (error) {
+        // The function raises plain exceptions for every business-rule failure
+        // (inactive volunteer, over-limit, pool too small); surface them as 400s.
+        throw new BadRequestError(error.message);
     }
 
-    const nowIso = new Date().toISOString();
-    const movedIds: string[] = [];
-
-    // Compensating rollback: supabase-js can't span a transaction across these
-    // statements, so on ANY failure after we start moving tokens we return the
-    // moved ones to the pool. This prevents the orphaned-`assigned_to_volunteer`
-    // (no grant record, no audit, request stuck) state the prior code could leave.
-    const revertMoves = async () => {
-        if (movedIds.length === 0) return;
-        await admin
-            .from("tokens")
-            .update({ status: "in_admin_pool" })
-            .in("id", movedIds)
-            .eq("status", "assigned_to_volunteer");
-    };
-
-    // 4. Move each token, guarding on still-pooled status.
-    for (const t of poolTokens) {
-        const { data: moved, error: moveError } = await admin
-            .from("tokens")
-            .update({ status: "assigned_to_volunteer" })
-            .eq("id", t.id)
-            .eq("status", "in_admin_pool")
-            .select("id");
-        if (moveError) {
-            await revertMoves();
-            throw new Error(moveError.message);
-        }
-        if (moved && moved.length > 0) movedIds.push(t.id);
-    }
-
-    if (movedIds.length < count) {
-        await revertMoves();
-        throw new BadRequestError(
-            "could not reserve enough tokens (a concurrent allocation claimed some)"
-        );
-    }
-
-    // 5. One grant record per moved token, attributed to the volunteer's user.
-    const { error: recordError } = await admin
-        .from("token_distribution_records")
-        .insert(
-            movedIds.map((tokenId) => ({
-                token_id: tokenId,
-                distributed_by: volunteerUserId,
-                channel,
-                distributed_at: nowIso,
-            }))
-        );
-    if (recordError) {
-        await revertMoves();
-        throw new Error(recordError.message);
-    }
+    const movedIds = ((data ?? []) as { token_id: string }[]).map((r) => r.token_id);
 
     return { volunteerUserId, movedIds };
 }
