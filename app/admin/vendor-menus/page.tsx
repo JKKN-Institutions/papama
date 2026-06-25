@@ -1,26 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { useCan } from "@/components/auth/AppUserProvider";
 
 import {
     AdminPageHeader,
     Dash,
+    DetailDrawer,
+    FilterBar,
     ListStates,
+    Pagination,
     StatusBadge,
     TableHead,
     TableShell,
     useAdminList,
+    useClientTable,
+    useDetailDrawer,
+    type DetailSection,
 } from "../_ui";
-
-/**
- * Admin vendor-menu approval queue. Vendors propose menu items; staff with
- * vendor_management/update approve or reject each pending row. Approving a
- * special-care-equivalent item carries `special_care_equivalent: true` so the
- * decide route records the equivalence approval. Mirrors the
- * beneficiary-registrations decision-queue style.
- */
 
 type MenuRow = {
     id: string;
@@ -35,6 +33,7 @@ type MenuRow = {
     created_at: string;
 };
 
+/** Admin vendor-menu approval queue — propose → approve/reject (incl. Special-Care equivalents). */
 export default function AdminVendorMenusPage() {
     const canManage = useCan("vendor_management", "update");
     const { items, state, errorMsg, reload } = useAdminList<MenuRow>(
@@ -42,6 +41,51 @@ export default function AdminVendorMenusPage() {
         "menus",
         "/admin/vendor-menus"
     );
+
+    // Special-care-only filter (these substitutions need extra scrutiny) is
+    // orthogonal to the status tabs, so it filters the list up front.
+    const [scOnly, setScOnly] = useState(false);
+    const base = useMemo(
+        () => (scOnly ? items.filter((m) => m.is_special_care_equivalent) : items),
+        [items, scOnly]
+    );
+
+    const table = useClientTable(base, {
+        searchKeys: ["vendor_name", "item_name", "nutrition_category"],
+        tabKey: "approval_status",
+        pageSize: 15,
+    });
+
+    const tabs = useMemo(
+        () => [
+            { label: "Pending", value: "pending", count: table.tabCounts.pending },
+            { label: "All", value: "all", count: table.tabCounts.all },
+            { label: "Approved", value: "approved", count: table.tabCounts.approved },
+            { label: "Rejected", value: "rejected", count: table.tabCounts.rejected },
+        ],
+        [table.tabCounts]
+    );
+
+    const drawer = useDetailDrawer<MenuRow>();
+    const m = drawer.selected;
+    const sections: DetailSection[] = m
+        ? [
+              { label: "Vendor", value: m.vendor_name },
+              { label: "Item", value: m.item_name },
+              { label: "Price", value: m.price != null ? `₹${m.price}` : null },
+              { label: "Category", value: m.nutrition_category?.replace(/_/g, " ") },
+              { label: "Status", value: m.approval_status },
+              {
+                  label: "Special-care equivalent",
+                  value: m.is_special_care_equivalent
+                      ? m.special_care_equivalent_approved
+                          ? "Yes — equivalence approved"
+                          : "Yes — equivalence pending review"
+                      : "No",
+                  full: true,
+              },
+          ]
+        : [];
 
     const columns = ["Vendor", "Item", "Price", "Category", "Special-care", "Status"];
     if (canManage) columns.push("Decision");
@@ -54,6 +98,30 @@ export default function AdminVendorMenusPage() {
                 count={state === "ready" ? items.length : undefined}
             />
 
+            {state === "ready" && items.length > 0 && (
+                <div className="mb-4 flex flex-wrap items-center gap-3">
+                    <div className="flex-1">
+                        <FilterBar
+                            search={table.search}
+                            onSearch={table.setSearch}
+                            searchPlaceholder="Search by vendor, item, category…"
+                            tabs={tabs}
+                            activeTab={table.activeTab}
+                            onTab={table.setActiveTab}
+                        />
+                    </div>
+                    <label className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
+                        <input
+                            type="checkbox"
+                            checked={scOnly}
+                            onChange={(e) => setScOnly(e.target.checked)}
+                            className="rounded border-slate-300"
+                        />
+                        Special-care only
+                    </label>
+                </div>
+            )}
+
             <ListStates
                 state={state}
                 errorMsg={errorMsg}
@@ -61,51 +129,67 @@ export default function AdminVendorMenusPage() {
                 resourceLabel="menu items"
                 emptyHint="Menu items proposed by vendors will appear here for review."
                 table={
-                    <TableShell>
-                        <TableHead columns={columns} />
-                        <tbody className="divide-y divide-slate-100">
-                            {items.map((m) => (
-                                <tr key={m.id} className="hover:bg-slate-50">
-                                    <td className="px-4 py-3 font-medium text-slate-900">
-                                        <Dash>{m.vendor_name}</Dash>
-                                    </td>
-                                    <td className="px-4 py-3 text-slate-800">
-                                        <Dash>{m.item_name}</Dash>
-                                    </td>
-                                    <td className="px-4 py-3 text-slate-600">
-                                        {m.price != null ? `₹${m.price}` : "—"}
-                                    </td>
-                                    <td className="px-4 py-3 capitalize text-slate-700">
-                                        <Dash>{m.nutrition_category?.replace(/_/g, " ")}</Dash>
-                                    </td>
-                                    <td className="px-4 py-3 text-xs text-slate-500">
-                                        {m.is_special_care_equivalent
-                                            ? m.special_care_equivalent_approved
-                                                ? "equiv ✓ approved"
-                                                : "equiv (pending)"
-                                            : "—"}
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        <StatusBadge value={m.approval_status} />
-                                    </td>
-                                    {canManage && (
-                                        <td className="px-4 py-3">
-                                            {m.approval_status === "pending" ? (
-                                                <DecisionButtons
-                                                    id={m.id}
-                                                    isSpecialCareEquivalent={m.is_special_care_equivalent}
-                                                    onDone={reload}
-                                                />
-                                            ) : (
-                                                <span className="text-xs text-slate-400">—</span>
-                                            )}
+                    <>
+                        <TableShell>
+                            <TableHead columns={columns} />
+                            <tbody className="divide-y divide-slate-100">
+                                {table.rows.map((m) => (
+                                    <tr
+                                        key={m.id}
+                                        onClick={() => drawer.openRow(m)}
+                                        className="cursor-pointer hover:bg-slate-50"
+                                    >
+                                        <td className="px-4 py-3 font-medium text-slate-900">
+                                            <Dash>{m.vendor_name}</Dash>
                                         </td>
-                                    )}
-                                </tr>
-                            ))}
-                        </tbody>
-                    </TableShell>
+                                        <td className="px-4 py-3 text-slate-800">
+                                            <Dash>{m.item_name}</Dash>
+                                        </td>
+                                        <td className="px-4 py-3 text-slate-600">
+                                            {m.price != null ? `₹${m.price}` : "—"}
+                                        </td>
+                                        <td className="px-4 py-3 capitalize text-slate-700">
+                                            <Dash>{m.nutrition_category?.replace(/_/g, " ")}</Dash>
+                                        </td>
+                                        <td className="px-4 py-3 text-xs text-slate-500">
+                                            {m.is_special_care_equivalent
+                                                ? m.special_care_equivalent_approved
+                                                    ? "equiv ✓ approved"
+                                                    : "equiv (pending)"
+                                                : "—"}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <StatusBadge value={m.approval_status} />
+                                        </td>
+                                        {canManage && (
+                                            <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                                                {m.approval_status === "pending" ? (
+                                                    <DecisionButtons
+                                                        id={m.id}
+                                                        isSpecialCareEquivalent={m.is_special_care_equivalent}
+                                                        onDone={reload}
+                                                    />
+                                                ) : (
+                                                    <span className="text-xs text-slate-400">—</span>
+                                                )}
+                                            </td>
+                                        )}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </TableShell>
+                        <Pagination page={table.page} pageCount={table.pageCount} onPage={table.setPage} />
+                    </>
                 }
+            />
+
+            <DetailDrawer
+                open={drawer.open}
+                onClose={drawer.close}
+                title={m?.item_name ?? "Menu item"}
+                subtitle={m?.vendor_name}
+                status={m?.approval_status}
+                sections={sections}
             />
         </div>
     );
@@ -127,10 +211,7 @@ function DecisionButtons({
         setBusy(true);
         setErr(null);
         try {
-            const body: { decision: "approve" | "reject"; special_care_equivalent?: boolean } = {
-                decision,
-            };
-            // Only carry the equivalence flag when approving an equivalent item.
+            const body: { decision: "approve" | "reject"; special_care_equivalent?: boolean } = { decision };
             if (decision === "approve" && isSpecialCareEquivalent) {
                 body.special_care_equivalent = true;
             }
