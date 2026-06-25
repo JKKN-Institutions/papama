@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import {
     volunteerActionRequestSchema,
+    volunteerCreateRequestSchema,
     type VolunteerResponse,
 } from "@/lib/validation/schemas";
 
@@ -38,6 +39,111 @@ export const GET = defineRoute({ feature: "token_distribution", action: "read" }
 
     return { volunteers, total: volunteers.length };
 });
+
+/**
+ * POST /api/admin/volunteers — admin-initiated volunteer onboarding (token-flow §3).
+ *
+ * Closes the onboarding gap: previously a `volunteers` row + a way to log in could
+ * not both come to exist, so the volunteer portal was unreachable. This mirrors the
+ * vendor self-register flow (app/api/vendor/register/route.ts) but is ADMIN-gated
+ * (token_distribution/create — admin, scope all) and produces an immediately-usable
+ * account, in one atomic shot on the service-role client with rollback:
+ *   1. admin.auth.admin.createUser({ email, password, email_confirm: true }) — the
+ *      handle_new_user trigger provisions users(role 'donor') + donors + donor_credits.
+ *   2. flip users.role → 'volunteer', clear donor_id, and tear down the unused donor
+ *      rows the trigger created (credits first: FK order).
+ *   3. insert the linked volunteers row (status 'active').
+ *   4. audit volunteer.create (actor = the admin).
+ * On any failure after the auth user is made, the auth user is deleted so the email
+ * can be retried cleanly. NO migration needed — volunteers table + user_role enum
+ * already exist, so this works immediately.
+ */
+export const POST = defineRoute(
+    { feature: "token_distribution", action: "create" },
+    async ({ req, audit }) => {
+        const body = await parseBody(req, volunteerCreateRequestSchema);
+        const admin = createAdminClient();
+
+        // 1. Create the auth user (email pre-confirmed; volunteers are admin-managed,
+        //    not gated by email confirmation).
+        const { data: created, error: createError } = await admin.auth.admin.createUser({
+            email: body.email,
+            password: body.password,
+            email_confirm: true,
+            user_metadata: { full_name: body.full_name, account_type: "volunteer" },
+        });
+
+        if (createError || !created?.user) {
+            const msg = createError?.message ?? "could not create the account";
+            const exists = /already|registered|exists/i.test(msg);
+            throw new BadRequestError(
+                exists
+                    ? "an account with this email already exists — choose another email"
+                    : msg
+            );
+        }
+
+        const userId = created.user.id;
+
+        try {
+            // 2. Promote donor → volunteer and unlink the donor profile the trigger made.
+            const { error: roleError } = await admin
+                .from("users")
+                .update({ role: "volunteer", donor_id: null })
+                .eq("id", userId);
+            if (roleError) throw new Error(roleError.message);
+
+            // Tear down the now-unused donor rows (credits first: FK order).
+            const { data: donorRow } = await admin
+                .from("donors")
+                .select("id")
+                .eq("user_id", userId)
+                .maybeSingle();
+            if (donorRow) {
+                const donorId = (donorRow as { id: string }).id;
+                const { error: credErr } = await admin
+                    .from("donor_credits")
+                    .delete()
+                    .eq("donor_id", donorId);
+                if (credErr) throw new Error(credErr.message);
+                const { error: donorErr } = await admin.from("donors").delete().eq("id", donorId);
+                if (donorErr) throw new Error(donorErr.message);
+            }
+
+            // 3. Insert the linked volunteer profile (active immediately).
+            const { data: volunteer, error: volunteerError } = await admin
+                .from("volunteers")
+                .insert({
+                    user_id: userId,
+                    full_name: body.full_name,
+                    phone: body.phone ?? null,
+                    email: body.email,
+                    status: "active",
+                })
+                .select("id, status")
+                .single();
+            if (volunteerError || !volunteer) {
+                throw new Error(volunteerError?.message ?? "failed to create volunteer");
+            }
+            const v = volunteer as { id: string; status: string };
+
+            // 4. Audit the admin-initiated onboarding.
+            await audit({
+                action: "volunteer.create",
+                entity_table: "volunteers",
+                entity_id: v.id,
+                summary: `admin onboarded volunteer '${body.full_name}' (${body.email})`,
+                metadata: { volunteer_id: v.id, user_id: userId, email: body.email },
+            });
+
+            return { id: v.id, user_id: userId, status: v.status };
+        } catch (innerErr) {
+            // Roll back the half-created auth user so the email can be retried cleanly.
+            await admin.auth.admin.deleteUser(userId).catch(() => {});
+            throw innerErr;
+        }
+    }
+);
 
 /**
  * PATCH /api/admin/volunteers — admin registry-status control (M09).

@@ -1,0 +1,33 @@
+-- =============================================================================
+-- Add 'admin_revoke' to the distribution_channel enum (revoke / return-to-pool)
+-- =============================================================================
+-- token-flow §3/§7 log every token hand-off on token_distribution_records.channel.
+-- The lifecycle audit found NO reverse edge: an `assigned_to_volunteer` token
+-- could only leave a volunteer by being distributed or by expiring — there was no
+-- admin lever to reclaim a mis-allocated token or one held by a volunteer who quit.
+--
+-- POST /api/admin/tokens/[id]/revoke flips such a token back to `in_admin_pool`
+-- and appends a distribution record on this NEW channel so the reclaim stays
+-- auditable. It is deliberately NOT one of the GRANT_CHANNELS
+-- (admin_to_volunteer | volunteer_request_grant), so the holdings derivation in
+-- lib/volunteer/holdings.ts never mistakes a revoke record for a holding.
+--
+-- Mirrors the value added to DISTRIBUTION_CHANNELS in lib/types/enums.ts
+-- (single source of truth). Originally defined in M01 (20260620010101).
+--
+-- !!! APPLY THIS BEFORE THE REVOKE ROUTE RUNS !!! Until this value exists in the
+-- Postgres enum, the route's insert of channel='admin_revoke' will fail at runtime.
+--
+-- NOTE: ALTER TYPE ... ADD VALUE cannot run inside a transaction block, so this
+-- file intentionally has NO begin/commit wrapper. `IF NOT EXISTS` makes it
+-- idempotent (re-running is a no-op). Apply AFTER M01.
+-- =============================================================================
+
+alter type public.distribution_channel add value if not exists 'admin_revoke';
+
+-- =============================================================================
+-- DOWN (rollback)
+-- =============================================================================
+-- Postgres has no ALTER TYPE ... DROP VALUE. Removing an enum value requires
+-- recreating the type and rewriting every dependent column (token_distribution_records.channel).
+-- Not provided — adding the value is forward-only and harmless if unused.

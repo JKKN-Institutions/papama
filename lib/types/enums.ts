@@ -69,6 +69,7 @@ export const DISTRIBUTION_CHANNELS = [
     "admin_to_volunteer", // 3a
     "volunteer_request_grant", // 3b
     "volunteer_to_beneficiary", // §4
+    "admin_revoke", // reverse of 3a/3b: admin reclaims a held token back to the pool
 ] as const;
 export type DistributionChannel = ValueOf<typeof DISTRIBUTION_CHANNELS>;
 

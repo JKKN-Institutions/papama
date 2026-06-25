@@ -516,6 +516,22 @@ export const volunteerActionRequestSchema = z.object({
 });
 export type VolunteerActionRequest = z.infer<typeof volunteerActionRequestSchema>;
 
+/**
+ * POST /api/admin/volunteers — admin-initiated volunteer onboarding. Mirrors the
+ * vendor self-register payload shape (email + password) but is admin-only: the
+ * route creates a confirmed auth user, flips users.role → 'volunteer' (the
+ * donor-provisioning trigger defaults new users to 'donor'), and inserts the
+ * linked `volunteers` row with status 'active'. `full_name` is stored on the
+ * profile; `phone` is optional contact metadata.
+ */
+export const volunteerCreateRequestSchema = z.object({
+    email: z.string().trim().email("a valid email is required"),
+    password: z.string().min(6, "password must be at least 6 characters"),
+    full_name: z.string().trim().min(1, "the volunteer's name is required").max(120),
+    phone: z.string().trim().max(40).optional(),
+});
+export type VolunteerCreateRequest = z.infer<typeof volunteerCreateRequestSchema>;
+
 /** GET /api/admin/volunteer-token-requests — allocation request queue row (M09, token-flow §3b). */
 export const volunteerTokenRequestResponseSchema = z.object({
     id: z.string(),
