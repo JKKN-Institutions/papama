@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+
+import { useRouter } from "next/navigation";
 
 import {
   Dash,
@@ -11,6 +13,7 @@ import {
   TableShell,
   useVolunteerFetch,
   useVolunteerPost,
+  type FetchState,
 } from "./_ui";
 import { TokenQrCode } from "@/components/donor/TokenQrCode";
 
@@ -44,14 +47,70 @@ interface Allocation {
 }
 
 /**
+ * Fetch /api/volunteer/tokens ONCE and expose both lists it returns — held
+ * tokens AND tokens already distributed — under one shared fetch state. The
+ * endpoint returns `{ tokens, distributed }` in a single response, so the held
+ * and distributed sections must not each fire their own GET (that doubled the
+ * request and ran the holdings derivation twice). Mirrors useVolunteerFetch's
+ * 401→login / 403→forbidden / error handling.
+ */
+function useVolunteerTokens() {
+  const router = useRouter();
+  const [tokens, setTokens] = useState<HeldToken[]>([]);
+  const [distributed, setDistributed] = useState<HeldToken[]>([]);
+  const [state, setState] = useState<FetchState>("loading");
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const reload = useCallback(async () => {
+    setState("loading");
+    try {
+      const res = await fetch("/api/volunteer/tokens", {
+        cache: "no-store",
+        credentials: "same-origin",
+      });
+      if (res.status === 401) {
+        router.push("/volunteer/login?redirect=/volunteer");
+        return;
+      }
+      if (res.status === 403) {
+        setState("forbidden");
+        return;
+      }
+      const body = (await res.json().catch(() => ({}))) as {
+        tokens?: HeldToken[];
+        distributed?: HeldToken[];
+        error?: string;
+      };
+      if (!res.ok) {
+        setErrorMsg(body.error ?? `Request failed (${res.status})`);
+        setState("error");
+        return;
+      }
+      setTokens(body.tokens ?? []);
+      setDistributed(body.distributed ?? []);
+      setState("ready");
+    } catch {
+      setErrorMsg("Network error — please try again.");
+      setState("error");
+    }
+  }, [router]);
+
+  useEffect(() => {
+    void reload();
+  }, [reload]);
+
+  return { tokens, distributed, state, errorMsg, reload };
+}
+
+/**
  * Volunteer dashboard (Path B). Sections: tokens held & a distribute control,
  * a request-tokens form (with concurrent-limit headroom), and the volunteer's
  * own request history. Each section drives its own fetch state; mutations reload
  * the affected lists on success.
  */
 export default function VolunteerDashboardPage() {
-  // GET /api/volunteer/tokens → { tokens: HeldToken[], total }
-  const tokens = useVolunteerFetch<HeldToken[]>("/api/volunteer/tokens", "tokens", "/volunteer");
+  // GET /api/volunteer/tokens → { tokens, distributed } — one fetch, both lists.
+  const tokensFetch = useVolunteerTokens();
   // GET /api/volunteer/requests → { requests: VolunteerRequest[], total }
   const requests = useVolunteerFetch<VolunteerRequest[]>(
     "/api/volunteer/requests",
@@ -64,22 +123,12 @@ export default function VolunteerDashboardPage() {
     "allocation",
     "/volunteer"
   );
-  // GET /api/volunteer/tokens also returns { distributed } — tokens this
-  // volunteer has handed off, kept viewable so the QR can be re-shown.
-  const distributed = useVolunteerFetch<HeldToken[]>(
-    "/api/volunteer/tokens",
-    "distributed",
-    "/volunteer"
-  );
-
-  const tokenList = tokens.data ?? [];
-  const requestList = requests.data ?? [];
-  const distributedList = distributed.data ?? [];
 
   // Distributing changes the held set, the held-count headroom, AND moves the
-  // token into the distributed list — reload all three.
+  // token into the distributed list. The single tokens fetch refreshes held +
+  // distributed together; allocation reloads the headroom.
   async function reloadAfterDistribute() {
-    await Promise.all([tokens.reload(), allocation.reload(), distributed.reload()]);
+    await Promise.all([tokensFetch.reload(), allocation.reload()]);
   }
 
   return (
@@ -90,9 +139,9 @@ export default function VolunteerDashboardPage() {
       />
 
       <HeldTokensSection
-        state={tokens.state}
-        errorMsg={tokens.errorMsg}
-        tokens={tokenList}
+        state={tokensFetch.state}
+        errorMsg={tokensFetch.errorMsg}
+        tokens={tokensFetch.tokens}
         reload={reloadAfterDistribute}
       />
 
@@ -104,13 +153,13 @@ export default function VolunteerDashboardPage() {
       <MyRequestsSection
         state={requests.state}
         errorMsg={requests.errorMsg}
-        requests={requestList}
+        requests={requests.data ?? []}
       />
 
       <DistributedSection
-        state={distributed.state}
-        errorMsg={distributed.errorMsg}
-        tokens={distributedList}
+        state={tokensFetch.state}
+        errorMsg={tokensFetch.errorMsg}
+        tokens={tokensFetch.distributed}
       />
     </div>
   );

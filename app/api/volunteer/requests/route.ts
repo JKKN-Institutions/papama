@@ -19,7 +19,10 @@ import { createClient } from "@/lib/supabase/server";
  * first, through the session (RLS) client so the volunteer only sees their own.
  */
 const createSchema = z.object({
-    requested_count: z.number().int().positive(),
+    // Bounded: a single request can't ask for an absurd count (which would
+    // pollute the admin queue and skew the partial-grant ceiling math). The
+    // admin still gates the actual grant against max_tokens_per_volunteer.
+    requested_count: z.number().int().positive().max(1000),
 });
 
 export const POST = defineRoute(

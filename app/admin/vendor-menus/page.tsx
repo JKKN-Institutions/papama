@@ -35,7 +35,7 @@ type MenuRow = {
 
 /** Admin vendor-menu approval queue — propose → approve/reject (incl. Special-Care equivalents). */
 export default function AdminVendorMenusPage() {
-    const canManage = useCan("vendor_management", "update");
+    const canManage = useCan("vendor_menu_pricing", "update");
     const { items, state, errorMsg, reload } = useAdminList<MenuRow>(
         "/api/admin/vendor-menus",
         "menus",
@@ -225,6 +225,9 @@ function DecisionButtons({
             onDone();
         } catch (e) {
             setErr(e instanceof Error ? e.message : "Failed.");
+        } finally {
+            // Always clear busy — even on success — so the buttons re-enable if the
+            // row stays mounted (e.g. the "All" tab keeps decided rows visible).
             setBusy(false);
         }
     }

@@ -178,7 +178,14 @@ function CreditContent() {
                         credits.threshold_reached ? "bg-emerald-500" : "bg-blue-500"
                       }`}
                       style={{
-                        width: `${Math.min(100, (credits.credit_balance / threshold) * 100)}%`,
+                        // Guard threshold > 0: when standard_token_value is unset
+                        // the fallback threshold is 0, and balance/0 yields NaN /
+                        // Infinity (an invalid width). Show 0% until it's known.
+                        width: `${
+                          threshold > 0
+                            ? Math.min(100, (credits.credit_balance / threshold) * 100)
+                            : 0
+                        }%`,
                       }}
                     />
                   </div>

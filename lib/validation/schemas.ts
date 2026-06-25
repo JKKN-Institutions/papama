@@ -40,8 +40,12 @@ import {
 
 // --- shared primitives -----------------------------------------------------
 
-/** Positive INR amount in whole rupees (Phase-1 columns are int4). */
-export const inrAmountSchema = z.number().int().nonnegative();
+/**
+ * Positive INR amount in whole rupees (Phase-1 columns are int4). Capped at
+ * ₹1,000,000 to bound a single request (matches the standalone guest/UPI route
+ * schemas) and stay well inside int4 range.
+ */
+export const inrAmountSchema = z.number().int().nonnegative().max(1_000_000);
 
 /** Geo point as stored in `vendors.geo` (jsonb). */
 export const geoPointSchema = z.object({

@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 
 import { recordDonation } from "@/app/api/_lib/recordDonation";
+import { ensureGuestPoolDonor } from "@/lib/donations/guest-pool";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -11,12 +12,21 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * Static-VPA UPI has no webhook, so confirmation is MANUAL: after paying, the
  * donor enters the UTR from their UPI app. This route validates the PENDING row,
  * enforces lazy 15-minute expiry, guards double-confirm, flips it to PAID, then
- * credits the donation through the shared `recordDonation` helper (a donor-less
- * guest donation whose payment_ref is the REAL confirmed UTR — not a mock). The
- * resulting donation id is back-linked onto the payment row.
+ * credits the donation through the shared `recordDonation` helper. The confirmed
+ * money accrues to the system Guest Pool donor (Path B) — the same destination as
+ * the guest donation route — so the gift is USABLE (an admin mints the pool credit
+ * into in_admin_pool tokens) instead of orphaning as a donor-less donation. The
+ * payment_ref is the REAL confirmed UTR (not a mock). The donation id is
+ * back-linked onto the payment row.
  *
  * Ungated (public QR page, no session) — service-role client. Replaces the old
  * fake confirm that accepted any 6+ char string with no persistence.
+ *
+ * FOLLOW-UP (flagged, not done here): the UTR is donor-self-asserted and NOT
+ * verified against a bank/PSP feed, so a fabricated UTR can still mint pool
+ * credit. Before launch this should require manual admin reconciliation of the
+ * UTR before the pool credit becomes mintable. For now the per-IP throttle below
+ * + the pool routing make the money usable without auto-trusting at scale.
  */
 
 const confirmSchema = z.object({
@@ -27,8 +37,35 @@ const confirmSchema = z.object({
     payerVpa: z.string().trim().max(120).optional(),
 });
 
+// Best-effort, process-local per-IP rate limit (resets on redeploy; not a hard
+// control). Mirrors app/api/donations/create-guest. PUBLIC, ungated, real-money
+// path → throttle to blunt scripted confirm abuse. 10 req / 10 min / IP.
+const RATE_WINDOW_MS = 10 * 60 * 1000;
+const RATE_MAX = 10;
+const hits = new Map<string, number[]>();
+
+function rateLimited(ip: string): boolean {
+    const now = Date.now();
+    const recent = (hits.get(ip) ?? []).filter((t) => now - t < RATE_WINDOW_MS);
+    recent.push(now);
+    hits.set(ip, recent);
+    return recent.length > RATE_MAX;
+}
+
+function clientIp(req: NextRequest): string {
+    const fwd = req.headers.get("x-forwarded-for");
+    return fwd?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown";
+}
+
 export async function POST(req: NextRequest) {
     try {
+        if (rateLimited(clientIp(req))) {
+            return NextResponse.json(
+                { error: "too many payment attempts, please wait a few minutes" },
+                { status: 429 }
+            );
+        }
+
         let raw: unknown;
         try {
             raw = await req.json();
@@ -98,15 +135,22 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "payment already confirmed" }, { status: 400 });
         }
 
-        // We own this payment now — record the donation (guest; payment_ref = UTR).
+        // We own this payment now — record the donation. The confirmed money
+        // accrues to the system Guest Pool donor (Path B) so it is usable (an
+        // admin mints the pool credit into in_admin_pool tokens), instead of
+        // orphaning as a donor-less donation row. payment_ref = the real UTR.
+        // Notifications are skipped (the pool donor has no user). Mirrors
+        // app/api/donations/create-guest.
         let result;
         try {
+            const poolDonorId = await ensureGuestPoolDonor(admin);
             result = await recordDonation({
                 admin,
                 amountInr: payment.amount_inr as number,
-                donorId: null,
+                donorId: poolDonorId,
                 method: "upi_qr",
                 paymentRef: `upi:${upiTransactionId}`,
+                notify: false,
             });
         } catch (err) {
             // Revert the claim so the donor can retry; nothing was recorded.

@@ -280,9 +280,11 @@ export default function TokenDetailPage({
                           <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
                             This token expired unused.
                           </p>
-                          <span className="mt-2 inline-block font-mono text-[10px] text-zinc-400 bg-zinc-50 px-2 py-0.5 rounded dark:bg-zinc-800">
-                            Expired At: {new Date(token.expires_at).toLocaleString()}
-                          </span>
+                          {token.expires_at && (
+                            <span className="mt-2 inline-block font-mono text-[10px] text-zinc-400 bg-zinc-50 px-2 py-0.5 rounded dark:bg-zinc-800">
+                              Expired At: {new Date(token.expires_at).toLocaleString()}
+                            </span>
+                          )}
                         </>
                       )}
 

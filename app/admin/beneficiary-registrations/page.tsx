@@ -205,6 +205,9 @@ function DecisionButtons({ id, onDone }: { id: string; onDone: () => void }) {
             onDone();
         } catch (e) {
             setErr(e instanceof Error ? e.message : "Failed.");
+        } finally {
+            // Always clear busy — even on success — so the buttons re-enable if the
+            // row stays mounted (e.g. the "All" tab keeps decided rows visible).
             setBusy(false);
         }
     }

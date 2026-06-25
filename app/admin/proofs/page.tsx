@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { useCan } from "@/components/auth/AppUserProvider";
 
@@ -63,11 +63,38 @@ export default function AdminProofsPage() {
         pageSize: 15,
     });
 
+    // Per-tab counts. The list endpoint only returns the SELECTED status (with a
+    // `total`), so the three queue sizes are fetched in parallel — once on mount
+    // and again after each decision, since approving/rejecting moves a row between
+    // queues. A head-only `total` per status keeps this cheap.
+    const STATUSES = ["submitted", "approved", "rejected"] as const;
+    const [counts, setCounts] = useState<Record<string, number>>({});
+    const loadCounts = useCallback(async () => {
+        const pairs = await Promise.all(
+            STATUSES.map(async (s) => {
+                const res = await fetch(`/api/admin/proofs?status=${s}`, { cache: "no-store" });
+                if (!res.ok) return [s, undefined] as const;
+                const body = (await res.json().catch(() => ({}))) as { total?: number };
+                return [s, body.total] as const;
+            })
+        );
+        setCounts((prev) => {
+            const next = { ...prev };
+            for (const [s, n] of pairs) if (n != null) next[s] = n;
+            return next;
+        });
+        // STATUSES is a stable literal tuple — intentionally omitted from deps.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+    useEffect(() => {
+        void loadCounts();
+    }, [loadCounts]);
+
     const decide = useAction({
         method: "PATCH",
         endpoint: (id) => `/api/admin/proofs/${id}/decide`,
         onDone: async () => {
-            await reload();
+            await Promise.all([reload(), loadCounts()]);
             drawer.close();
         },
         successMessage: () => "Proof decision recorded.",
@@ -104,9 +131,9 @@ export default function AdminProofsPage() {
     }
 
     const tabs = [
-        { label: "Submitted", value: "submitted" },
-        { label: "Approved", value: "approved" },
-        { label: "Rejected", value: "rejected" },
+        { label: "Submitted", value: "submitted", count: counts.submitted },
+        { label: "Approved", value: "approved", count: counts.approved },
+        { label: "Rejected", value: "rejected", count: counts.rejected },
     ];
 
     return (

@@ -10,9 +10,16 @@ import { deriveQrPayload } from "@/app/api/_lib/tokenQr";
  * check. The schema has no `held_by` column on tokens, so holding is derived:
  *
  *   a token is held by a volunteer-user when its status is
- *   'assigned_to_volunteer' AND its LATEST distribution record (by
- *   distributed_at) was a grant to that user — i.e. distributed_by = userId and
- *   channel in (admin_to_volunteer, volunteer_request_grant).
+ *   'assigned_to_volunteer' AND its TRUE LATEST distribution record (max
+ *   distributed_at, across ALL channels) is a grant to that user — i.e.
+ *   distributed_by = userId and channel in (admin_to_volunteer,
+ *   volunteer_request_grant).
+ *
+ * The "true latest across all channels" part is essential: a token can be
+ * granted to volunteer A, revoked to the pool (admin_revoke), then re-granted to
+ * volunteer B. It is 'assigned_to_volunteer' again, but A's stale grant record
+ * must NOT count it as A's — only the most-recent record (B's grant) wins. This
+ * matches the allocate_pooled_tokens RPC LATERAL and the distribute route guard.
  *
  * Once the volunteer distributes the token onward, status flips to 'distributed'
  * and a 'volunteer_to_beneficiary' record is appended (newer distributed_at), so
@@ -58,53 +65,77 @@ interface DistributionRow {
 }
 
 /**
+ * For a set of candidate token ids, return each token's TRUE latest distribution
+ * record — the row with the max `distributed_at` across ALL channels, not just
+ * grant channels. This is the authoritative "what most-recently happened to this
+ * token", matching the allocate_pooled_tokens RPC's LATERAL and the distribute
+ * route's latest-record check.
+ *
+ * We MUST consider every channel: a later `admin_revoke` (token reclaimed to the
+ * pool) or a re-grant to a DIFFERENT volunteer supersedes an older grant record.
+ * Classifying on a stale per-user grant record + status alone mis-attributes a
+ * token that has since moved on — the revoke→re-grant phantom-token bug, which
+ * also leaked another volunteer's live QR.
+ */
+async function latestRecordPerToken(
+    admin: SupabaseClient,
+    tokenIds: string[]
+): Promise<Map<string, DistributionRow>> {
+    if (tokenIds.length === 0) return new Map();
+
+    const { data, error } = await admin
+        .from("token_distribution_records")
+        .select("token_id, distributed_by, channel, distributed_at")
+        .in("token_id", tokenIds)
+        .order("distributed_at", { ascending: false });
+    if (error) throw new Error(error.message);
+
+    const rows = (data ?? []) as DistributionRow[];
+    const latest = new Map<string, DistributionRow>();
+    for (const rec of rows) {
+        // Rows are newest-first, so the first seen per token_id is its latest.
+        if (!latest.has(rec.token_id)) latest.set(rec.token_id, rec);
+    }
+    return latest;
+}
+
+/**
  * Return the tokens currently held by `userId` (the volunteer's user id),
  * newest-minted first.
  *
  * Strategy: push the per-volunteer filter into SQL rather than loading every
  * 'assigned_to_volunteer' token and filtering in JS (O(N) full scan).
  *
- * Step 1 — ask the DB for the latest distribution record per token that was
- *   granted to this user via a grant channel. PostgREST doesn't expose DISTINCT
- *   ON, so we filter token_distribution_records by (distributed_by, channel)
- *   first and let the server deduplicate by picking the max distributed_at per
- *   token_id in step 2.
- * Step 2 — join to tokens, filtering to status='assigned_to_volunteer', and
- *   resolve the max-per-token deduplication in JS (the set is already
- *   volunteer-scoped, so it is tiny).
- *
- * The result is identical to the original return shape: tokens whose latest
- * distribution record across ALL channels is a grant to this user. The DB now
- * does the heavy filtering; JS only deduplicates the volunteer's own small set.
+ * Step 1 — pull this user's grant records to build the small candidate set
+ *   (tokens this user was EVER granted). Bounded by the volunteer's own grants.
+ * Step 2 — fetch those candidate token rows restricted to
+ *   status='assigned_to_volunteer'.
+ * Step 3 — confirm each candidate's TRUE latest distribution record (max
+ *   distributed_at across ALL channels) is a grant to THIS user. Status alone is
+ *   not enough: a token revoked and re-granted to another volunteer is again
+ *   'assigned_to_volunteer' yet this user's stale grant record must NOT count it
+ *   as held. This mirrors the RPC LATERAL exactly.
  */
 export async function listHeldTokens(
     admin: SupabaseClient,
     userId: string
 ): Promise<HeldToken[]> {
-    // Pull distribution records granted to this volunteer via a grant channel.
-    // Filter by distributed_by and channel in SQL — no full-table scan.
+    // Candidate set: tokens this volunteer was ever granted (any grant channel).
+    // Filter by distributed_by + channel in SQL — no full-table scan.
     const { data: recordData, error: recordError } = await admin
         .from("token_distribution_records")
         .select("token_id, distributed_by, channel, distributed_at")
         .eq("distributed_by", userId)
-        .in("channel", [...GRANT_CHANNELS])
-        .order("distributed_at", { ascending: false });
+        .in("channel", [...GRANT_CHANNELS]);
 
     if (recordError) throw new Error(recordError.message);
     const records = (recordData ?? []) as DistributionRow[];
     if (records.length === 0) return [];
 
-    // Deduplicate: keep the newest grant record per token_id (records are
-    // already sorted desc so the first seen per token_id wins).
-    const latestByToken = new Map<string, DistributionRow>();
-    for (const rec of records) {
-        if (!latestByToken.has(rec.token_id)) latestByToken.set(rec.token_id, rec);
-    }
+    const candidateIds = [...new Set(records.map((r) => r.token_id))];
 
-    // Fetch the token rows for these candidates, restricting to the status that
-    // confirms the token is still in the volunteer's hands. This second query is
+    // Fetch the candidate token rows still in the assigned state. This query is
     // bounded by the volunteer's own grant set — not the whole tokens table.
-    const candidateIds = [...latestByToken.keys()];
     const { data: tokenData, error: tokenError } = await admin
         .from("tokens")
         .select("id, serial_number, token_type, value_inr, status, minted_at")
@@ -114,16 +145,34 @@ export async function listHeldTokens(
 
     if (tokenError) throw new Error(tokenError.message);
     const tokens = (tokenData ?? []) as TokenRow[];
+    if (tokens.length === 0) return [];
 
-    return tokens.map((t) => ({
-        token_id: t.id,
-        serial_number: t.serial_number,
-        token_type: t.token_type,
-        value: t.value_inr,
-        status: t.status,
-        minted_at: t.minted_at,
-        qr_payload: deriveQrPayload(t.id),
-    }));
+    // Authoritative classification: keep only tokens whose TRUE latest record
+    // (across all channels) is a grant to THIS user — drops tokens revoked or
+    // re-granted to someone else even though their status is still assigned.
+    const latest = await latestRecordPerToken(
+        admin,
+        tokens.map((t) => t.id)
+    );
+
+    return tokens
+        .filter((t) => {
+            const rec = latest.get(t.id);
+            return (
+                rec != null &&
+                rec.distributed_by === userId &&
+                (GRANT_CHANNELS as readonly string[]).includes(rec.channel)
+            );
+        })
+        .map((t) => ({
+            token_id: t.id,
+            serial_number: t.serial_number,
+            token_type: t.token_type,
+            value: t.value_inr,
+            status: t.status,
+            minted_at: t.minted_at,
+            qr_payload: deriveQrPayload(t.id),
+        }));
 }
 
 /** Count of tokens currently held by `userId` (concurrent-limit headroom check). */
@@ -147,23 +196,18 @@ export async function listDistributedTokens(
     admin: SupabaseClient,
     userId: string
 ): Promise<HeldToken[]> {
+    // Candidate set: tokens this volunteer ever handed off to a beneficiary.
     const { data: recordData, error: recordError } = await admin
         .from("token_distribution_records")
         .select("token_id, distributed_by, channel, distributed_at")
         .eq("distributed_by", userId)
-        .eq("channel", "volunteer_to_beneficiary")
-        .order("distributed_at", { ascending: false });
+        .eq("channel", "volunteer_to_beneficiary");
 
     if (recordError) throw new Error(recordError.message);
     const records = (recordData ?? []) as DistributionRow[];
     if (records.length === 0) return [];
 
-    const latestByToken = new Map<string, DistributionRow>();
-    for (const rec of records) {
-        if (!latestByToken.has(rec.token_id)) latestByToken.set(rec.token_id, rec);
-    }
-
-    const candidateIds = [...latestByToken.keys()];
+    const candidateIds = [...new Set(records.map((r) => r.token_id))];
     const { data: tokenData, error: tokenError } = await admin
         .from("tokens")
         .select("id, serial_number, token_type, value_inr, status, minted_at")
@@ -172,8 +216,27 @@ export async function listDistributedTokens(
 
     if (tokenError) throw new Error(tokenError.message);
     const tokens = (tokenData ?? []) as TokenRow[];
+    if (tokens.length === 0) return [];
 
-    return tokens.map((t) => ({
+    // True-latest classification (symmetry with listHeldTokens): show only
+    // tokens whose most-recent record across all channels is THIS user's
+    // volunteer→beneficiary hand-off, so a token later revoked/re-granted away
+    // doesn't linger here.
+    const latest = await latestRecordPerToken(
+        admin,
+        tokens.map((t) => t.id)
+    );
+
+    return tokens
+        .filter((t) => {
+            const rec = latest.get(t.id);
+            return (
+                rec != null &&
+                rec.distributed_by === userId &&
+                rec.channel === "volunteer_to_beneficiary"
+            );
+        })
+        .map((t) => ({
         token_id: t.id,
         serial_number: t.serial_number,
         token_type: t.token_type,

@@ -122,6 +122,8 @@ export default function AdminReportsPage() {
                                         <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                                             <a
                                                 href={`/api/admin/reports/export?id=${r.id}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
                                                 className="text-blue-600 hover:underline"
                                             >
                                                 Export CSV
@@ -149,6 +151,8 @@ export default function AdminReportsPage() {
                     r ? (
                         <a
                             href={`/api/admin/reports/export?id=${r.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
                             className="rounded-lg bg-slate-900 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-slate-700"
                         >
                             Export CSV

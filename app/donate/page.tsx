@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ApiClient } from "@/lib/donor/services/apiClient";
 import { DonationResponse } from "@/lib/donor/types/contract";
 import { useForm } from "react-hook-form";
@@ -9,8 +10,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 
 const PAYMENT_METHODS = [
+  // "Scan & Pay (UPI QR)" hands off to the REAL UPI manual-QR flow (/donate/qr);
+  // the others are the instant guest-donation seam (card/netbanking provider is
+  // an open item — recorded as a flagged mock until a gateway is procured).
+  { id: "qr", name: "Scan & Pay (UPI QR)", icon: "📷" },
   { id: "upi", name: "UPI (GPay / PhonePe)", icon: "⚡" },
-  { id: "qr", name: "Scan QR Code", icon: "📷" },
   { id: "card", name: "Credit / Debit Card", icon: "💳" },
   { id: "netbanking", name: "Net Banking", icon: "🏦" },
   { id: "bank_transfer", name: "Bank Transfer", icon: "📄" },
@@ -27,6 +31,7 @@ const guestDonateSchema = z.object({
 type GuestDonateFormValues = z.infer<typeof guestDonateSchema>;
 
 export default function GuestDonatePage() {
+  const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   
@@ -51,6 +56,13 @@ export default function GuestDonatePage() {
   const selectedPaymentMethod = watch("payment_method");
 
   const onSubmit = async (values: GuestDonateFormValues) => {
+    // "Scan & Pay (UPI QR)" is the REAL UPI manual-QR flow: hand off to
+    // /donate/qr instead of the instant mock guest donation that fake-succeeds.
+    if (values.payment_method === "qr") {
+      router.push(`/donate/qr?amount=${values.amount}`);
+      return;
+    }
+
     setIsSubmitting(true);
     setErrorMsg(null);
     try {

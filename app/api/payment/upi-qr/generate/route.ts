@@ -26,6 +26,27 @@ const generateSchema = z.object({
     amount_inr: z.number().int().positive().max(1_000_000),
 });
 
+// Best-effort, process-local per-IP rate limit (resets on redeploy; not a hard
+// control). Mirrors app/api/donations/create-guest. This is a PUBLIC, ungated,
+// real-money path, so throttle QR creation to blunt scripted abuse. A real
+// deployment should also front this with an edge/WAF limiter. 10 req / 10 min / IP.
+const RATE_WINDOW_MS = 10 * 60 * 1000;
+const RATE_MAX = 10;
+const hits = new Map<string, number[]>();
+
+function rateLimited(ip: string): boolean {
+    const now = Date.now();
+    const recent = (hits.get(ip) ?? []).filter((t) => now - t < RATE_WINDOW_MS);
+    recent.push(now);
+    hits.set(ip, recent);
+    return recent.length > RATE_MAX;
+}
+
+function clientIp(req: NextRequest): string {
+    const fwd = req.headers.get("x-forwarded-for");
+    return fwd?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown";
+}
+
 // PLACEHOLDER (ASSUMPTIONS.md): a real merchant VPA must be set via env before
 // launch. This dev fallback lets the demo render a scannable QR; it is NOT a real
 // collecting account. Do NOT treat this as the production VPA.
@@ -52,6 +73,13 @@ function buildUpiString(opts: {
 
 export async function POST(req: NextRequest) {
     try {
+        if (rateLimited(clientIp(req))) {
+            return NextResponse.json(
+                { error: "too many payment attempts, please wait a few minutes" },
+                { status: 429 }
+            );
+        }
+
         let raw: unknown;
         try {
             raw = await req.json();

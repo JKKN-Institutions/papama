@@ -10,8 +10,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 
 const PAYMENT_METHODS = [
+  // "Scan QR Code" hands off to the REAL UPI manual-QR flow (/donate/qr); the
+  // others are the instant credit-purchase seam (card/netbanking provider is an
+  // open item — recorded as a flagged mock until a gateway is procured).
+  { id: "qr", name: "Scan & Pay (UPI QR)", icon: "📷" },
   { id: "upi", name: "UPI (GPay / PhonePe)", icon: "⚡" },
-  { id: "qr", name: "Scan QR Code", icon: "📷" },
   { id: "card", name: "Credit / Debit Card", icon: "💳" },
   { id: "netbanking", name: "Net Banking", icon: "🏦" },
   { id: "bank_transfer", name: "Bank Transfer", icon: "📄" },
@@ -52,6 +55,14 @@ export default function DonatePage() {
   const selectedPaymentMethod = watch("payment_method");
 
   const onSubmit = async (values: DonateFormValues) => {
+    // "Scan & Pay (UPI QR)" is the REAL UPI manual-QR flow: hand off to
+    // /donate/qr (which renders a live UPI QR and confirms the UTR) instead of
+    // the instant mock create that fake-succeeds. Carry the chosen amount.
+    if (values.payment_method === "qr") {
+      router.push(`/donate/qr?amount=${values.amount}`);
+      return;
+    }
+
     setIsSubmitting(true);
     setErrorMsg(null);
     try {

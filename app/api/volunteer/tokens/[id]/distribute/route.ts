@@ -38,6 +38,23 @@ export const POST = defineRoute<{ id: string }>(
             throw new BadRequestError("no volunteer profile for this account");
         }
 
+        // Gate on the volunteer being ACTIVE — a suspended/inactive volunteer who
+        // still holds tokens must not be able to hand them off (the layout blocks
+        // the UI, but the API needs its own guard). Mirrors the request route and
+        // the allocate_pooled_tokens RPC, which both require status='active'.
+        const { data: volStatusRow, error: volStatusError } = await admin
+            .from("volunteers")
+            .select("status")
+            .eq("id", volunteerId)
+            .maybeSingle();
+        if (volStatusError) throw new Error(volStatusError.message);
+        const volStatus = (volStatusRow as { status: string } | null)?.status;
+        if (volStatus !== "active") {
+            throw new BadRequestError(
+                "your volunteer account is not active — you can't distribute tokens"
+            );
+        }
+
         // Confirm the token exists and is still assigned to a volunteer.
         const { data: tokenRow, error: tokenError } = await admin
             .from("tokens")

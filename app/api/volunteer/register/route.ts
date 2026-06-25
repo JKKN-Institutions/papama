@@ -22,7 +22,7 @@ import { writeAuditLog } from "@/lib/services/audit";
  */
 const schema = z.object({
     email: z.string().trim().email("a valid email is required"),
-    password: z.string().min(6, "password must be at least 6 characters"),
+    password: z.string().min(8, "password must be at least 8 characters"),
     full_name: z.string().trim().min(1, "your name is required"),
     phone: z.string().trim().optional(),
 });

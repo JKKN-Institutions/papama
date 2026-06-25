@@ -1,13 +1,13 @@
 "use client";
 
-import { useSearchParams, useRouter } from "next/navigation";
-import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import Navbar from "@/components/donor/Navbar";
+import { ApiClient } from "@/lib/donor/services/apiClient";
 
 function SuccessReceipt() {
   const searchParams = useSearchParams();
-  const router = useRouter();
 
   const id = searchParams.get("id") || "N/A";
   const amount = searchParams.get("amount") || "0";
@@ -16,6 +16,17 @@ function SuccessReceipt() {
   const balance = searchParams.get("balance") || "0";
   const reached = searchParams.get("reached") === "true";
   const at = searchParams.get("at") || new Date().toISOString();
+
+  // The mint threshold is admin-tunable (system_config.standard_token_value) —
+  // never hard-code it. Read the real value from /api/donor/credits so the
+  // "threshold reached" copy reflects the actual configured amount.
+  const [threshold, setThreshold] = useState<number | null>(null);
+  useEffect(() => {
+    if (!reached) return;
+    ApiClient.getCredits()
+      .then((c) => setThreshold(c.threshold > 0 ? c.threshold : null))
+      .catch(() => setThreshold(null));
+  }, [reached]);
 
   return (
     <div className="rounded-2xl border border-zinc-200/50 bg-white p-6 shadow-xl dark:border-zinc-800/40 dark:bg-zinc-900 md:p-10 text-center">
@@ -79,7 +90,7 @@ function SuccessReceipt() {
             <div>
               <p className="text-xs font-bold">Credit Threshold Reached!</p>
               <p className="mt-0.5 text-[10px] leading-normal font-medium opacity-90">
-                You have meeting threshold (₹50+). You can now generate food voucher tokens and support partner canteens.
+                You have met the conversion threshold{threshold != null ? ` (₹${threshold}+)` : ""}. You can now generate food voucher tokens and support partner canteens.
               </p>
             </div>
           </div>

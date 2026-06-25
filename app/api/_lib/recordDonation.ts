@@ -85,11 +85,12 @@ export async function recordDonation({
         // standard_token_value unset — no guessed default.
     }
 
-    // Guest donation: no account, so nothing to credit.
+    // Guest donation: no account, so nothing to credit (the donation row is the
+    // record of the gift). creditAdded is 0 — no balance was moved.
     if (!donorId) {
         return {
             donationId,
-            creditAdded: amountInr,
+            creditAdded: 0,
             creditBalance: 0,
             thresholdReached: false,
         };

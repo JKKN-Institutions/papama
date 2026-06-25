@@ -680,11 +680,22 @@ export function useClientTable<T>(items: T[], opts: ClientTableOptions<T>) {
     }, [items, search, activeTab, tabKey, searchKeys]);
 
     const pageCount = pageSize > 0 ? Math.max(1, Math.ceil(filtered.length / pageSize)) : 1;
+
+    // Clamp the page when the filtered set shrinks (e.g. a row action + reload
+    // drops the last row off the current page). Without this the user is stranded
+    // on an out-of-range page that slices to an empty table, and <Pagination> is
+    // hidden once pageCount falls to 1 — leaving no way back. Derive a safe page
+    // for slicing AND sync state so the pager's disabled bounds stay correct.
+    const safePage = Math.min(page, pageCount);
+    useEffect(() => {
+        if (page > pageCount) setPage(pageCount);
+    }, [page, pageCount]);
+
     const rows = useMemo(() => {
         if (pageSize <= 0) return filtered;
-        const start = (page - 1) * pageSize;
+        const start = (safePage - 1) * pageSize;
         return filtered.slice(start, start + pageSize);
-    }, [filtered, page, pageSize]);
+    }, [filtered, safePage, pageSize]);
 
     return {
         rows,
@@ -693,7 +704,7 @@ export function useClientTable<T>(items: T[], opts: ClientTableOptions<T>) {
         setSearch,
         activeTab,
         setActiveTab,
-        page,
+        page: safePage,
         pageCount,
         setPage,
         tabCounts,

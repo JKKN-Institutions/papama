@@ -112,17 +112,24 @@ export const POST = defineRoute(
         //    repeat-detection AND beneficiary_id for the beneficiary-keyed signal. On
         //    failure we roll back the redemption row and 500 — the token is NOT yet
         //    burned, so the vendor can safely retry.
-        const { error: cooldownError } = await admin.from("redemption_cooldown_log").insert({
-            beneficiary_id: beneficiaryId,
-            face_hash: faceFingerprint,
-            face_embedding: toVectorLiteral(body.face_capture.embedding),
-            token_id: token.id,
-            vendor_id: vendorId,
-        });
-        if (cooldownError) {
+        const { data: cooldownRow, error: cooldownError } = await admin
+            .from("redemption_cooldown_log")
+            .insert({
+                beneficiary_id: beneficiaryId,
+                face_hash: faceFingerprint,
+                face_embedding: toVectorLiteral(body.face_capture.embedding),
+                token_id: token.id,
+                vendor_id: vendorId,
+            })
+            .select("id")
+            .single();
+        if (cooldownError || !cooldownRow) {
             await admin.from("token_redemptions").delete().eq("id", redemption.id);
-            throw new Error(`failed to record fair-usage log: ${cooldownError.message}`);
+            throw new Error(
+                `failed to record fair-usage log: ${cooldownError?.message ?? "no row returned"}`
+            );
         }
+        const cooldownLogId = (cooldownRow as { id: string }).id;
 
         // 3. Burn the token — guarded on the still-redeemable status (double-scan safe).
         const { data: burned, error: burnError } = await admin
@@ -134,8 +141,11 @@ export const POST = defineRoute(
         if (burnError) throw new Error(burnError.message);
         if (!burned || burned.length === 0) {
             // Duplicate-redemption attempt: another scan redeemed it first. Flag + roll back
-            // BOTH the redemption row and the fair-usage log row we just wrote (so a losing
-            // double-scan can't leave a phantom cooldown entry for this token).
+            // BOTH the redemption row and the fair-usage log row we just wrote. We delete the
+            // cooldown row by ITS OWN id — NOT by (token_id, vendor_id) — so a losing
+            // double-scan removes only the row IT inserted and never the WINNING scan's
+            // fair-usage seed (which shares the same token_id + vendor_id). Wiping that seed
+            // would let the served beneficiary redeem again with no cooldown/meal-limit trip.
             await flagFraud(admin, {
                 flag_type: "duplicate_token",
                 severity: "high",
@@ -147,8 +157,7 @@ export const POST = defineRoute(
             await admin
                 .from("redemption_cooldown_log")
                 .delete()
-                .eq("token_id", token.id)
-                .eq("vendor_id", vendorId);
+                .eq("id", cooldownLogId);
             throw new BadRequestError("token was already redeemed");
         }
 
