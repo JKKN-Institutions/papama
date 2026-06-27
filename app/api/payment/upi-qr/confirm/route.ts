@@ -127,6 +127,16 @@ export async function POST(req: NextRequest) {
             .maybeSingle();
 
         if (claimError) {
+            // 23505 = unique violation on upi_qr_payments_utr_key (m29): this UTR
+            // was already used to confirm ANOTHER intent. Fail closed with a clear
+            // 409 instead of an opaque 500 — no donation is recorded, so the same
+            // real payment can never credit the pool twice.
+            if (claimError.code === "23505") {
+                return NextResponse.json(
+                    { error: "this UPI reference number has already been used to confirm a payment" },
+                    { status: 409 }
+                );
+            }
             console.error("[upi-qr/confirm] claim error:", claimError.message);
             return NextResponse.json({ error: "failed to confirm payment" }, { status: 500 });
         }
@@ -159,6 +169,17 @@ export async function POST(req: NextRequest) {
                 .update({ status: "PENDING", upi_transaction_id: null, payer_vpa: null, paid_at: null })
                 .eq("transaction_ref", transactionRef)
                 .eq("status", "PAID");
+            // Ledger backstop (donations_upi_payment_ref_key): a donation already
+            // exists for this upi:<UTR>. Should be unreachable in normal flow (the
+            // claim guard above catches a reused UTR first), but if it fires this
+            // UTR has already credited — surface it as 409, not an opaque 500.
+            const msg = err instanceof Error ? err.message : "";
+            if (/duplicate key|23505/i.test(msg)) {
+                return NextResponse.json(
+                    { error: "this UPI reference number has already been used to confirm a payment" },
+                    { status: 409 }
+                );
+            }
             console.error("[upi-qr/confirm] recordDonation failed:", err);
             return NextResponse.json({ error: "failed to confirm payment" }, { status: 500 });
         }
