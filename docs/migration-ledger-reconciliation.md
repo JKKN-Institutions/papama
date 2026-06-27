@@ -2,6 +2,7 @@
 
 **Generated:** 2026-06-24  
 **Updated:** 2026-06-25 (added the m31/m32/m34 batch; the live ledger now has 22 rows, not 19)  
+**Updated:** 2026-06-27 (added the two security-fix migrations; the live ledger now has 24 rows)  
 **Live project:** `qxdxefofeykzvegykitt`  
 **Source:** live `supabase_migrations.schema_migrations` inspected via MCP read-only; repo files in `supabase/migrations/`.
 
@@ -45,6 +46,8 @@ of this doc for the recommended robust path).
 | 20260624104338 | m32\_patient\_eligibility\_config | `docs/proposed-migrations/m32_patient_eligibility_config.sql` | APPLIED (source in docs/) | Added 2026-06-25. Move source into `supabase/migrations/`. |
 | 20260624105730 | m31\_guard\_service\_role\_bypass | `docs/proposed-migrations/m31_guard_service_role_bypass.sql` | APPLIED (source in docs/) | Added 2026-06-25. Note the duplicate logical "m31" prefix (perf-index vs guard) — keep distinct version timestamps. Move source in. |
 | 20260624110138 | m34\_definer\_fns\_to\_private\_schema\_harmonized | `docs/proposed-migrations/m34_definer_fn_private_schema.sql` (SUPERSEDED) + `m34_pre_apply_policy_snapshot.sql` | APPLIED (source in docs/) | Added 2026-06-25. The live entry is the *harmonized* m34; the standalone `m34_definer_fn_private_schema.sql` is marked SUPERSEDED. Promote the harmonized version. |
+| 20260627124547 | fix\_token\_dist\_insert\_forgery | `20260625000016_fix_token_dist_insert_forgery.sql` | MATCHED | Added 2026-06-27 (audit finding #1). Source IS in `supabase/migrations/`. Live version is the apply-time timestamp; repo filename uses the `20260625*` synthetic base (expected drift). Drops the permissive `token_dist_insert_distributor` INSERT policy. Idempotent (`drop policy if exists`). |
+| 20260627125948 | decide\_volunteer\_request\_atomic | `20260625000017_decide_volunteer_request_atomic.sql` | MATCHED | Added 2026-06-27 (audit finding #2). Source IS in `supabase/migrations/`. Creates the `decide_volunteer_request` SECURITY DEFINER RPC (atomic claim+allocate, closes the double-grant TOCTOU). Idempotent (`create or replace`). |
 
 ⚠️ `docs/proposed-migrations/m33_vendor_bank_scoping.sql` has **no `m33` row in the live ledger** —
 confirm whether it was applied under another name or is genuinely unapplied before promoting it.
