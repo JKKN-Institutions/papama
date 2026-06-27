@@ -19,8 +19,12 @@ running app, so UX quality counts as much as backend correctness.
   add new assumptions here.
 
 ## Hard rules (override speed)
-- **Never mutate the live DB.** Supabase MCP is read-only. Output migration
-  SQL for me to apply; never apply it yourself.
+- **DB writes are allowed (with care).** The `supabase-papama` MCP may apply
+  migrations / run SQL against the live DB. Always: (1) show me the SQL first,
+  (2) prefer a versioned file in `supabase/migrations/` over ad-hoc
+  `execute_sql`, (3) pause for explicit confirmation before anything
+  destructive or irreversible (DROP, DELETE without WHERE, TRUNCATE, data
+  backfills, RLS/policy changes). Never auto-apply destructive ops.
 - **Use the `supabase-papama` MCP** (ref `qxdxefofeykzvegykitt`), NOT the
   claude.ai Supabase connector (wrong account).
 - **Never invent values for open items** (disaster-proof, email/payment
