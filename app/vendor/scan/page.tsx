@@ -314,7 +314,7 @@ export default function VendorScanPage() {
       <PageHeader title="Scan & redeem" subtitle="Validate a token, serve a meal, and upload proof." />
 
       {/* Step 1 — inputs */}
-      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">1 · Scan details</h2>
 
         <div className="mt-4 space-y-4">
@@ -331,7 +331,7 @@ export default function VendorScanPage() {
                 resetFlow();
               }}
               placeholder="PAPAMA:…  (scan with camera or paste the code)"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm text-slate-900 outline-none focus:border-slate-600 focus:ring-1 focus:ring-slate-600"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm text-slate-900 outline-none focus:border-slate-600 focus:ring-1 focus:ring-slate-600 break-all"
             />
             <p className="mt-1 text-xs text-slate-400">
               Scan the token QR with the camera, or paste the code as a fallback.
@@ -381,7 +381,7 @@ export default function VendorScanPage() {
                 type="button"
                 onClick={useMyLocation}
                 disabled={geoBusy}
-                className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-60 sm:w-auto"
               >
                 {geoBusy ? "Locating…" : geo ? "Update location" : "Use my location"}
               </button>
@@ -446,7 +446,7 @@ export default function VendorScanPage() {
             type="button"
             onClick={onCheck}
             disabled={previewBusy}
-            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+            className="w-full rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:py-2"
           >
             {previewBusy ? "Checking…" : "Check"}
           </button>
@@ -463,7 +463,7 @@ export default function VendorScanPage() {
 
       {/* Step 2 — preview / validations */}
       {preview && (
-        <section className="mt-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <section className="mt-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">2 · Validations</h2>
 
           <ul className="mt-4 space-y-2">
@@ -494,12 +494,12 @@ export default function VendorScanPage() {
 
           <ValueTable value={preview.value} />
 
-          <div className="mt-4 flex items-center gap-3">
+          <div className="mt-4 flex flex-col items-start gap-3 sm:flex-row sm:items-center">
             <button
               type="button"
               onClick={onRedeem}
               disabled={!allChecksPass || redeemBusy || redeem != null || !face}
-              className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="w-full rounded-lg bg-green-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:py-2"
             >
               {redeemBusy ? "Redeeming…" : "Serve & redeem"}
             </button>
@@ -515,11 +515,11 @@ export default function VendorScanPage() {
 
       {/* Step 3 — payment locked + proof */}
       {redeem && (
-        <section className="mt-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <section className="mt-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">3 · Proof</h2>
 
           <div className="mt-4 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-800">
-            Redemption <span className="font-mono font-medium">{redeem.redemption_id}</span> created — payment
+            Redemption <span className="break-all font-mono font-medium">{redeem.redemption_id}</span> created — payment
             locked. Upload proof for admin review.
           </div>
 
@@ -582,7 +582,7 @@ export default function VendorScanPage() {
                 type="button"
                 onClick={onUploadProof}
                 disabled={proofBusy || !photoFile || !receiptFile}
-                className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className="w-full rounded-lg bg-green-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:py-2"
               >
                 {proofBusy ? "Uploading…" : "Submit proof for review"}
               </button>

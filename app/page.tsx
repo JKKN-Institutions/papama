@@ -8,13 +8,13 @@ import Link from "next/link";
  */
 export default function Home() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-emerald-50 to-white px-6 py-16 dark:from-zinc-950 dark:to-black">
+    <main className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-emerald-50 to-white px-4 py-12 sm:px-6 sm:py-16 dark:from-zinc-950 dark:to-black">
       <div className="w-full max-w-3xl">
-        <header className="mb-12 text-center">
-          <h1 className="text-5xl font-bold tracking-tight text-emerald-700 dark:text-emerald-400">
+        <header className="mb-10 text-center sm:mb-12">
+          <h1 className="text-4xl font-bold tracking-tight text-emerald-700 sm:text-5xl dark:text-emerald-400">
             pApAmA
           </h1>
-          <p className="mt-3 text-lg text-zinc-600 dark:text-zinc-400">
+          <p className="mt-3 text-base text-zinc-600 sm:text-lg dark:text-zinc-400">
             Eliminating hunger with dignity — transparent, token-based food
             donation from donor to meal.
           </p>

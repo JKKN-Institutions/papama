@@ -66,7 +66,7 @@ export default function NotificationsPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-zinc-50">
+            <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
               Notification Center
             </h1>
             <p className="mt-1.5 text-sm text-zinc-500 dark:text-zinc-400">
@@ -77,7 +77,7 @@ export default function NotificationsPage() {
           {notifications.some((n) => !n.read) && (
             <button
               onClick={handleMarkAllAsRead}
-              className="rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-xs font-bold text-zinc-700 hover:bg-zinc-50 transition active:scale-95 self-start sm:self-center dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+              className="rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-xs font-bold text-zinc-700 hover:bg-zinc-50 transition active:scale-[.98] self-start sm:self-center dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
             >
               Mark All as Read
             </button>
@@ -91,7 +91,7 @@ export default function NotificationsPage() {
               <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent" />
             </div>
           ) : error ? (
-            <div className="text-center py-16 bg-white rounded-2xl border border-zinc-200/50 dark:bg-zinc-900/40 dark:border-zinc-800">
+            <div className="text-center py-16 bg-white rounded-2xl border border-zinc-200/80 dark:bg-zinc-900/40 dark:border-zinc-800">
               <span className="text-3xl">⚠️</span>
               <h3 className="mt-4 text-sm font-bold text-zinc-900 dark:text-zinc-50">
                 Couldn&apos;t load notifications
@@ -99,13 +99,13 @@ export default function NotificationsPage() {
               <p className="mt-1 text-xs text-zinc-500">{error}</p>
               <button
                 onClick={loadNotifications}
-                className="mt-4 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-emerald-700 active:scale-95"
+                className="mt-4 rounded-lg bg-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-500/60 focus-visible:ring-offset-1 px-4 py-2 text-xs font-bold text-white transition hover:bg-emerald-700 active:scale-[.98]"
               >
                 Retry
               </button>
             </div>
           ) : notifications.length > 0 ? (
-            <div className="rounded-2xl border border-zinc-200/50 bg-white overflow-hidden shadow-md dark:border-zinc-800/40 dark:bg-zinc-900 divide-y divide-zinc-150/60 dark:divide-zinc-800/50">
+            <div className="rounded-2xl border border-zinc-200/80 bg-white overflow-hidden shadow-sm dark:border-zinc-800/60 dark:bg-zinc-900 divide-y divide-zinc-150/60 dark:divide-zinc-800/50">
               {notifications.map((notif) => {
                 const config = NOTIF_ICONS[notif.type] || { icon: "🔔", color: "bg-zinc-50 text-zinc-600" };
                 return (
@@ -146,14 +146,14 @@ export default function NotificationsPage() {
                             <span className="text-zinc-400">Meal Redeemed:</span>
                             <strong className="text-zinc-800 dark:text-zinc-100">{notif.meta.meal_info}</strong>
                           </p>
-                          <p className="flex justify-between">
-                            <span className="text-zinc-400">Scan Location:</span>
-                            <span>{notif.meta.vendor_name} ({notif.meta.location})</span>
+                          <p className="flex justify-between gap-2">
+                            <span className="text-zinc-400 shrink-0">Scan Location:</span>
+                            <span className="text-right break-words">{notif.meta.vendor_name} ({notif.meta.location})</span>
                           </p>
                           {notif.meta.beneficiary_category && (
                             <p className="flex justify-between">
                               <span className="text-zinc-400">Beneficiary Category:</span>
-                              <span className="uppercase text-[9px] font-black text-amber-600">{notif.meta.beneficiary_category.replace("_", " ")}</span>
+                              <span className="uppercase text-[10px] font-black text-amber-600">{notif.meta.beneficiary_category.replace("_", " ")}</span>
                             </p>
                           )}
                           <p className="flex justify-between text-[10px]">
@@ -188,7 +188,7 @@ export default function NotificationsPage() {
               })}
             </div>
           ) : (
-            <div className="text-center py-16 bg-white rounded-2xl border border-zinc-200/50 dark:bg-zinc-900/40">
+            <div className="text-center py-16 bg-white rounded-2xl border border-zinc-200/80 dark:bg-zinc-900/40">
               <span className="text-3xl">🔔</span>
               <h3 className="mt-4 text-sm font-bold text-zinc-900 dark:text-zinc-50">
                 No Notifications Found

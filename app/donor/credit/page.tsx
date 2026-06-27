@@ -128,7 +128,7 @@ function CreditContent() {
       <div>
         {/* i18n reference migration (spec F-8): strings come from lib/i18n via t().
             Remaining pages follow this same key-based pattern. */}
-        <h1 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-zinc-50">
+        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
           {t("donor.credit.title")}
         </h1>
         <p className="mt-1.5 text-sm text-zinc-500 dark:text-zinc-400 max-w-2xl leading-relaxed">
@@ -159,7 +159,7 @@ function CreditContent() {
           <div className="grid gap-8 lg:grid-cols-3">
             {/* Credit Balance Card */}
             <div className="space-y-6 lg:col-span-1">
-              <div className="rounded-2xl border border-zinc-200/50 bg-white p-6 shadow-md dark:border-zinc-800/40 dark:bg-zinc-900">
+              <div className="rounded-2xl border border-zinc-200/80 bg-white p-6 shadow-sm dark:border-zinc-800/60 dark:bg-zinc-900">
                 <span className="text-[10px] uppercase tracking-wider text-zinc-400 font-black">
                   {t("donor.credit.availableCredits")}
                 </span>
@@ -209,7 +209,7 @@ function CreditContent() {
                       setAmount(credits.credit_balance >= threshold ? threshold : 0);
                     }}
                     disabled={!credits.threshold_reached}
-                    className="w-full rounded-xl bg-emerald-600 py-3 text-xs font-bold text-white transition hover:bg-emerald-700 shadow-md active:scale-95 disabled:pointer-events-none disabled:opacity-50 cursor-pointer"
+                    className="w-full rounded-lg bg-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-500/60 focus-visible:ring-offset-1 py-3 text-xs font-bold text-white transition hover:bg-emerald-700 shadow-md active:scale-[.98] disabled:pointer-events-none disabled:opacity-50 cursor-pointer"
                   >
                     {t("donor.credit.convertCta")}
                   </button>
@@ -221,8 +221,8 @@ function CreditContent() {
             </div>
 
             {/* Credit Transaction History */}
-            <div className="rounded-2xl border border-zinc-200/50 bg-white p-6 shadow-md dark:border-zinc-800/40 dark:bg-zinc-900 lg:col-span-2">
-              <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-50">
+            <div className="rounded-2xl border border-zinc-200/80 bg-white p-6 shadow-sm dark:border-zinc-800/60 dark:bg-zinc-900 lg:col-span-2">
+              <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">
                 Credit Audit Logs
               </h3>
               <p className="text-xs text-zinc-400 mt-0.5">
@@ -293,7 +293,7 @@ function CreditContent() {
                         <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                       </svg>
                     </div>
-                    <h3 id="convert-modal-title" className="mt-4 text-lg font-black text-zinc-900 dark:text-zinc-50">
+                    <h3 id="convert-modal-title" className="mt-4 text-base font-semibold text-zinc-900 dark:text-zinc-50">
                       Token Generated!
                     </h3>
                     <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
@@ -342,7 +342,7 @@ function CreditContent() {
                       <Link
                         href={`/donor/tokens/${convertedToken.token_id}`}
                         onClick={closeConvertModal}
-                        className="w-full rounded-xl bg-emerald-600 py-3 text-center text-xs font-bold text-white transition hover:bg-emerald-700 active:scale-95 cursor-pointer"
+                        className="w-full rounded-lg bg-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-500/60 focus-visible:ring-offset-1 py-3 text-center text-xs font-bold text-white transition hover:bg-emerald-700 active:scale-[.98] cursor-pointer"
                       >
                         Show / print this token&apos;s QR
                       </Link>
@@ -365,7 +365,7 @@ function CreditContent() {
                   /* Input Conversion Config Form */
                   <form onSubmit={onConvertSubmit} className="p-6">
                     <div className="flex items-center justify-between pb-3 border-b border-zinc-100 dark:border-zinc-800">
-                      <h3 id="convert-modal-title" className="text-base font-bold text-zinc-900 dark:text-zinc-50">
+                      <h3 id="convert-modal-title" className="text-base font-semibold text-zinc-900 dark:text-zinc-50">
                         Convert Credits to Token
                       </h3>
                       <button
@@ -464,7 +464,7 @@ function CreditContent() {
                       <button
                         type="submit"
                         disabled={isConverting || Number.isNaN(amount) || amount < threshold}
-                        className="flex-1 rounded-xl bg-emerald-600 py-3 text-xs font-bold text-white transition hover:bg-emerald-700 shadow-md active:scale-95 disabled:opacity-50 cursor-pointer"
+                        className="flex-1 rounded-lg bg-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-500/60 focus-visible:ring-offset-1 py-3 text-xs font-bold text-white transition hover:bg-emerald-700 shadow-md active:scale-[.98] disabled:opacity-50 cursor-pointer"
                       >
                         {isConverting ? (
                           <span className="flex items-center justify-center gap-1">

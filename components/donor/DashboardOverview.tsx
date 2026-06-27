@@ -150,7 +150,7 @@ export default function DashboardOverview({
     <div className="space-y-8">
       {/* Welcome Hero */}
       <div className="rounded-2xl bg-gradient-to-r from-emerald-800 to-teal-700 p-6 text-white shadow-xl dark:from-emerald-950 dark:to-teal-900 md:p-8">
-        <h1 className="text-2xl font-bold md:text-3xl">
+        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
           Welcome back!
         </h1>
         <p className="mt-2 max-w-xl text-emerald-100/80 text-sm md:text-base font-medium leading-relaxed">
@@ -159,13 +159,13 @@ export default function DashboardOverview({
         <div className="mt-6 flex flex-wrap gap-3">
           <Link
             href="/donor/donate"
-            className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-2.5 text-sm font-bold text-emerald-800 transition shadow hover:bg-emerald-50"
+            className="inline-flex items-center gap-2 rounded-lg bg-white px-5 py-2.5 text-sm font-bold text-emerald-800 shadow transition hover:bg-emerald-50 focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-1 focus-visible:ring-offset-emerald-800 active:scale-[.98]"
           >
             Donate Money
           </Link>
           <Link
             href="/donor/credit"
-            className="inline-flex items-center gap-2 rounded-xl border border-white/30 bg-white/10 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-white/20"
+            className="inline-flex items-center gap-2 rounded-lg border border-white/30 bg-white/10 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-white/20 focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-1 focus-visible:ring-offset-emerald-800 active:scale-[.98]"
           >
             Manage & Convert Credit
           </Link>
@@ -177,7 +177,7 @@ export default function DashboardOverview({
         {stats.map((stat) => (
           <div
             key={stat.name}
-            className="rounded-2xl border border-zinc-200/50 bg-white p-6 shadow-sm dark:border-zinc-800/40 dark:bg-zinc-900/40"
+            className="rounded-2xl border border-zinc-200/80 bg-white p-6 shadow-sm dark:border-zinc-800/60 dark:bg-zinc-900/40"
           >
             <div className="flex items-center justify-between">
               <span className="text-sm font-semibold text-zinc-500 dark:text-zinc-400">
@@ -200,8 +200,8 @@ export default function DashboardOverview({
       {/* Charts & Breakdown */}
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Token Status Breakdown */}
-        <div className="rounded-2xl border border-zinc-200/50 bg-white p-6 shadow-sm dark:border-zinc-800/40 dark:bg-zinc-900/40 lg:col-span-1">
-          <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-50">
+        <div className="rounded-2xl border border-zinc-200/80 bg-white p-6 shadow-sm dark:border-zinc-800/60 dark:bg-zinc-900/40 lg:col-span-1">
+          <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">
             Token Status Breakdown
           </h2>
           <p className="text-zinc-400 text-xs mt-1">
@@ -240,10 +240,10 @@ export default function DashboardOverview({
         </div>
 
         {/* Live Token Activity Feed */}
-        <div className="rounded-2xl border border-zinc-200/50 bg-white p-6 shadow-sm dark:border-zinc-800/40 dark:bg-zinc-900/40 lg:col-span-2">
+        <div className="rounded-2xl border border-zinc-200/80 bg-white p-6 shadow-sm dark:border-zinc-800/60 dark:bg-zinc-900/40 lg:col-span-2">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-50">
+              <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">
                 Recent Generated Tokens
               </h2>
               <p className="text-zinc-400 text-xs mt-1">
@@ -294,7 +294,7 @@ export default function DashboardOverview({
                             : 'TOKEN'}...
                         </Link>
                         <span
-                          className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ${
+                          className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
                             token.status === "live"
                               ? "bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400"
                               : token.status === "redeemed"
@@ -344,10 +344,10 @@ export default function DashboardOverview({
       </div>
 
       {/* Recent Donation History Section */}
-      <div className="rounded-2xl border border-zinc-200/50 bg-white p-6 shadow-sm dark:border-zinc-800/40 dark:bg-zinc-900/40">
+      <div className="rounded-2xl border border-zinc-200/80 bg-white p-6 shadow-sm dark:border-zinc-800/60 dark:bg-zinc-900/40">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-50">
+            <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">
               Recent Financial Donations
             </h2>
             <p className="text-zinc-400 text-xs mt-1">
@@ -403,8 +403,8 @@ export default function DashboardOverview({
       </div>
 
       {/* Monthly Summary Section */}
-      <div className="rounded-2xl border border-zinc-200/50 bg-white p-6 shadow-sm dark:border-zinc-800/40 dark:bg-zinc-900/40">
-        <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-50">
+      <div className="rounded-2xl border border-zinc-200/80 bg-white p-6 shadow-sm dark:border-zinc-800/60 dark:bg-zinc-900/40">
+        <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">
           Monthly Summary
         </h2>
         <p className="text-zinc-400 text-xs mt-1">

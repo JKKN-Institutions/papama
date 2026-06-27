@@ -150,8 +150,8 @@ export default function ScheduleTokenPage({
           </Link>
         </div>
 
-        <div className="rounded-2xl border border-zinc-200/50 bg-white p-6 shadow-sm dark:border-zinc-800/40 dark:bg-zinc-900/40 md:p-8">
-          <h1 className="text-2xl font-black tracking-tight text-zinc-900 dark:text-zinc-50">
+        <div className="rounded-2xl border border-zinc-200/80 bg-white p-6 shadow-sm dark:border-zinc-800/60 dark:bg-zinc-900/40 md:p-8">
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
             Schedule for an Occasion
           </h1>
           <p className="mt-1.5 text-sm text-zinc-500 dark:text-zinc-400 leading-relaxed">
@@ -223,7 +223,7 @@ export default function ScheduleTokenPage({
                   <button
                     type="submit"
                     disabled={saving}
-                    className="rounded-xl bg-emerald-600 px-5 py-3 text-xs font-bold text-white transition hover:bg-emerald-700 shadow-md active:scale-95 disabled:pointer-events-none disabled:opacity-50 cursor-pointer"
+                    className="rounded-lg bg-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-500/60 focus-visible:ring-offset-1 px-5 py-3 text-xs font-bold text-white transition hover:bg-emerald-700 shadow-md active:scale-[.98] disabled:pointer-events-none disabled:opacity-50 cursor-pointer"
                   >
                     {saving ? "Saving..." : schedule ? "Update schedule" : "Schedule occasion"}
                   </button>
@@ -232,7 +232,7 @@ export default function ScheduleTokenPage({
                       type="button"
                       onClick={onClear}
                       disabled={saving}
-                      className="rounded-xl border border-zinc-200 bg-white px-5 py-3 text-xs font-bold text-zinc-600 transition hover:bg-zinc-50 active:scale-95 disabled:pointer-events-none disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 cursor-pointer"
+                      className="rounded-xl border border-zinc-200 bg-white px-5 py-3 text-xs font-bold text-zinc-600 transition hover:bg-zinc-50 active:scale-[.98] disabled:pointer-events-none disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 cursor-pointer"
                     >
                       Clear schedule
                     </button>

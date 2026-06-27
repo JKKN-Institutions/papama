@@ -189,10 +189,10 @@ export default function Navbar() {
         {/* Logo */}
         <div className="flex items-center gap-2">
           <Link href="/donor/dashboard" className="flex items-center gap-1.5">
-            <span className="bg-gradient-to-r from-emerald-600 to-teal-500 bg-clip-text text-2xl font-black tracking-wider text-transparent dark:from-emerald-400 dark:to-teal-300">
+            <span className="bg-gradient-to-r from-emerald-600 to-teal-500 bg-clip-text text-xl font-bold tracking-tight text-transparent dark:from-emerald-400 dark:to-teal-300">
               pApAmA
             </span>
-            <span className="hidden rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 sm:inline-block">
+            <span className="hidden rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 sm:inline-block">
               Donor Portal
             </span>
           </Link>
@@ -250,7 +250,7 @@ export default function Navbar() {
               type="button"
               onClick={() => setIsNotificationsOpen((open) => !open)}
               aria-label="Donor notifications"
-              className="relative flex h-9 w-9 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-600 transition hover:bg-zinc-50 hover:text-zinc-900 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800"
+              className="relative flex h-9 w-9 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-600 transition hover:bg-zinc-50 hover:text-zinc-900 focus-visible:ring-2 focus-visible:ring-emerald-500/60 focus-visible:ring-offset-1 active:scale-[.98] dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -331,7 +331,7 @@ export default function Navbar() {
                                 Served {notification.meta.meal_info} at {notification.meta.vendor_name} ({notification.meta.location})
                               </span>
                             )}
-                            <span className="mt-1 block text-[9px] font-medium text-zinc-400">
+                            <span className="mt-1 block text-[10px] font-medium text-zinc-400">
                               {new Date(notification.created_at).toLocaleString()}
                             </span>
                           </span>
@@ -370,7 +370,7 @@ export default function Navbar() {
               type="button"
               onClick={handleSignOut}
               aria-label="Sign out"
-              className="flex items-center gap-1.5 rounded-full border border-zinc-200 p-2 text-xs font-semibold text-zinc-600 transition hover:bg-zinc-50 hover:text-zinc-900 dark:border-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800 sm:px-3 sm:py-1"
+              className="flex items-center gap-1.5 rounded-full border border-zinc-200 p-2 text-xs font-semibold text-zinc-600 transition hover:bg-zinc-50 hover:text-zinc-900 focus-visible:ring-2 focus-visible:ring-emerald-500/60 focus-visible:ring-offset-1 active:scale-[.98] dark:border-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800 sm:px-3 sm:py-1"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"

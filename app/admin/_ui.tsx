@@ -117,9 +117,9 @@ export function AdminPageHeader({
     count?: number;
 }) {
     return (
-        <div className="mb-6 flex items-end justify-between">
+        <div className="mb-6 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
             <div>
-                <h1 className="text-2xl font-semibold tracking-tight text-slate-900">{title}</h1>
+                <h1 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">{title}</h1>
                 <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
             </div>
             {count != null && <span className="text-sm text-slate-400">{count} total</span>}
@@ -127,10 +127,35 @@ export function AdminPageHeader({
     );
 }
 
+/**
+ * Section heading inside a page — an h2 with an optional subtitle and a
+ * right-aligned action slot (e.g. a "view all" link or a small control). One
+ * step down the hierarchy from AdminPageHeader's h1.
+ */
+export function SectionHeading({
+    title,
+    subtitle,
+    action,
+}: {
+    title: string;
+    subtitle?: string;
+    action?: ReactNode;
+}) {
+    return (
+        <div className="mb-3 flex items-end justify-between gap-3">
+            <div>
+                <h2 className="text-base font-semibold text-slate-900">{title}</h2>
+                {subtitle && <p className="mt-0.5 text-sm text-slate-500">{subtitle}</p>}
+            </div>
+            {action}
+        </div>
+    );
+}
+
 /** Card shell around a `<table>`, identical chrome to the vendors table. */
 export function TableShell({ children }: { children: ReactNode }) {
     return (
-        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white shadow-sm">
             <table className="w-full min-w-[640px] text-left text-sm">{children}</table>
         </div>
     );
@@ -279,7 +304,7 @@ export function ActionButton({
             type="button"
             onClick={onClick}
             disabled={disabled}
-            className={`rounded-md border px-2.5 py-1 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${BTN_TONES[tone]}`}
+            className={`rounded-md border px-2.5 py-1 text-xs font-medium transition focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-1 active:scale-[.98] disabled:cursor-not-allowed disabled:opacity-50 ${BTN_TONES[tone]}`}
         >
             {children}
         </button>
@@ -348,14 +373,14 @@ export function RunJobBar({
     }
 
     return (
-        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white p-4">
+        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
             <span className="text-sm font-medium text-slate-700">{label}</span>
             {children}
             <button
                 type="button"
                 onClick={run}
                 disabled={busy}
-                className="rounded-lg bg-slate-900 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:opacity-60"
+                className="rounded-lg bg-slate-900 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-slate-700 focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-1 active:scale-[.98] disabled:opacity-60"
             >
                 {busy ? busyText : buttonText}
             </button>

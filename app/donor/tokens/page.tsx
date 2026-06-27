@@ -90,7 +90,7 @@ export default function TokensLedgerPage() {
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 lg:px-8">
         {/* Header */}
         <div>
-          <h1 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-zinc-50">
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
             Token Ledger Registry
           </h1>
           <p className="mt-1.5 text-sm text-zinc-500 dark:text-zinc-400 max-w-2xl leading-relaxed">
@@ -99,7 +99,7 @@ export default function TokensLedgerPage() {
         </div>
 
         {/* Filter Toolbar */}
-        <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-zinc-200/50 pb-6 dark:border-zinc-800/30">
+        <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-zinc-200/80 pb-6 dark:border-zinc-800/30">
           {/* Search bar */}
           <div className="relative w-full sm:max-w-md">
             <span className="absolute inset-y-0 left-3 flex items-center text-zinc-400">
@@ -168,7 +168,7 @@ export default function TokensLedgerPage() {
         </div>
 
         {/* Ledger Table */}
-        <div className="mt-8 overflow-hidden rounded-2xl border border-zinc-200/50 bg-white shadow-md dark:border-zinc-800/40 dark:bg-zinc-900">
+        <div className="mt-8 overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-sm dark:border-zinc-800/60 dark:bg-zinc-900">
           {loading ? (
             <div className="flex h-64 items-center justify-center">
               <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent" />
@@ -176,7 +176,7 @@ export default function TokensLedgerPage() {
           ) : filteredTokens.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full border-collapse text-left text-xs text-zinc-500 dark:text-zinc-300 font-medium">
-                <thead className="bg-zinc-50/50 text-[10px] font-black uppercase text-zinc-400 border-b border-zinc-200/50 dark:bg-zinc-800/20 dark:border-zinc-800/50">
+                <thead className="bg-zinc-50/50 text-[10px] font-black uppercase text-zinc-400 border-b border-zinc-200/80 dark:bg-zinc-800/20 dark:border-zinc-800/50">
                   <tr>
                     <th scope="col" className="px-6 py-4">Token ID</th>
                     <th scope="col" className="px-6 py-4">Type</th>
@@ -202,7 +202,7 @@ export default function TokensLedgerPage() {
                         </span>
                       </td>
                       <td className="px-6 py-4">
-                        <span className={`inline-flex rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase ${statusBadges[token.status]}`}>
+                        <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase ${statusBadges[token.status]}`}>
                           {token.status}
                         </span>
                       </td>

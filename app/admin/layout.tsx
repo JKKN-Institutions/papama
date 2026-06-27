@@ -35,7 +35,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
     return (
         <AppUserProvider user={user}>
             <BugReporterWrapper>
-                <div className="min-h-screen bg-slate-50">
+                <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100/60">
                     <AdminHeader />
                     {/* Mounted once here so every admin page's useToast() works
                         without a per-page <ToastHost> wrapper. */}

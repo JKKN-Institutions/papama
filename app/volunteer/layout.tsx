@@ -44,7 +44,7 @@ export default async function VolunteerLayout({ children }: { children: ReactNod
 
   return (
     <BugReporterWrapper>
-      <div className="min-h-screen bg-slate-50">
+      <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100/60">
         <VolunteerHeader />
         {/* pb-24 on mobile clears the fixed bottom bar; removed on md+. */}
         <main className="mx-auto max-w-5xl px-4 pt-6 pb-24 sm:px-6 sm:pt-8 md:pb-8">{children}</main>

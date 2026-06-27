@@ -241,7 +241,7 @@ export default function VendorMenuPage() {
       />
 
       {/* Add item */}
-      <form onSubmit={onAdd} className="mb-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <form onSubmit={onAdd} className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Add an item</h2>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <div>
@@ -305,7 +305,7 @@ export default function VendorMenuPage() {
         <button
           type="submit"
           disabled={addBusy}
-          className="mt-4 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+          className="mt-4 w-full rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:py-2"
         >
           {addBusy ? "Adding…" : "Add item"}
         </button>

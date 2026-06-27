@@ -276,20 +276,20 @@ function DistributeRow({ token, reload }: { token: HeldToken; reload: () => Prom
                   They scan or keep it to redeem at an approved vendor. Then mark it distributed —
                   it stays viewable below under “Distributed by you”.
                 </p>
-                <form onSubmit={distribute} className="mt-3 flex flex-wrap items-end gap-3">
+                <form onSubmit={distribute} className="mt-3 flex flex-col flex-wrap gap-3 sm:flex-row sm:items-end">
                   <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
                     Distribution location (optional)
                     <input
                       value={location}
                       onChange={(e) => setLocation(e.target.value)}
                       placeholder="e.g. Relief camp 3"
-                      className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-600 focus:ring-1 focus:ring-slate-600 sm:w-56"
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-600 focus:ring-1 focus:ring-slate-600 sm:w-56 sm:py-1.5"
                     />
                   </label>
                   <button
                     type="submit"
                     disabled={busy}
-                    className="rounded-lg bg-slate-900 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:opacity-60"
+                    className="w-full rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:opacity-60 sm:w-auto sm:py-1.5"
                   >
                     {busy ? "Distributing…" : "Mark as distributed"}
                   </button>
@@ -433,7 +433,7 @@ function RequestTokensSection({
       />
       <form
         onSubmit={submit}
-        className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4"
+        className="flex flex-col flex-wrap gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:flex-row sm:items-end"
       >
         <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
           Number of tokens
@@ -444,13 +444,13 @@ function RequestTokensSection({
             value={count}
             onChange={(e) => setCount(e.target.value)}
             placeholder="e.g. 25"
-            className="w-40 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-600 focus:ring-1 focus:ring-slate-600"
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-600 focus:ring-1 focus:ring-slate-600 sm:w-40 sm:py-1.5"
           />
         </label>
         <button
           type="submit"
           disabled={busy}
-          className="rounded-lg bg-slate-900 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:opacity-60"
+          className="w-full rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:opacity-60 sm:w-auto sm:py-1.5"
         >
           {busy ? "Requesting…" : "Request"}
         </button>

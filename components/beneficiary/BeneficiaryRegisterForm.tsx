@@ -114,7 +114,7 @@ export default function BeneficiaryRegisterForm({
                 )}
             </div>
 
-            <div className="mt-4 flex items-center gap-3">
+            <div className="mt-4 flex flex-wrap items-center gap-3">
                 <button
                     type="button"
                     onClick={submit}

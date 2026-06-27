@@ -29,7 +29,7 @@ function SuccessReceipt() {
   }, [reached]);
 
   return (
-    <div className="rounded-2xl border border-zinc-200/50 bg-white p-6 shadow-xl dark:border-zinc-800/40 dark:bg-zinc-900 md:p-10 text-center">
+    <div className="rounded-2xl border border-zinc-200/80 bg-white p-6 shadow-xl dark:border-zinc-800/60 dark:bg-zinc-900 md:p-10 text-center">
       {/* Animated Success Badge */}
       <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400">
         <svg
@@ -44,7 +44,7 @@ function SuccessReceipt() {
         </svg>
       </div>
 
-      <h1 className="mt-4 text-2xl font-black text-zinc-900 dark:text-zinc-50">
+      <h1 className="mt-4 text-2xl sm:text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
         Payment Successful!
       </h1>
       <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
@@ -102,21 +102,21 @@ function SuccessReceipt() {
         {reached ? (
           <Link
             href="/donor/credit?convert=true"
-            className="flex-1 rounded-xl bg-emerald-600 py-3 text-xs font-bold text-white transition hover:bg-emerald-700 shadow-md active:scale-95 text-center"
+            className="flex-1 rounded-lg bg-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-500/60 focus-visible:ring-offset-1 py-3 text-xs font-bold text-white transition hover:bg-emerald-700 shadow-md active:scale-[.98] text-center"
           >
             Convert Credits to Token
           </Link>
         ) : (
           <Link
             href="/donor/donate"
-            className="flex-1 rounded-xl border border-zinc-200 bg-white py-3 text-xs font-bold text-zinc-700 hover:bg-zinc-50 transition active:scale-95 text-center dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-800"
+            className="flex-1 rounded-xl border border-zinc-200 bg-white py-3 text-xs font-bold text-zinc-700 hover:bg-zinc-50 transition active:scale-[.98] text-center dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-800"
           >
             Donate More
           </Link>
         )}
         <Link
           href="/donor/dashboard"
-          className="flex-1 rounded-xl bg-zinc-900 py-3 text-xs font-bold text-white transition hover:bg-zinc-700 active:scale-95 text-center dark:bg-zinc-800 dark:hover:bg-zinc-700"
+          className="flex-1 rounded-xl bg-zinc-900 py-3 text-xs font-bold text-white transition hover:bg-zinc-700 active:scale-[.98] text-center dark:bg-zinc-800 dark:hover:bg-zinc-700"
         >
           Go to Dashboard
         </Link>

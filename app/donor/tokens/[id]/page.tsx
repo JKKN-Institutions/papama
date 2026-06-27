@@ -141,13 +141,13 @@ export default function TokenDetailPage({
         ) : token ? (
           <div className="space-y-8">
             {/* Header Details Card */}
-            <div className="rounded-2xl border border-zinc-200/50 bg-white p-6 shadow-sm dark:border-zinc-800/40 dark:bg-zinc-900/40 md:p-8">
+            <div className="rounded-2xl border border-zinc-200/80 bg-white p-6 shadow-sm dark:border-zinc-800/60 dark:bg-zinc-900/40 md:p-8">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <span className="text-[10px] uppercase tracking-wider text-zinc-400 font-bold">
                     Food Token Certificate
                   </span>
-                  <h1 className="text-2xl font-black tracking-wider text-zinc-900 dark:text-zinc-50 font-mono mt-1">
+                  <h1 className="mt-1 font-mono text-xl sm:text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50 break-all">
                     {token.token_id.substring(0, 18).toUpperCase()}...
                   </h1>
                   <p className="mt-1 text-sm font-semibold text-zinc-700 dark:text-zinc-300">
@@ -200,8 +200,8 @@ export default function TokenDetailPage({
             {/* Token Lifecycle Timeline & Cert */}
             <div className="grid gap-8 md:grid-cols-3">
               {/* Timeline Journey */}
-              <div className="rounded-2xl border border-zinc-200/50 bg-white p-6 shadow-sm dark:border-zinc-800/40 dark:bg-zinc-900/40 md:col-span-2">
-                <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-50">
+              <div className="rounded-2xl border border-zinc-200/80 bg-white p-6 shadow-sm dark:border-zinc-800/60 dark:bg-zinc-900/40 md:col-span-2">
+                <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">
                   Token Lifecycle Path
                 </h2>
                 <p className="text-zinc-400 text-xs mt-0.5">
@@ -312,14 +312,14 @@ export default function TokenDetailPage({
               <div className="space-y-6 md:col-span-1">
                 {/* QR Code Card — rendered client-side via the `qrcode` package (no external requests). */}
                 {isLive && (
-                  <div className="rounded-2xl border border-zinc-200/50 bg-white p-6 shadow-sm dark:border-zinc-800/40 dark:bg-zinc-900/40 text-center flex flex-col items-center">
-                    <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-50 mb-4">
+                  <div className="rounded-2xl border border-zinc-200/80 bg-white p-6 shadow-sm dark:border-zinc-800/60 dark:bg-zinc-900/40 text-center flex flex-col items-center">
+                    <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-50 mb-4">
                       Voucher QR Code
                     </h3>
                     <div className="p-4 bg-white rounded-2xl border border-zinc-150 shadow-inner flex items-center justify-center">
                       <TokenQrCode payload={token.qr_payload} size={140} />
                     </div>
-                    <div className="mt-3 font-mono text-[9px] text-zinc-400 break-all select-all">
+                    <div className="mt-3 font-mono text-[10px] text-zinc-400 break-all select-all">
                       {token.qr_payload}
                     </div>
                     <p className="text-[10px] text-zinc-400 mt-2 leading-relaxed">
@@ -330,7 +330,7 @@ export default function TokenDetailPage({
                     <button
                       type="button"
                       onClick={handlePrint}
-                      className="no-print mt-4 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-zinc-300 bg-white py-2.5 text-xs font-bold text-zinc-700 transition hover:bg-zinc-50 active:scale-95 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
+                      className="no-print mt-4 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-zinc-300 bg-white py-2.5 text-xs font-bold text-zinc-700 transition hover:bg-zinc-50 active:scale-[.98] dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="h-4 w-4">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0110.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0l.229 2.523a1.125 1.125 0 01-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0021 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 00-1.913-.247M6.34 18H5.25A2.25 2.25 0 013 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 011.913-.247m10.5 0a48.536 48.536 0 00-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659M18 10.5h.008v.008H18V10.5zm-3 0h.008v.008H15V10.5z" />
@@ -345,7 +345,7 @@ export default function TokenDetailPage({
                 {(token.status === "live" || token.status === "in_admin_pool") && (
                   <Link
                     href={`/donor/tokens/${id}/schedule`}
-                    className="flex items-center justify-center gap-1.5 rounded-2xl border border-zinc-200/50 bg-white px-4 py-3 text-xs font-bold text-emerald-700 shadow-sm transition hover:bg-emerald-50 dark:border-zinc-800/40 dark:bg-zinc-900/40 dark:text-emerald-400 dark:hover:bg-emerald-950/20"
+                    className="flex items-center justify-center gap-1.5 rounded-2xl border border-zinc-200/80 bg-white px-4 py-3 text-xs font-bold text-emerald-700 shadow-sm transition hover:bg-emerald-50 dark:border-zinc-800/60 dark:bg-zinc-900/40 dark:text-emerald-400 dark:hover:bg-emerald-950/20"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="h-4 w-4">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
@@ -355,8 +355,8 @@ export default function TokenDetailPage({
                 )}
 
                 {/* Verification box — real serial / QR payload */}
-                <div className="rounded-2xl border border-zinc-200/50 bg-white p-6 shadow-sm dark:border-zinc-800/40 dark:bg-zinc-900/40">
-                  <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-50">
+                <div className="rounded-2xl border border-zinc-200/80 bg-white p-6 shadow-sm dark:border-zinc-800/60 dark:bg-zinc-900/40">
+                  <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">
                     Verification
                   </h3>
                   <p className="text-[10px] text-zinc-400 mt-0.5">
@@ -415,7 +415,7 @@ export default function TokenDetailPage({
                     <button
                       type="button"
                       onClick={() => window.print()}
-                      className="flex-1 rounded-xl bg-emerald-600 py-3 text-xs font-bold text-white transition hover:bg-emerald-700 active:scale-95"
+                      className="flex-1 rounded-lg bg-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-500/60 focus-visible:ring-offset-1 py-3 text-xs font-bold text-white transition hover:bg-emerald-700 active:scale-[.98]"
                     >
                       Print this token
                     </button>

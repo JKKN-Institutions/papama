@@ -102,13 +102,13 @@ export default function DonatePage() {
       <Navbar />
 
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-12 sm:px-6 lg:px-8">
-        <div className="rounded-2xl border border-zinc-200/50 bg-white p-6 shadow-xl dark:border-zinc-800/40 dark:bg-zinc-900 md:p-10">
+        <div className="rounded-2xl border border-zinc-200/80 bg-white p-6 shadow-xl dark:border-zinc-800/60 dark:bg-zinc-900 md:p-10">
           {/* Header */}
           <div className="text-center">
             <span className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
               Contribute Funds
             </span>
-            <h1 className="mt-1 text-3xl font-black text-zinc-900 dark:text-zinc-50">
+            <h1 className="mt-1 text-2xl sm:text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
               Donate to Account
             </h1>
             <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
@@ -228,7 +228,7 @@ export default function DonatePage() {
             <button
               type="submit"
               disabled={isSubmitting || selectedAmount <= 0}
-              className="w-full rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 py-4 text-sm font-bold text-white transition hover:from-emerald-700 hover:to-teal-600 shadow-lg shadow-emerald-600/20 active:scale-95 disabled:pointer-events-none disabled:opacity-50 cursor-pointer"
+              className="w-full rounded-lg bg-gradient-to-r from-emerald-600 to-teal-500 py-4 text-sm font-bold text-white transition hover:from-emerald-700 hover:to-teal-600 shadow-lg shadow-emerald-600/20 focus-visible:ring-2 focus-visible:ring-emerald-500/60 focus-visible:ring-offset-1 active:scale-[.98] disabled:pointer-events-none disabled:opacity-50 cursor-pointer"
             >
               {isSubmitting ? (
                 <span className="flex items-center justify-center gap-1.5">

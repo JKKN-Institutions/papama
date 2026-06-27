@@ -45,7 +45,7 @@ export default function HistoryPage() {
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-zinc-50">
+            <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
               Donation History
             </h1>
             <p className="mt-1.5 text-sm text-zinc-500 dark:text-zinc-400">
@@ -53,20 +53,20 @@ export default function HistoryPage() {
             </p>
           </div>
 
-          <div className="flex gap-4 self-start md:self-center">
+          <div className="flex flex-wrap gap-3 sm:gap-4 self-start md:self-center">
             <div className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-center shadow-sm dark:border-zinc-800/60 dark:bg-zinc-900">
-              <span className="text-[9px] text-zinc-400 uppercase tracking-wider font-black">Donations Count</span>
+              <span className="text-[10px] text-zinc-400 uppercase tracking-wider font-black">Donations Count</span>
               <p className="text-lg font-black text-zinc-900 dark:text-zinc-50">{totalDonationsCount} Tx</p>
             </div>
             <div className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-center shadow-sm dark:border-zinc-800/60 dark:bg-zinc-900">
-              <span className="text-[9px] text-zinc-400 uppercase tracking-wider font-black">Total Contributed</span>
+              <span className="text-[10px] text-zinc-400 uppercase tracking-wider font-black">Total Contributed</span>
               <p className="text-lg font-black text-emerald-600 dark:text-emerald-400">₹{totalAmountDonated}</p>
             </div>
           </div>
         </div>
 
         {/* History Table */}
-        <div className="mt-8 overflow-hidden rounded-2xl border border-zinc-200/50 bg-white shadow-md dark:border-zinc-800/40 dark:bg-zinc-900">
+        <div className="mt-8 overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-sm dark:border-zinc-800/60 dark:bg-zinc-900">
           {loading ? (
             <div className="flex h-64 items-center justify-center">
               <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent" />
@@ -80,7 +80,7 @@ export default function HistoryPage() {
               <p className="mt-1 text-xs text-zinc-500">{error}</p>
               <button
                 onClick={loadHistory}
-                className="mt-4 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-emerald-700 active:scale-95"
+                className="mt-4 rounded-lg bg-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-500/60 focus-visible:ring-offset-1 px-4 py-2 text-xs font-bold text-white transition hover:bg-emerald-700 active:scale-[.98]"
               >
                 Retry
               </button>
@@ -88,7 +88,7 @@ export default function HistoryPage() {
           ) : history.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full border-collapse text-left text-xs text-zinc-500 dark:text-zinc-300 font-medium">
-                <thead className="bg-zinc-50/50 text-[10px] font-black uppercase text-zinc-400 border-b border-zinc-200/50 dark:bg-zinc-800/20 dark:border-zinc-800/50">
+                <thead className="bg-zinc-50/50 text-[10px] font-black uppercase text-zinc-400 border-b border-zinc-200/80 dark:bg-zinc-800/20 dark:border-zinc-800/50">
                   <tr>
                     <th scope="col" className="px-6 py-4">Donation ID</th>
                     <th scope="col" className="px-6 py-4">Credits Added</th>
@@ -112,7 +112,7 @@ export default function HistoryPage() {
                         {new Date(item.at).toLocaleString()}
                       </td>
                       <td className="px-6 py-4">
-                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-bold text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-200">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-200">
                           <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                           VERIFIED SUCCESS
                         </span>

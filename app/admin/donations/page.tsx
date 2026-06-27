@@ -108,8 +108,8 @@ export default function AdminDonationsPage() {
                     </p>
                 </div>
                 {canMint && (
-                    <div className="flex items-end gap-2">
-                        <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
+                    <div className="flex w-full items-end gap-2 sm:w-auto">
+                        <label className="flex flex-1 flex-col gap-1 text-xs font-medium text-slate-600 sm:flex-none">
                             Tokens to mint
                             <input
                                 type="number"
@@ -118,7 +118,7 @@ export default function AdminDonationsPage() {
                                 value={count}
                                 onChange={(e) => setCount(e.target.value)}
                                 placeholder="count"
-                                className="w-24 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-600 focus:ring-1 focus:ring-slate-600"
+                                className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-600 focus:ring-1 focus:ring-slate-600 sm:w-24"
                             />
                         </label>
                         <ActionButton

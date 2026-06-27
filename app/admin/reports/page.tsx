@@ -221,7 +221,7 @@ function GeneratePanel({ onGenerated }: { onGenerated: () => Promise<void> }) {
     return (
         <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <p className="mb-3 text-sm font-medium text-slate-700">Generate a report</p>
-            <div className="flex flex-wrap items-end gap-3">
+            <div className="flex flex-col flex-wrap items-stretch gap-3 sm:flex-row sm:items-end">
                 <label className="flex flex-col gap-1 text-xs text-slate-500">
                     Type
                     <select

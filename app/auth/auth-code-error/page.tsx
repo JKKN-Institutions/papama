@@ -7,7 +7,7 @@ import Link from "next/link";
 export default function AuthCodeErrorPage() {
     return (
         <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-            <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+            <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm sm:p-8">
                 <h1 className="text-xl font-semibold tracking-tight text-slate-900">
                     Link expired or invalid
                 </h1>

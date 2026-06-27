@@ -51,7 +51,7 @@ export default function ImpactPage() {
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 lg:px-8">
         {/* Header */}
         <div>
-          <h1 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-zinc-50">
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
             Your Social Impact
           </h1>
           <p className="mt-1.5 text-sm text-zinc-500 dark:text-zinc-400 max-w-2xl leading-relaxed">
@@ -64,7 +64,7 @@ export default function ImpactPage() {
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent" />
           </div>
         ) : error ? (
-          <div className="mt-8 text-center py-16 bg-white rounded-2xl border border-zinc-200/50 dark:bg-zinc-900/40 dark:border-zinc-800">
+          <div className="mt-8 text-center py-16 bg-white rounded-2xl border border-zinc-200/80 dark:bg-zinc-900/40 dark:border-zinc-800">
             <span className="text-3xl">⚠️</span>
             <h3 className="mt-4 text-sm font-bold text-zinc-900 dark:text-zinc-50">
               Couldn&apos;t load your impact
@@ -72,7 +72,7 @@ export default function ImpactPage() {
             <p className="mt-1 text-xs text-zinc-500">{error}</p>
             <button
               onClick={loadImpactData}
-              className="mt-4 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-emerald-700 active:scale-95"
+              className="mt-4 rounded-lg bg-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-500/60 focus-visible:ring-offset-1 px-4 py-2 text-xs font-bold text-white transition hover:bg-emerald-700 active:scale-[.98]"
             >
               Retry
             </button>
@@ -81,7 +81,7 @@ export default function ImpactPage() {
           <div className="mt-8 space-y-12">
             {/* Impact Metric Hero */}
             <div className="grid gap-6 md:grid-cols-3">
-              <div className="rounded-2xl border border-zinc-200/50 bg-gradient-to-br from-emerald-50 to-teal-50/50 p-6 shadow-md dark:border-zinc-800/40 dark:from-emerald-950/20 dark:to-teal-900/10 md:col-span-1 flex flex-col justify-between">
+              <div className="rounded-2xl border border-zinc-200/80 bg-gradient-to-br from-emerald-50 to-teal-50/50 p-6 shadow-sm dark:border-zinc-800/60 dark:from-emerald-950/20 dark:to-teal-900/10 md:col-span-1 flex flex-col justify-between">
                 <div>
                   <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
                     Total Sponsored Meals
@@ -96,7 +96,7 @@ export default function ImpactPage() {
               </div>
 
               {/* Impact Categories Chart/Summary */}
-              <div className="rounded-2xl border border-zinc-200/50 bg-white p-6 shadow-md dark:border-zinc-800/40 dark:bg-zinc-900 md:col-span-2">
+              <div className="rounded-2xl border border-zinc-200/80 bg-white p-6 shadow-sm dark:border-zinc-800/60 dark:bg-zinc-900 md:col-span-2">
                 <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-50 uppercase tracking-wider text-[11px] text-zinc-400">
                   Impact Beneficiary Categories
                 </h3>
@@ -121,7 +121,7 @@ export default function ImpactPage() {
 
             {/* Redemption History / Thank-You Cards Section */}
             <div>
-              <h2 className="text-xl font-black text-zinc-900 dark:text-zinc-50">
+              <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">
                 Redemption Thank-You Cards
               </h2>
               <p className="text-xs text-zinc-400 mt-0.5">
@@ -149,11 +149,11 @@ export default function ImpactPage() {
                         <div className="space-y-4">
                           {/* Beneficiary Header */}
                           <div className="flex items-center justify-between gap-2 border-b border-zinc-100 pb-3 dark:border-zinc-800">
-                            <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase ${category.color}`}>
+                            <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase ${category.color}`}>
                               <span>{category.icon}</span>
                               {category.label}
                             </span>
-                            <span className="font-mono text-[9px] text-zinc-400 uppercase font-semibold">
+                            <span className="font-mono text-[10px] text-zinc-400 uppercase font-semibold">
                               Voucher ID: {red.token_id.substring(0, 8)}...
                             </span>
                           </div>
@@ -165,13 +165,13 @@ export default function ImpactPage() {
 
                           {/* Details */}
                           <div className="text-[11px] text-zinc-500 dark:text-zinc-400 space-y-1">
-                            <p className="flex justify-between">
-                              <span className="text-zinc-400 font-semibold">Canteen Point:</span>
-                              <strong className="font-bold text-zinc-800 dark:text-zinc-100">{red.vendor_name}</strong>
+                            <p className="flex justify-between gap-2">
+                              <span className="text-zinc-400 font-semibold shrink-0">Canteen Point:</span>
+                              <strong className="font-bold text-zinc-800 dark:text-zinc-100 text-right break-words">{red.vendor_name}</strong>
                             </p>
-                            <p className="flex justify-between">
-                              <span className="text-zinc-400 font-semibold">Location:</span>
-                              <span>{red.location}</span>
+                            <p className="flex justify-between gap-2">
+                              <span className="text-zinc-400 font-semibold shrink-0">Location:</span>
+                              <span className="text-right break-words">{red.location}</span>
                             </p>
                             <p className="flex justify-between">
                               <span className="text-zinc-400 font-semibold">Redeemed At:</span>
@@ -181,7 +181,7 @@ export default function ImpactPage() {
                         </div>
 
                         <div className="mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-800 text-center space-y-2">
-                          <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 uppercase flex items-center justify-center gap-1">
+                          <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase flex items-center justify-center gap-1">
                             ❤ MEAL FULLY REDEEMED
                           </span>
                           <Link
@@ -196,7 +196,7 @@ export default function ImpactPage() {
                   })}
                 </div>
               ) : (
-                <div className="mt-8 text-center py-16 bg-white rounded-2xl border border-zinc-200/50 dark:bg-zinc-900/40">
+                <div className="mt-8 text-center py-16 bg-white rounded-2xl border border-zinc-200/80 dark:bg-zinc-900/40">
                   <span className="text-3xl">🍲</span>
                   <h3 className="mt-4 text-sm font-bold text-zinc-900 dark:text-zinc-50">
                     No Meal Redemptions Yet

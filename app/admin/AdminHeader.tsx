@@ -28,18 +28,20 @@ export function AdminHeader() {
     }
 
     return (
-        <header className="border-b border-slate-200 bg-white">
+        <header className="sticky top-0 z-40 border-b border-slate-200/70 bg-white/80 backdrop-blur-md">
             <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-4 sm:px-6">
                 <Link href="/admin" className="flex items-baseline gap-3 transition hover:opacity-80">
-                    <span className="text-lg font-semibold tracking-tight text-slate-900">
+                    <span className="bg-gradient-to-r from-slate-900 to-slate-500 bg-clip-text text-xl font-bold tracking-tight text-transparent">
                         pApAmA
                     </span>
-                    <span className="text-sm text-slate-400">Admin</span>
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                        Admin
+                    </span>
                 </Link>
                 <button
                     onClick={signOut}
                     disabled={signingOut}
-                    className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+                    className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-1 active:scale-[.98] disabled:opacity-60"
                 >
                     {signingOut ? "Signing out…" : "Sign out"}
                 </button>

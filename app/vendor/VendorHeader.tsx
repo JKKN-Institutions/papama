@@ -77,12 +77,12 @@ export function VendorHeader() {
 
   return (
     <>
-      <header className="border-b border-slate-200 bg-white">
+      <header className="sticky top-0 z-40 border-b border-slate-200/70 bg-white/80 backdrop-blur-md">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-2 sm:flex-none sm:flex-nowrap sm:gap-6">
             <Link href="/vendor" className="flex shrink-0 items-baseline gap-3 transition hover:opacity-80">
-              <span className="text-lg font-semibold tracking-tight text-slate-900">pApAmA</span>
-              <span className="text-sm text-slate-400">Vendor</span>
+              <span className="bg-gradient-to-r from-slate-900 to-slate-500 bg-clip-text text-xl font-bold tracking-tight text-transparent">pApAmA</span>
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Vendor</span>
             </Link>
             {/* Desktop nav strip — the mobile bottom bar replaces it below md. */}
             <nav className="hidden flex-wrap items-center gap-1 md:flex">
@@ -107,7 +107,7 @@ export function VendorHeader() {
           <button
             onClick={signOut}
             disabled={signingOut}
-            className="shrink-0 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+            className="shrink-0 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-1 active:scale-[.98] disabled:opacity-60"
           >
             {signingOut ? "Signing out…" : "Sign out"}
           </button>

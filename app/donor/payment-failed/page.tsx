@@ -10,7 +10,7 @@ function FailureCard() {
   const error = searchParams.get("error") || "An unknown error occurred during transaction verification.";
 
   return (
-    <div className="rounded-2xl border border-zinc-200/50 bg-white p-6 shadow-xl dark:border-zinc-800/40 dark:bg-zinc-900 md:p-10 text-center">
+    <div className="rounded-2xl border border-zinc-200/80 bg-white p-6 shadow-xl dark:border-zinc-800/60 dark:bg-zinc-900 md:p-10 text-center">
       {/* Animated Failure Icon */}
       <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-100 text-red-600 dark:bg-red-950/40 dark:text-red-400">
         <svg
@@ -25,7 +25,7 @@ function FailureCard() {
         </svg>
       </div>
 
-      <h1 className="mt-4 text-2xl font-black text-zinc-900 dark:text-zinc-50">
+      <h1 className="mt-4 text-2xl sm:text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
         Payment Failed
       </h1>
       <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
@@ -54,13 +54,13 @@ function FailureCard() {
       <div className="mt-8 flex flex-col gap-3 sm:flex-row justify-center">
         <Link
           href="/donor/donate"
-          className="flex-1 rounded-xl bg-emerald-600 py-3 text-xs font-bold text-white transition hover:bg-emerald-700 shadow-md active:scale-95 text-center"
+          className="flex-1 rounded-lg bg-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-500/60 focus-visible:ring-offset-1 py-3 text-xs font-bold text-white transition hover:bg-emerald-700 shadow-md active:scale-[.98] text-center"
         >
           Retry Payment
         </Link>
         <Link
           href="/donor/dashboard"
-          className="flex-1 rounded-xl bg-zinc-900 py-3 text-xs font-bold text-white transition hover:bg-zinc-800 active:scale-95 text-center dark:bg-zinc-800 dark:hover:bg-zinc-700"
+          className="flex-1 rounded-xl bg-zinc-900 py-3 text-xs font-bold text-white transition hover:bg-zinc-800 active:scale-[.98] text-center dark:bg-zinc-800 dark:hover:bg-zinc-700"
         >
           Return to Dashboard
         </Link>

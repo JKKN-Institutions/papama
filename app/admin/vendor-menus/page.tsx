@@ -99,8 +99,8 @@ export default function AdminVendorMenusPage() {
             />
 
             {state === "ready" && items.length > 0 && (
-                <div className="mb-4 flex flex-wrap items-center gap-3">
-                    <div className="flex-1">
+                <div className="mb-4 flex flex-col items-start gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+                    <div className="w-full sm:flex-1">
                         <FilterBar
                             search={table.search}
                             onSearch={table.setSearch}

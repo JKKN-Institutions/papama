@@ -291,7 +291,7 @@ export default function VendorProfilePage() {
       {state === "ready" && vendor && form && (
         <div className="space-y-6">
           {/* Read-only verification status */}
-          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
             <div className="flex flex-wrap items-center gap-6">
               <div>
                 <p className="text-xs uppercase tracking-wide text-slate-400">Status</p>
@@ -309,7 +309,7 @@ export default function VendorProfilePage() {
           </div>
 
           {/* Editable business details */}
-          <form onSubmit={onSave} className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <form onSubmit={onSave} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
             <h2 className="text-lg font-semibold text-slate-900">Business details</h2>
             <p className="mt-1 text-sm text-slate-500">
               Update your contact and bank information. Status and KYC are set by our team.
@@ -385,14 +385,14 @@ export default function VendorProfilePage() {
             <button
               type="submit"
               disabled={saving}
-              className="mt-5 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              className="mt-5 w-full rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:py-2"
             >
               {saving ? "Saving…" : "Save changes"}
             </button>
           </form>
 
           {/* Documents */}
-          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
             <h2 className="text-lg font-semibold text-slate-900">Documents</h2>
             <p className="mt-1 text-sm text-slate-500">
               Upload licenses and KYC documents for verification.
@@ -470,7 +470,7 @@ export default function VendorProfilePage() {
               <button
                 type="submit"
                 disabled={uploading || !docFile}
-                className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                className="w-full rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:py-2"
               >
                 {uploading ? "Uploading…" : "Upload document"}
               </button>

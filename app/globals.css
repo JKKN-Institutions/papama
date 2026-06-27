@@ -24,3 +24,29 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
 }
+
+/* ── Base legibility + restrained shine ──────────────────────────────────────
+ * Antialiasing for crisper text on the compact body scale, a subtle slate
+ * selection tint, and smooth scrolling only when the user hasn't asked to
+ * reduce motion. Kept minimal so it never fights the @theme above. */
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::selection {
+    background-color: rgb(51 65 85 / 0.15); /* slate-700 @ 15% */
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
+}

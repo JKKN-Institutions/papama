@@ -76,7 +76,7 @@ function ProfileContent() {
     <div className="space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-zinc-50">
+        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
           My Profile
         </h1>
         <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
@@ -105,7 +105,7 @@ function ProfileContent() {
       ) : (
         <form
           onSubmit={handleSubmit}
-          className="max-w-xl space-y-6 rounded-2xl border border-zinc-200/50 bg-white p-6 shadow-md dark:border-zinc-800/40 dark:bg-zinc-900"
+          className="max-w-xl space-y-6 rounded-2xl border border-zinc-200/80 bg-white p-6 shadow-sm dark:border-zinc-800/60 dark:bg-zinc-900"
         >
           {/* Full name */}
           <div className="space-y-2">
@@ -160,7 +160,7 @@ function ProfileContent() {
             <button
               type="submit"
               disabled={saveState === "saving"}
-              className="rounded-xl bg-emerald-600 px-6 py-3 text-xs font-bold text-white shadow-md transition hover:bg-emerald-700 active:scale-95 disabled:opacity-50"
+              className="rounded-lg bg-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-500/60 focus-visible:ring-offset-1 px-6 py-3 text-xs font-bold text-white shadow-md transition hover:bg-emerald-700 active:scale-[.98] disabled:opacity-50"
             >
               {saveState === "saving" ? (
                 <span className="flex items-center justify-center gap-1.5">
