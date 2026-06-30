@@ -340,7 +340,7 @@ export async function validateRedemption(
 
     // --- geofence ------------------------------------------------------------
     if (input.geo) {
-        const { data: vendorGeo } = await admin
+        const { data: vendorGeo, error: vendorGeoErr } = await admin
             .from("vendors")
             .select("geo_lat, geo_lng")
             .eq("id", input.vendor_id)
@@ -348,7 +348,16 @@ export async function validateRedemption(
         const vLat = vendorGeo?.geo_lat != null ? Number(vendorGeo.geo_lat) : null;
         const vLng = vendorGeo?.geo_lng != null ? Number(vendorGeo.geo_lng) : null;
 
-        if (vLat == null || vLng == null) {
+        if (vendorGeoErr) {
+            // FAIL CLOSED: a transient read error must not silently bypass the
+            // radius. Block rather than degrade to a soft "no geo on file" skip.
+            checks.push({
+                name: "geofence",
+                pass: false,
+                hard: true,
+                detail: "could not read vendor location (transient error) — redemption blocked",
+            });
+        } else if (vLat == null || vLng == null) {
             checks.push({
                 name: "geofence",
                 pass: true,
@@ -385,7 +394,7 @@ export async function validateRedemption(
         // could bypass the radius simply by omitting `geo`. The geofence only
         // degrades to a soft skip when it genuinely can't be evaluated (vendor has
         // no geo on file, or the radius config is unset).
-        const { data: vendorGeo } = await admin
+        const { data: vendorGeo, error: vendorGeoErr } = await admin
             .from("vendors")
             .select("geo_lat, geo_lng")
             .eq("id", input.vendor_id)
@@ -401,7 +410,16 @@ export async function validateRedemption(
             radiusConfigured = false;
         }
 
-        if (hasVendorGeo && radiusConfigured) {
+        if (vendorGeoErr) {
+            // FAIL CLOSED: can't confirm whether the geofence is enforceable, so a
+            // transient read error blocks rather than degrading to a soft skip.
+            checks.push({
+                name: "geofence",
+                pass: false,
+                hard: true,
+                detail: "could not read vendor location (transient error) — redemption blocked",
+            });
+        } else if (hasVendorGeo && radiusConfigured) {
             checks.push({
                 name: "geofence",
                 pass: false,
@@ -455,7 +473,7 @@ export async function validateRedemption(
                 operatingCity = null; // operating_city unset — cannot evaluate
             }
 
-            const { data: vendorCityRow } = await admin
+            const { data: vendorCityRow, error: vendorCityErr } = await admin
                 .from("vendors")
                 .select("city")
                 .eq("id", input.vendor_id)
@@ -463,7 +481,16 @@ export async function validateRedemption(
             const vendorCity =
                 (vendorCityRow as { city: string | null } | null)?.city?.trim() || null;
 
-            if (operatingCity == null) {
+            if (vendorCityErr) {
+                // FAIL CLOSED: city lock is ON and the operating city is set, so a
+                // transient read of the vendor's city must block, not soft-skip.
+                checks.push({
+                    name: "city_lock",
+                    pass: false,
+                    hard: true,
+                    detail: "could not read vendor city (transient error) — redemption blocked",
+                });
+            } else if (operatingCity == null) {
                 checks.push({
                     name: "city_lock",
                     pass: true,
@@ -630,21 +657,41 @@ export async function validateRedemption(
         }
 
         // 1:1 identify a REGISTERED beneficiary (nearest within the threshold).
+        let identityReadFailed = false;
         if (threshold != null) {
-            const { data: matchRows } = await admin.rpc("match_beneficiary_face", {
+            const { data: matchRows, error: matchErr } = await admin.rpc("match_beneficiary_face", {
                 query: faceVector,
                 max_distance: threshold,
             });
-            const matchId =
-                (matchRows as { beneficiary_id: string }[] | null)?.[0]?.beneficiary_id ?? null;
-            if (matchId) {
-                const { data: benefData } = await admin
-                    .from("beneficiaries")
-                    .select("id, face_hash, category, eligibility_status, status, eligibility_expires_at")
-                    .eq("id", matchId)
-                    .maybeSingle();
-                beneficiary = (benefData as BeneficiaryRow | null) ?? null;
+            if (matchErr) {
+                // FAIL CLOSED: on a transient match error we cannot tell an
+                // anonymous redeemer from a suspended/expired registered one, so
+                // block rather than silently treating them as anonymous.
+                identityReadFailed = true;
+            } else {
+                const matchId =
+                    (matchRows as { beneficiary_id: string }[] | null)?.[0]?.beneficiary_id ?? null;
+                if (matchId) {
+                    const { data: benefData, error: benefErr } = await admin
+                        .from("beneficiaries")
+                        .select("id, face_hash, category, eligibility_status, status, eligibility_expires_at")
+                        .eq("id", matchId)
+                        .maybeSingle();
+                    if (benefErr) {
+                        identityReadFailed = true;
+                    } else {
+                        beneficiary = (benefData as BeneficiaryRow | null) ?? null;
+                    }
+                }
             }
+        }
+        if (identityReadFailed) {
+            checks.push({
+                name: "identity",
+                pass: false,
+                hard: true,
+                detail: "could not verify beneficiary identity (transient error) — redemption blocked",
+            });
         }
 
         // cooldown + meal-limit (RED-3). Fair-usage is evaluated over the UNION of
@@ -715,28 +762,41 @@ export async function validateRedemption(
             // collect prior redemption timestamps (ms) from both signals.
             const priorMs: number[] = [];
 
+            // A read error on EITHER signal means we cannot trust a "no priors"
+            // conclusion — fail closed below rather than letting a DB/RPC hiccup
+            // open the cooldown / meal-limit gate.
+            let fairUsageReadFailed = false;
+
             // (a) face signal — only when a match threshold is configured.
             if (threshold != null) {
-                const { data: recentRows } = await admin.rpc("recent_face_matches", {
+                const { data: recentRows, error: recentErr } = await admin.rpc("recent_face_matches", {
                     query: faceVector,
                     max_distance: threshold,
                     since,
                 });
-                for (const r of (recentRows as { redeemed_at: string }[] | null) ?? []) {
-                    priorMs.push(Date.parse(r.redeemed_at));
+                if (recentErr) {
+                    fairUsageReadFailed = true;
+                } else {
+                    for (const r of (recentRows as { redeemed_at: string }[] | null) ?? []) {
+                        priorMs.push(Date.parse(r.redeemed_at));
+                    }
                 }
             }
 
             // (b) beneficiary signal — independent of face re-match.
             if (beneficiary) {
-                const { data: benefRows } = await admin
+                const { data: benefRows, error: benefRowsErr } = await admin
                     .from("redemption_cooldown_log")
                     .select("redeemed_at")
                     .eq("beneficiary_id", beneficiary.id)
                     .gte("redeemed_at", since)
                     .order("redeemed_at", { ascending: false });
-                for (const r of (benefRows as { redeemed_at: string }[] | null) ?? []) {
-                    priorMs.push(Date.parse(r.redeemed_at));
+                if (benefRowsErr) {
+                    fairUsageReadFailed = true;
+                } else {
+                    for (const r of (benefRows as { redeemed_at: string }[] | null) ?? []) {
+                        priorMs.push(Date.parse(r.redeemed_at));
+                    }
                 }
             }
 
@@ -750,7 +810,14 @@ export async function validateRedemption(
             const signalAvailable = threshold != null || beneficiary != null;
 
             if (cooldownHours > 0) {
-                if (!signalAvailable) {
+                if (fairUsageReadFailed) {
+                    checks.push({
+                        name: "cooldown",
+                        pass: false,
+                        hard: true,
+                        detail: "could not read redemption history (transient error) — redemption blocked",
+                    });
+                } else if (!signalAvailable) {
                     checks.push({
                         name: "cooldown",
                         pass: true,
@@ -788,7 +855,14 @@ export async function validateRedemption(
             }
 
             if (maxPerDay > 0) {
-                if (!signalAvailable) {
+                if (fairUsageReadFailed) {
+                    checks.push({
+                        name: "meal_limit",
+                        pass: false,
+                        hard: true,
+                        detail: "could not read redemption history (transient error) — redemption blocked",
+                    });
+                } else if (!signalAvailable) {
                     checks.push({
                         name: "meal_limit",
                         pass: true,

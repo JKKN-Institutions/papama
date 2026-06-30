@@ -1,7 +1,6 @@
 import { z } from "zod";
 
 import { BadRequestError, defineRoute, parseBody } from "@/lib/api/handler";
-import { allocatePooledTokens } from "@/lib/volunteer/allocation";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -10,20 +9,18 @@ import { createAdminClient } from "@/lib/supabase/admin";
  *
  * Gated by `token_distribution/update` (scope all). The request must be pending.
  *
- * DENY  → status='denied', decided_by=admin, decided_count=0.
- * GRANT / PARTIALLY_GRANT → allocate `count` tokens (decided_count ?? the
- *   requested count for a full grant, or the explicit count for a partial):
- *     1. concurrent-limit check — read `max_tokens_per_volunteer`; if unset
- *        (NULL/missing) DON'T block; else the volunteer's current held count +
- *        count must not exceed it,
- *     2. pull `count` tokens from status='in_admin_pool' (oldest minted_at) — 400
- *        if the pool has fewer than `count`,
- *     3. move them to 'assigned_to_volunteer' guarding `.eq('status',
- *        'in_admin_pool')` so a race that already claimed any of them is rejected,
- *     4. append one 'volunteer_request_grant' distribution record per moved token
- *        (distributed_by = the volunteer's user_id, so the held-set derivation
- *        attributes the tokens to the volunteer), and
- *     5. update the request {status:decision, decided_by, decided_count:count}.
+ * The claim + allocation are done ATOMICALLY inside the
+ * `decide_volunteer_request` Postgres function (one locked transaction):
+ *   DENY  → status='denied', decided_by=admin, decided_count=0.
+ *   GRANT / PARTIALLY_GRANT → validate count vs requested, then allocate via
+ *     allocate_pooled_tokens (active gate + concurrent cap + oldest-first pool
+ *     pull + 'volunteer_request_grant' records) and finalise the request — all
+ *     under a FOR UPDATE lock on the request row.
+ *
+ * Doing it in the DB closes the double-grant TOCTOU the old read→allocate→update
+ * sequence had: a concurrent second decide (double-click / two admins / retry)
+ * now blocks on the row lock and then trips the pending check, allocating nothing
+ * instead of granting a second batch of tokens for the same request.
  *
  * All DB work runs on the service-role client after the matrix check.
  */
@@ -40,111 +37,43 @@ export const POST = defineRoute<{ id: string }>(
 
         const admin = createAdminClient();
 
-        // Load the request; it must exist and be pending.
-        const { data: requestRow, error: requestError } = await admin
-            .from("volunteer_token_requests")
-            .select("id, volunteer_id, requested_count, status")
-            .eq("id", requestId)
-            .maybeSingle();
-        if (requestError) throw new Error(requestError.message);
-        if (!requestRow) throw new BadRequestError("request not found");
-        const request = requestRow as {
-            id: string;
-            volunteer_id: string;
-            requested_count: number;
-            status: string;
-        };
-        if (request.status !== "pending") {
-            throw new BadRequestError("request has already been decided");
-        }
+        // Atomic decision: row-lock the request, validate, allocate (grant) and
+        // finalise in ONE transaction. The function raises plain exceptions for
+        // every business-rule failure (not found / already decided / bad count /
+        // inactive volunteer / over cap / pool too small) — surface them as 400s.
+        const { data, error } = await admin.rpc("decide_volunteer_request", {
+            p_request_id: requestId,
+            p_decision: body.decision,
+            p_decided_count: body.decided_count ?? null,
+            p_admin_id: user.id,
+        });
+        if (error) throw new BadRequestError(error.message);
 
-        // DENY path — no token movement.
-        if (body.decision === "denied") {
-            const { error: denyError } = await admin
-                .from("volunteer_token_requests")
-                .update({
-                    status: "denied",
-                    decided_by: user.id,
-                    decided_count: 0,
-                    updated_at: new Date().toISOString(),
-                })
-                .eq("id", requestId)
-                .eq("status", "pending");
-            if (denyError) throw new Error(denyError.message);
-
-            await audit({
-                action: "volunteer.allocate",
-                entity_table: "volunteer_token_requests",
-                entity_id: requestId,
-                summary: `denied volunteer request ${requestId}`,
-                metadata: { volunteer_id: request.volunteer_id, decision: "denied" },
-            });
-
-            return { request_id: requestId, granted_count: 0 };
-        }
-
-        // GRANT / PARTIALLY_GRANT — resolve the count, bounded by the request so a
-        // "granted" can never allocate MORE than was requested:
-        //   granted           → exactly requested_count (a full grant),
-        //   partially_granted  → an explicit decided_count in 1..requested_count-1.
-        let count: number;
-        if (body.decision === "granted") {
-            if (body.decided_count !== undefined && body.decided_count !== request.requested_count) {
-                throw new BadRequestError(
-                    "a full grant allocates exactly the requested count — use partially_granted for fewer"
-                );
-            }
-            count = request.requested_count;
-        } else {
-            if (body.decided_count === undefined) {
-                throw new BadRequestError("partially_granted requires decided_count");
-            }
-            if (body.decided_count < 1 || body.decided_count >= request.requested_count) {
-                throw new BadRequestError(
-                    `decided_count must be between 1 and ${request.requested_count - 1} for a partial grant`
-                );
-            }
-            count = body.decided_count;
-        }
-
-        // The shared helper does the pool-pull + concurrent-limit check +
-        // 'assigned_to_volunteer' move + grant records (same engine as the §3a
-        // admin-initiated route, channel differs).
-
-        const { volunteerUserId, movedIds } = await allocatePooledTokens(
-            admin,
-            request.volunteer_id,
-            count,
-            "volunteer_request_grant"
-        );
-
-        // Finalize the request.
-        const { error: updateError } = await admin
-            .from("volunteer_token_requests")
-            .update({
-                status: body.decision,
-                decided_by: user.id,
-                decided_count: count,
-                updated_at: new Date().toISOString(),
-            })
-            .eq("id", requestId)
-            .eq("status", "pending");
-        if (updateError) throw new Error(updateError.message);
+        const result = ((data ?? []) as {
+            token_ids: string[] | null;
+            volunteer_user_id: string | null;
+            granted_count: number;
+        }[])[0];
+        const grantedCount = result?.granted_count ?? 0;
+        const movedIds = result?.token_ids ?? [];
+        const volunteerUserId = result?.volunteer_user_id ?? null;
 
         await audit({
             action: "volunteer.allocate",
             entity_table: "volunteer_token_requests",
             entity_id: requestId,
-            summary: `${body.decision} volunteer request ${requestId}: ${count} tokens`,
+            summary:
+                body.decision === "denied"
+                    ? `denied volunteer request ${requestId}`
+                    : `${body.decision} volunteer request ${requestId}: ${grantedCount} tokens`,
             metadata: {
-                volunteer_id: request.volunteer_id,
                 volunteer_user_id: volunteerUserId,
                 decision: body.decision,
-                granted_count: count,
+                granted_count: grantedCount,
                 token_ids: movedIds,
             },
         });
 
-        return { request_id: requestId, granted_count: count };
+        return { request_id: requestId, granted_count: grantedCount };
     }
 );
