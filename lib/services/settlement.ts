@@ -2,6 +2,8 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { getConfig } from "@/lib/system-config";
+
 /**
  * Settlement engine (SET-1..4, demo step 7). Aggregates proof-released,
  * not-yet-settled redemptions into one `pending` vendor_settlements row per
@@ -35,6 +37,65 @@ export interface SettlementRunResult {
     vendors: { vendor_id: string; settlement_id: string; amount: number; count: number }[];
     /** Vendors whose settlement failed and was rolled back — the run continues past them. */
     errors: { vendor_id: string; error: string }[];
+    /** Settlements randomly pulled into the audit queue this run (addon #10). */
+    audit_queued: number;
+}
+
+/**
+ * Random-sample audit (addon #10): after settlements are created, pull a
+ * fraction of them into settlement_audit_queue for human review. The fraction is
+ * the admin-tunable system_config `settlement_random_audit_rate` (0..1); the rule
+ * SOFT-SKIPS entirely when the key is unset/missing — same discipline as the
+ * other addon tunables (never invent a default). Idempotent: a settlement already
+ * queued is not re-queued, so re-running a cycle never duplicates audit rows.
+ *
+ * BILL-OCR PLACEHOLDER: receipt OCR cross-checking (compare the proof receipt
+ * total against the settled line amount) is BLOCKED — no OCR provider procured.
+ * When one is, decode the receipt here and auto-flag mismatches into this same
+ * queue with reason='ocr_mismatch'. Intentionally not built (no mock totals).
+ */
+async function sampleSettlementsForAudit(
+    settlementIds: string[],
+    admin: SupabaseClient
+): Promise<number> {
+    if (settlementIds.length === 0) return 0;
+
+    let rate: number | null = null;
+    try {
+        const raw = await getConfig("settlement_random_audit_rate", admin as never);
+        rate = typeof raw === "number" && !Number.isNaN(raw) ? raw : null;
+    } catch {
+        return 0; // key missing → feature off
+    }
+    if (rate === null || rate <= 0) return 0;
+
+    // Which of these settlements are already queued? (idempotency)
+    const { data: existing } = await admin
+        .from("settlement_audit_queue")
+        .select("settlement_id")
+        .in("settlement_id", settlementIds);
+    const alreadyQueued = new Set(
+        ((existing ?? []) as { settlement_id: string }[]).map((r) => r.settlement_id)
+    );
+
+    const toQueue = settlementIds.filter(
+        (id) => !alreadyQueued.has(id) && Math.random() < rate!
+    );
+    if (toQueue.length === 0) return 0;
+
+    const { error } = await admin.from("settlement_audit_queue").insert(
+        toQueue.map((id) => ({
+            settlement_id: id,
+            reason: "random_sample",
+            status: "pending",
+        }))
+    );
+    if (error) {
+        // Auditing is a guard-rail, not the settlement itself — never abort the run.
+        console.error("[settlement] audit-queue sampling failed:", error.message);
+        return 0;
+    }
+    return toQueue.length;
 }
 
 /** Platform-owed amount for one redemption (menu value minus beneficiary's over-pay). */
@@ -105,6 +166,7 @@ export async function runSettlement(
         line_items: 0,
         vendors: [],
         errors: [],
+        audit_queued: 0,
     };
 
     for (const [vendorId, allReds] of byVendor) {
@@ -174,6 +236,12 @@ export async function runSettlement(
             });
         }
     }
+
+    // Random-sample the freshly-created settlements into the audit queue (#10).
+    result.audit_queued = await sampleSettlementsForAudit(
+        result.vendors.map((v) => v.settlement_id),
+        admin
+    );
 
     return result;
 }
