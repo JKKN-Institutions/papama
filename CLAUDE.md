@@ -19,10 +19,9 @@ running app, so UX quality counts as much as backend correctness.
   add new assumptions here.
 
 ## Hard rules (override speed)
-- **Never mutate the live DB.** Supabase MCP is read-only. Output migration
-  SQL for me to apply; never apply it yourself.
 - **Use the `supabase-papama` MCP** (ref `qxdxefofeykzvegykitt`), NOT the
-  claude.ai Supabase connector (wrong account).
+  claude.ai Supabase connector (wrong account). Reconcile against the live
+  schema and keep reversible DOWNs before applying a migration.
 - **Never invent values for open items** (disaster-proof, email/payment
   provider, `max_tokens_per_volunteer`). Use a marked placeholder + note it.
 - **No secrets in git.** Service-role key is server-only, never `NEXT_PUBLIC_`.

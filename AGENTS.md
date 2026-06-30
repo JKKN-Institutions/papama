@@ -76,7 +76,7 @@ Leave schema seams but do NOT build: event-campaign donations (`donations.event_
 Working toward a deadline; prioritise speed. Do not explain every line. Build in ordered batches. The following are non-negotiable regardless of speed:
 
 - **Plan first, once, and get approval.** Then execute in dependency order without per-line approval; pause only to flag a genuine conflict.
-- **Propose migrations as SQL; never apply.** The Supabase MCP is read-only. I apply migrations myself.
+- **Apply migrations via the `supabase-papama` MCP.** Reconcile against the live schema and keep reversible DOWNs before applying.
 - **Reconcile with the existing 33 tables** (all RLS-enabled; see `docs/db-schema-snapshot.md`). Inspect before building; build on them where they fit; flag conflicts and propose resolutions; never drop/overwrite data without flagging.
 - **Never invent open-item values** (ASSUMPTIONS.md). Use marked placeholders.
 - Auth foundation (users + user_role enum) comes first, because existing RLS needs it.
