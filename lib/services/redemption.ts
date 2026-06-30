@@ -5,6 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { getNumber, getBoolean, getString } from "@/lib/system-config";
 import { qrHashOf } from "@/app/api/_lib/tokenQr";
 import { toVectorLiteral } from "@/lib/face/embedding";
+import { getGreatCircleDistanceKm } from "@/lib/services/geo";
 
 /**
  * Redemption validation + value engine (owner §4.4, RED-1..7, PROOF-4).
@@ -107,25 +108,6 @@ export interface RedemptionValidation {
 
 /** Token statuses at which a token may be redeemed. */
 const REDEEMABLE_STATUSES = new Set(["live", "distributed"]);
-
-/** Great-circle distance (km) between two lat/lng points (haversine). */
-function haversineKm(
-    aLat: number,
-    aLng: number,
-    bLat: number,
-    bLng: number
-): number {
-    const R = 6371; // Earth radius (km)
-    const toRad = (d: number) => (d * Math.PI) / 180;
-    const dLat = toRad(bLat - aLat);
-    const dLng = toRad(bLng - aLng);
-    const lat1 = toRad(aLat);
-    const lat2 = toRad(bLat);
-    const h =
-        Math.sin(dLat / 2) ** 2 +
-        Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
-    return 2 * R * Math.asin(Math.sqrt(h));
-}
 
 function clamp(n: number, lo: number, hi: number): number {
     return Math.max(lo, Math.min(hi, n));
@@ -257,7 +239,7 @@ export async function validateRedemption(
         } else {
             try {
                 const radiusKm = await getNumber("redemption_radius_km", admin as never);
-                const dist = haversineKm(input.geo.lat, input.geo.lng, vLat, vLng);
+                const dist = getGreatCircleDistanceKm(input.geo.lat, input.geo.lng, vLat, vLng);
                 const within = dist <= radiusKm;
                 checks.push({
                     name: "geofence",

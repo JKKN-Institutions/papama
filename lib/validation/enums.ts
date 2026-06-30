@@ -23,6 +23,7 @@ import {
     FRAUD_SEVERITIES,
     FRAUD_STATUSES,
     KYC_STATUSES,
+    MEAL_TYPES,
     NOTIFICATION_CHANNELS,
     NOTIFICATION_STATUSES,
     PAYMENT_STATUSES,
@@ -35,6 +36,7 @@ import {
     TOKEN_TYPES,
     USER_ROLES,
     VENDOR_STATUSES,
+    VOLUNTEER_ACTIVITY_TYPES,
     VOLUNTEER_REQUEST_STATUSES,
 } from "@/lib/types/enums";
 
@@ -70,3 +72,6 @@ export const notificationChannelSchema = z.enum(NOTIFICATION_CHANNELS);
 export const notificationStatusSchema = z.enum(NOTIFICATION_STATUSES);
 
 export const reportTypeSchema = z.enum(REPORT_TYPES);
+
+export const mealTypeSchema = z.enum(MEAL_TYPES);
+export const volunteerActivityTypeSchema = z.enum(VOLUNTEER_ACTIVITY_TYPES);

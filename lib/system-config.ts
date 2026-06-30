@@ -28,7 +28,21 @@ export type SystemConfigKey =
     | "vendor_min_rating"
     | "vendor_max_complaint_rate"
     | "max_tokens_per_volunteer"
-    | "patient_eligibility_months";
+    | "patient_eligibility_months"
+    // --- Phase-1 addon tunables ---
+    | "meal_window_enforcement_enabled"
+    | "vendor_capacity_enforcement_enabled"
+    | "csr_80g_certificates_enabled"
+    | "emergency_mode_enabled"
+    | "emergency_max_meals_per_day"
+    | "emergency_meal_cooldown_hours"
+    | "vendor_auto_suspend_enabled"
+    | "vendor_min_feedback_count"
+    | "proof_phash_dup_distance"
+    | "settlement_random_audit_rate"
+    | "institution_bulk_allocation_max"
+    | "volunteer_zones_enabled"
+    | "transparency_dashboard_enabled";
 
 type ValueType = "number" | "boolean" | "string";
 

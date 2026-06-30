@@ -246,3 +246,23 @@ export const REPORT_TYPES = [
     "audit",
 ] as const;
 export type ReportType = ValueOf<typeof REPORT_TYPES>;
+
+// --- meals & volunteer activity (Phase-1 addon) ----------------------------
+
+/**
+ * Meal slots a vendor/redemption can be bound to (addon #1 meal windows).
+ * Drives the configurable per-slot serving windows enforced at redemption when
+ * `meal_window_enforcement_enabled` is on.
+ */
+export const MEAL_TYPES = ["breakfast", "lunch", "dinner", "snack"] as const;
+export type MealType = ValueOf<typeof MEAL_TYPES>;
+
+/**
+ * Volunteer field-activity categories logged for zones/activity tracking
+ * (addon #13). Each row records a discrete on-ground action by a volunteer.
+ */
+export const VOLUNTEER_ACTIVITY_TYPES = [
+    "token_distributed",
+    "registration_assisted",
+] as const;
+export type VolunteerActivityType = ValueOf<typeof VOLUNTEER_ACTIVITY_TYPES>;
