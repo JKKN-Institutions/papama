@@ -731,6 +731,70 @@ export function listResponseSchema<T extends z.ZodTypeAny>(key: string, item: T)
     });
 }
 
+// --- addon #11: institution token allocations ------------------------------
+
+/** GET /api/admin/institutions — a bulk-allocation ledger row (addon #11). */
+export const institutionAllocationResponseSchema = z.object({
+    id: z.string(),
+    ngo_partner_id: z.string(),
+    institution_name: z.string().nullable(), // joined from ngo_partners for display
+    token_count: z.number().int(),
+    allocated_by: z.string().nullable(),
+    status: z.enum(["pending", "allocated", "cancelled"]),
+    notes: z.string().nullable(),
+    created_at: isoTimestampSchema,
+    updated_at: isoTimestampSchema,
+});
+export type InstitutionAllocationResponse = z.infer<typeof institutionAllocationResponseSchema>;
+
+/** POST /api/admin/institutions — bulk-allocate pooled tokens to an institution. */
+export const institutionAllocateRequestSchema = z.object({
+    ngo_partner_id: z.string().uuid(),
+    count: z.number().int().positive().max(10_000),
+    notes: z.string().trim().max(500).optional(),
+});
+export type InstitutionAllocateRequest = z.infer<typeof institutionAllocateRequestSchema>;
+
+// --- addon #7: corporate CSR donor profiles --------------------------------
+
+/** GET/POST /api/donor/csr — the signed-in donor's corporate CSR profile (addon #7). */
+export const corporateCsrProfileResponseSchema = z.object({
+    id: z.string(),
+    donor_id: z.string(),
+    company_name: z.string(),
+    cin: z.string().nullable(),
+    registration_number: z.string().nullable(),
+    csr_focus_area: z.string().nullable(),
+    ngo_partner_id: z.string().nullable(),
+    created_at: isoTimestampSchema,
+    updated_at: isoTimestampSchema,
+});
+export type CorporateCsrProfileResponse = z.infer<typeof corporateCsrProfileResponseSchema>;
+
+/** POST /api/donor/csr — create/update the caller's corporate CSR profile. */
+export const corporateCsrProfileRequestSchema = z.object({
+    company_name: z.string().trim().min(1).max(200),
+    cin: z.string().trim().max(40).optional(),
+    registration_number: z.string().trim().max(80).optional(),
+    csr_focus_area: z.string().trim().max(200).optional(),
+    ngo_partner_id: z.string().uuid().nullable().optional(),
+});
+export type CorporateCsrProfileRequest = z.infer<typeof corporateCsrProfileRequestSchema>;
+
+/** POST /api/admin/csr — generate a corporate CSR report (addon #7). */
+export const csrReportGenerateRequestSchema = z
+    .object({
+        donor_id: z.string().uuid().optional(),
+        period_start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "expected a YYYY-MM-DD date").optional(),
+        period_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "expected a YYYY-MM-DD date").optional(),
+        title: z.string().trim().max(200).optional(),
+    })
+    .refine(
+        (r) => !r.period_start || !r.period_end || r.period_start <= r.period_end,
+        { message: "period_start must be on or before period_end", path: ["period_start"] }
+    );
+export type CsrReportGenerateRequest = z.infer<typeof csrReportGenerateRequestSchema>;
+
 // --- standard error body (contract: never a bare null) ---------------------
 
 export const errorResponseSchema = z.object({ error: z.string() });

@@ -83,6 +83,12 @@ function ProfileContent() {
           Manage your donor details. Your PAN is optional and used only for 80G
           tax-receipt purposes once registration is enabled.
         </p>
+        <a
+          href="/donor/csr"
+          className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 transition hover:bg-emerald-100 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-400"
+        >
+          Donating on behalf of a company? Register for Corporate CSR →
+        </a>
       </div>
 
       {loading ? (
