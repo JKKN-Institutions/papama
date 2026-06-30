@@ -85,12 +85,12 @@ alter table public.institution_token_allocations enable row level security;
 
 create policy institution_allocations_select_staff on public.institution_token_allocations
     for select to authenticated
-    using (public.current_app_role() in ('admin', 'compliance'));
+    using (private.current_app_role() in ('admin', 'compliance'));
 
 create policy institution_allocations_write_admin on public.institution_token_allocations
     for all to authenticated
-    using (public.current_app_role() = 'admin')
-    with check (public.current_app_role() = 'admin');
+    using (private.current_app_role() = 'admin')
+    with check (private.current_app_role() = 'admin');
 
 -- =============================================================================
 -- 3. allocate_pooled_tokens_to_institution — atomic institution bulk draw.

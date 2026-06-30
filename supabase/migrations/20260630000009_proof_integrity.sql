@@ -65,18 +65,18 @@ create index if not exists settlement_audit_queue_status_idx
 alter table public.settlement_audit_queue enable row level security;
 
 create policy settlement_audit_select_staff on public.settlement_audit_queue for select to authenticated
-    using (public.current_app_role() in ('admin', 'compliance'));
+    using (private.current_app_role() in ('admin', 'compliance'));
 
 create policy settlement_audit_insert_staff on public.settlement_audit_queue for insert to authenticated
-    with check (public.current_app_role() in ('admin', 'compliance'));
+    with check (private.current_app_role() in ('admin', 'compliance'));
 
 create policy settlement_audit_update_staff on public.settlement_audit_queue for update to authenticated
-    using (public.current_app_role() in ('admin', 'compliance'))
-    with check (public.current_app_role() in ('admin', 'compliance'));
+    using (private.current_app_role() in ('admin', 'compliance'))
+    with check (private.current_app_role() in ('admin', 'compliance'));
 
 -- DELETE: admin only (compliance reviews but does not erase the audit trail).
 create policy settlement_audit_delete_admin on public.settlement_audit_queue for delete to authenticated
-    using (public.current_app_role() = 'admin');
+    using (private.current_app_role() = 'admin');
 
 commit;
 

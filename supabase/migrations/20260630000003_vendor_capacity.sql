@@ -97,7 +97,7 @@ alter table public.vendor_capacity_usage enable row level security;
 
 create policy vendor_capacity_usage_select_staff on public.vendor_capacity_usage
     for select to authenticated
-    using (public.current_app_role() in ('admin', 'compliance', 'vendor_manager'));
+    using (private.current_app_role() in ('admin', 'compliance', 'vendor_manager'));
 
 create policy vendor_capacity_usage_select_own_vendor on public.vendor_capacity_usage
     for select to authenticated
@@ -114,8 +114,8 @@ create policy vendor_capacity_usage_update_own_vendor on public.vendor_capacity_
 
 create policy vendor_capacity_usage_write_admin on public.vendor_capacity_usage
     for all to authenticated
-    using (public.current_app_role() = 'admin')
-    with check (public.current_app_role() = 'admin');
+    using (private.current_app_role() = 'admin')
+    with check (private.current_app_role() = 'admin');
 
 commit;
 

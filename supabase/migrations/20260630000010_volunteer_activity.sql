@@ -46,10 +46,16 @@ comment on column public.volunteers.approved_by is
 create or replace function public.guard_volunteer_controlled_cols()
 returns trigger
 language plpgsql
+set search_path to ''
 as $$
 begin
-    if public.current_app_role() is null
-       or public.current_app_role() in ('admin', 'vendor_manager') then
+    -- service-role (server code, after its own permission check) bypasses the
+    -- guard — matches the live m09 definition. Admin zone/approval writes go
+    -- through the service-role client, so this is the branch they rely on.
+    if auth.role() = 'service_role' then
+        return new;
+    end if;
+    if private.current_app_role() in ('admin', 'vendor_manager') then
         return new;
     end if;
     if new.status        is distinct from old.status
@@ -88,7 +94,7 @@ create index if not exists volunteer_activity_log_type_idx
 alter table public.volunteer_activity_log enable row level security;
 
 create policy volunteer_activity_select_staff on public.volunteer_activity_log for select to authenticated
-    using (public.current_app_role() in ('admin', 'vendor_manager', 'compliance'));
+    using (private.current_app_role() in ('admin', 'vendor_manager', 'compliance'));
 
 create policy volunteer_activity_select_own on public.volunteer_activity_log for select to authenticated
     using (exists (
@@ -97,7 +103,7 @@ create policy volunteer_activity_select_own on public.volunteer_activity_log for
     ));
 
 create policy volunteer_activity_insert_staff on public.volunteer_activity_log for insert to authenticated
-    with check (public.current_app_role() in ('admin', 'vendor_manager'));
+    with check (private.current_app_role() in ('admin', 'vendor_manager'));
 
 commit;
 
@@ -110,7 +116,7 @@ commit;
 -- create or replace function public.guard_volunteer_controlled_cols()
 -- returns trigger language plpgsql as $$
 -- begin
---     if public.current_app_role() in ('admin', 'vendor_manager') then
+--     if private.current_app_role() in ('admin', 'vendor_manager') then
 --         return new;
 --     end if;
 --     if new.status is distinct from old.status

@@ -49,9 +49,16 @@ comment on column public.vendors.quality_score is
 create or replace function public.guard_vendor_controlled_cols()
 returns trigger
 language plpgsql
+set search_path to ''
 as $$
 begin
-    if public.current_app_role() in ('admin', 'vendor_manager') then
+    -- service-role (server code, after its own permission check) bypasses the
+    -- guard — matches the live m04 definition. vendorRating.ts writes rating_avg/
+    -- quality_score/status via the service-role client and depends on this.
+    if auth.role() = 'service_role' then
+        return new;
+    end if;
+    if private.current_app_role() in ('admin', 'vendor_manager') then
         return new;
     end if;
     if new.status          is distinct from old.status
@@ -118,7 +125,7 @@ alter table public.surprise_inspections  enable row level security;
 -- --- vendor_feedback ---------------------------------------------------------
 create policy vendor_feedback_select_staff on public.vendor_feedback
     for select to authenticated
-    using (public.current_app_role() in ('admin', 'compliance', 'vendor_manager'));
+    using (private.current_app_role() in ('admin', 'compliance', 'vendor_manager'));
 
 create policy vendor_feedback_insert_own_beneficiary on public.vendor_feedback
     for insert to authenticated
@@ -129,26 +136,26 @@ create policy vendor_feedback_insert_own_beneficiary on public.vendor_feedback
 
 create policy vendor_feedback_write_admin on public.vendor_feedback
     for all to authenticated
-    using (public.current_app_role() = 'admin')
-    with check (public.current_app_role() = 'admin');
+    using (private.current_app_role() = 'admin')
+    with check (private.current_app_role() = 'admin');
 
 -- --- surprise_inspections ----------------------------------------------------
 create policy surprise_inspections_select_staff on public.surprise_inspections
     for select to authenticated
-    using (public.current_app_role() in ('admin', 'compliance', 'vendor_manager'));
+    using (private.current_app_role() in ('admin', 'compliance', 'vendor_manager'));
 
 create policy surprise_inspections_insert_staff on public.surprise_inspections
     for insert to authenticated
-    with check (public.current_app_role() in ('admin', 'compliance', 'vendor_manager'));
+    with check (private.current_app_role() in ('admin', 'compliance', 'vendor_manager'));
 
 create policy surprise_inspections_update_staff on public.surprise_inspections
     for update to authenticated
-    using (public.current_app_role() in ('admin', 'compliance', 'vendor_manager'))
-    with check (public.current_app_role() in ('admin', 'compliance', 'vendor_manager'));
+    using (private.current_app_role() in ('admin', 'compliance', 'vendor_manager'))
+    with check (private.current_app_role() in ('admin', 'compliance', 'vendor_manager'));
 
 create policy surprise_inspections_delete_admin on public.surprise_inspections
     for delete to authenticated
-    using (public.current_app_role() = 'admin');
+    using (private.current_app_role() = 'admin');
 
 commit;
 
@@ -162,7 +169,7 @@ commit;
 -- create or replace function public.guard_vendor_controlled_cols()
 -- returns trigger language plpgsql as $$
 -- begin
---     if public.current_app_role() in ('admin', 'vendor_manager') then
+--     if private.current_app_role() in ('admin', 'vendor_manager') then
 --         return new;
 --     end if;
 --     if new.status is distinct from old.status

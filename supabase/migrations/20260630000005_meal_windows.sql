@@ -66,18 +66,18 @@ create policy meal_windows_select_authenticated
 create policy meal_windows_insert_admin
     on public.meal_windows for insert
     to authenticated
-    with check (public.current_app_role() = 'admin');
+    with check (private.current_app_role() = 'admin');
 
 create policy meal_windows_update_admin
     on public.meal_windows for update
     to authenticated
-    using (public.current_app_role() = 'admin')
-    with check (public.current_app_role() = 'admin');
+    using (private.current_app_role() = 'admin')
+    with check (private.current_app_role() = 'admin');
 
 create policy meal_windows_delete_admin
     on public.meal_windows for delete
     to authenticated
-    using (public.current_app_role() = 'admin');
+    using (private.current_app_role() = 'admin');
 
 -- --- SEED: the doc's suggested GLOBAL windows, DISABLED ----------------------
 -- docs/phase 1 addon.md §1 suggests Breakfast 06:00–10:00, Lunch 11:00–15:00,

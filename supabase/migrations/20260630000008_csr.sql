@@ -56,17 +56,17 @@ create trigger corporate_csr_profiles_set_updated_at
 alter table public.corporate_csr_profiles enable row level security;
 
 create policy corporate_csr_select_own on public.corporate_csr_profiles for select to authenticated
-    using (donor_id = public.current_donor_id());
+    using (donor_id = private.current_donor_id());
 create policy corporate_csr_select_staff on public.corporate_csr_profiles for select to authenticated
-    using (public.current_app_role() in ('admin', 'compliance'));
+    using (private.current_app_role() in ('admin', 'compliance'));
 -- The donor may create/update their own profile directly (RLS-scoped); the
 -- server route still runs the matrix check first.
 create policy corporate_csr_modify_own on public.corporate_csr_profiles for all to authenticated
-    using (donor_id = public.current_donor_id())
-    with check (donor_id = public.current_donor_id());
+    using (donor_id = private.current_donor_id())
+    with check (donor_id = private.current_donor_id());
 create policy corporate_csr_write_admin on public.corporate_csr_profiles for all to authenticated
-    using (public.current_app_role() = 'admin')
-    with check (public.current_app_role() = 'admin');
+    using (private.current_app_role() = 'admin')
+    with check (private.current_app_role() = 'admin');
 
 commit;
 
