@@ -160,9 +160,17 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     {
         href: "/admin/institutions",
         title: "Institutions",
-        description: "Partner institutions and bulk beneficiary allocations.",
-        feature: "beneficiary_registration",
+        description: "Partner institutions: bulk token allocation and per-institution redemption reporting.",
+        feature: "audit_reports",
         action: "read",
+    },
+    {
+        href: "/admin/csr",
+        title: "Corporate CSR",
+        description: "Corporate CSR donors and aggregated CSR reports (by company / campaign / financial year).",
+        feature: "audit_reports",
+        action: "read",
+        navLabel: "CSR",
     },
     {
         href: "/admin/volunteer-activity",
