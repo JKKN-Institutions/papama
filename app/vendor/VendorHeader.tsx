@@ -11,11 +11,12 @@ const NAV = [
   { href: "/vendor/scan", label: "Scan" },
   { href: "/vendor/redemptions", label: "Redemptions" },
   { href: "/vendor/menu", label: "Menu" },
+  { href: "/vendor/availability", label: "Availability" },
   { href: "/vendor/settlements", label: "Settlements" },
   { href: "/vendor/profile", label: "Profile" },
 ];
 
-type VendorIcon = "scan" | "redemptions" | "menu" | "settlements" | "profile";
+type VendorIcon = "scan" | "redemptions" | "menu" | "availability" | "settlements" | "profile";
 
 // Inline stroke icons for the mobile bottom bar; color inherits via currentColor.
 function VIcon({ name }: { name: VendorIcon }) {
@@ -45,6 +46,12 @@ function VIcon({ name }: { name: VendorIcon }) {
       return (
         <svg {...common}>
           <path d="M3.75 6.75h16.5M3.75 12h16.5M3.75 17.25h16.5" />
+        </svg>
+      );
+    case "availability":
+      return (
+        <svg {...common}>
+          <path d="M12 6v6l3.75 2.25M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
         </svg>
       );
     case "settlements":
@@ -119,8 +126,8 @@ export function VendorHeader() {
         fab={{ href: "/vendor/scan", label: "Scan", icon: <VIcon name="scan" /> }}
         tabs={[
           { href: "/vendor/redemptions", label: "Redemptions", icon: <VIcon name="redemptions" /> },
-          { href: "/vendor/menu", label: "Menu", icon: <VIcon name="menu" /> },
-          { href: "/vendor/settlements", label: "Settlements", icon: <VIcon name="settlements" /> },
+          { href: "/vendor/availability", label: "Hours", icon: <VIcon name="availability" /> },
+          { href: "/vendor/settlements", label: "Settle", icon: <VIcon name="settlements" /> },
           { href: "/vendor/profile", label: "Profile", icon: <VIcon name="profile" /> },
         ]}
       />
