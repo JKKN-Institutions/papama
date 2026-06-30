@@ -87,6 +87,12 @@ begin
 end;
 $$;
 
+-- Counter mutator: service-role only (called by lib/services/vendorCapacity.ts).
+-- Default PUBLIC execute would let anon/authenticated inflate a vendor's daily
+-- meal count and block redemptions — lock it down like the institution RPC.
+revoke all on function public.increment_vendor_capacity_usage(uuid) from public, anon, authenticated;
+grant execute on function public.increment_vendor_capacity_usage(uuid) to service_role;
+
 -- =============================================================================
 -- RLS — staff read all; a vendor reads + writes ONLY its own outlet's usage
 --       (mirrors token_redemptions vendor-scoping in m17). The increment RPC
