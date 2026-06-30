@@ -73,6 +73,14 @@ interface BeneficiaryRow {
     eligibility_expires_at: string | null;
 }
 
+/** A configured meal-serving window (Wave-2 `meal_windows`). */
+interface MealWindowRow {
+    vendor_id: string | null;
+    start_time: string;
+    end_time: string;
+    is_active: boolean;
+}
+
 /** Money split computed for the redemption (owner §4.4). */
 export interface RedemptionValue {
     token_value: number;
@@ -189,6 +197,117 @@ export async function validateRedemption(
               ? `vendor outlet is not approved (${vendorStatus})`
               : "vendor outlet not found",
     });
+
+    // --- vendor availability (owner §4.5) ------------------------------------
+    // Open/closed, stock, temporary closure, and daily capacity. The columns
+    // (is_open / stock_exhausted / temporary_closure_until / daily_meal_capacity)
+    // and the vendor_capacity_usage table are created by a LATER Wave-2 migration,
+    // so EVERY read here degrades to a SOFT skip on query error / missing data —
+    // never a hard fail and never a throw (matches the config-unset discipline).
+    {
+        const { data: availData, error: availErr } = await admin
+            .from("vendors")
+            .select("is_open, stock_exhausted, temporary_closure_until, daily_meal_capacity")
+            .eq("id", input.vendor_id)
+            .maybeSingle();
+
+        if (availErr || !availData) {
+            // columns not present yet (Wave-2) or vendor row absent → cannot evaluate.
+            checks.push({
+                name: "vendor_availability",
+                pass: true,
+                hard: false,
+                detail: "vendor availability fields unavailable — skipped",
+            });
+        } else {
+            const avail = availData as {
+                is_open: boolean | null;
+                stock_exhausted: boolean | null;
+                temporary_closure_until: string | null;
+                daily_meal_capacity: number | null;
+            };
+            const tempClosedUntil =
+                avail.temporary_closure_until != null
+                    ? Date.parse(avail.temporary_closure_until)
+                    : null;
+
+            if (avail.is_open === false) {
+                checks.push({
+                    name: "vendor_availability",
+                    pass: false,
+                    hard: true,
+                    detail: "vendor is closed",
+                });
+            } else if (avail.stock_exhausted === true) {
+                checks.push({
+                    name: "vendor_availability",
+                    pass: false,
+                    hard: true,
+                    detail: "vendor is out of stock today",
+                });
+            } else if (tempClosedUntil != null && tempClosedUntil > nowMs) {
+                checks.push({
+                    name: "vendor_availability",
+                    pass: false,
+                    hard: true,
+                    detail: `vendor temporarily closed until ${avail.temporary_closure_until!.slice(0, 16).replace("T", " ")}`,
+                });
+            } else {
+                // not blocked — evaluate daily capacity when enforced & configured.
+                let capacityOn = false;
+                try {
+                    capacityOn = await getBoolean(
+                        "vendor_capacity_enforcement_enabled",
+                        admin as never
+                    );
+                } catch {
+                    capacityOn = false; // unset → not enforced (no guessed default)
+                }
+
+                if (capacityOn && typeof avail.daily_meal_capacity === "number") {
+                    const today = new Date();
+                    const usageDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+                    const { data: usageRow, error: usageErr } = await admin
+                        .from("vendor_capacity_usage")
+                        .select("meals_served")
+                        .eq("vendor_id", input.vendor_id)
+                        .eq("usage_date", usageDate)
+                        .maybeSingle();
+
+                    if (usageErr) {
+                        // table not present yet (Wave-2) → cannot evaluate capacity.
+                        checks.push({
+                            name: "vendor_availability",
+                            pass: true,
+                            hard: false,
+                            detail: "vendor capacity usage unavailable — skipped",
+                        });
+                    } else {
+                        const served =
+                            (usageRow as { meals_served: number | null } | null)?.meals_served ?? 0;
+                        const cap = avail.daily_meal_capacity;
+                        const atCapacity = served >= cap;
+                        checks.push({
+                            name: "vendor_availability",
+                            pass: !atCapacity,
+                            hard: true,
+                            detail: atCapacity
+                                ? `vendor daily capacity reached (${served}/${cap})`
+                                : `vendor open and within capacity (${served}/${cap})`,
+                        });
+                    }
+                } else {
+                    // open, stocked, not temp-closed, capacity not enforced/configured.
+                    checks.push({
+                        name: "vendor_availability",
+                        pass: true,
+                        hard: true,
+                        detail: "vendor open and within capacity",
+                    });
+                }
+            }
+        }
+    }
 
     // --- menu ----------------------------------------------------------------
     const { data: menuData } = await admin
@@ -372,6 +491,97 @@ export async function validateRedemption(
         }
     }
 
+    // --- meal window (clock-time serving hours) ------------------------------
+    // A pure clock rule, independent of identity: redemptions are only allowed
+    // during configured serving windows. Vendor-specific windows OVERRIDE the
+    // global (vendor_id null) ones. The `meal_windows` table is created by a
+    // LATER Wave-2 migration, so a query error OR zero applicable windows
+    // degrades to a SOFT skip — never a hard fail and never a throw.
+    {
+        let mealWindowOn = false;
+        try {
+            mealWindowOn = await getBoolean("meal_window_enforcement_enabled", admin as never);
+        } catch {
+            mealWindowOn = false; // unset → disabled (no guessed default)
+        }
+
+        if (!mealWindowOn) {
+            checks.push({
+                name: "meal_window",
+                pass: true,
+                hard: false,
+                detail: "meal window enforcement disabled — skipped",
+            });
+        } else {
+            const { data: windowRows, error: windowErr } = await admin
+                .from("meal_windows")
+                .select("vendor_id, start_time, end_time, is_active")
+                .eq("is_active", true)
+                .or(`vendor_id.eq.${input.vendor_id},vendor_id.is.null`);
+
+            const allWindows = (windowErr ? null : (windowRows as MealWindowRow[] | null)) ?? [];
+            // vendor-specific windows override the global ones when any exist.
+            const vendorWindows = allWindows.filter((w) => w.vendor_id === input.vendor_id);
+            const applicable =
+                vendorWindows.length > 0
+                    ? vendorWindows
+                    : allWindows.filter((w) => w.vendor_id == null);
+
+            if (windowErr || applicable.length === 0) {
+                checks.push({
+                    name: "meal_window",
+                    pass: true,
+                    hard: false,
+                    detail: "no active meal windows configured — skipped",
+                });
+            } else {
+                const now = new Date(nowMs);
+                const nowMin = now.getHours() * 60 + now.getMinutes();
+                // parse a Postgres `time` 'HH:MM:SS' into minutes-of-day.
+                const toMin = (t: string): number | null => {
+                    const m = /^(\d{1,2}):(\d{2})/.exec(t);
+                    if (!m) return null;
+                    return Number(m[1]) * 60 + Number(m[2]);
+                };
+                const inWindow = (startMin: number, endMin: number): boolean =>
+                    endMin >= startMin
+                        ? nowMin >= startMin && nowMin < endMin
+                        : nowMin >= startMin || nowMin < endMin; // wraps midnight
+
+                let within = false;
+                let bestDelta = Infinity;
+                let bestStart: number | null = null;
+                for (const w of applicable) {
+                    const s = toMin(w.start_time);
+                    const e = toMin(w.end_time);
+                    if (s == null || e == null) continue;
+                    if (inWindow(s, e)) {
+                        within = true;
+                        break;
+                    }
+                    const delta = (s - nowMin + 1440) % 1440; // minutes until this start
+                    if (delta < bestDelta) {
+                        bestDelta = delta;
+                        bestStart = s;
+                    }
+                }
+
+                const fmt = (min: number): string =>
+                    `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
+                checks.push({
+                    name: "meal_window",
+                    pass: within,
+                    hard: true,
+                    detail: within
+                        ? "within an active meal window"
+                        : bestStart != null
+                          ? `outside meal windows — next window opens at ${fmt(bestStart)}`
+                          : "outside the configured meal windows",
+                });
+            }
+        }
+    }
+
     // --- face capture: liveness + identity (owner §4.5/§4.6/§5.2, SEC-1..4) ---
     // Identity is resolved by VECTOR DISTANCE, not text equality. A registered
     // beneficiary is identified 1:1 via match_beneficiary_face; fair-usage
@@ -467,6 +677,34 @@ export async function validateRedemption(
                 /* unset — falls back to cooldown window */
             }
 
+            // --- emergency mode (relief relaxation of fair-usage) ------------
+            // When emergency mode is ON, an emergency-specific value OVERRIDES the
+            // normal cooldown / daily-limit threshold; if that emergency value is
+            // unset, the rule DEGRADES to SOFT (relief applied without inventing a
+            // number). Read with the same unset-tolerant discipline; when
+            // emergency mode is OFF this whole block is a no-op (today's behaviour).
+            let emergencyMode = false;
+            try {
+                emergencyMode = await getBoolean("emergency_mode_enabled", admin as never);
+            } catch {
+                emergencyMode = false; // unset → not in emergency
+            }
+            let cooldownRelax = false;
+            let mealLimitRelax = false;
+            if (emergencyMode) {
+                try {
+                    cooldownHours = await getNumber("emergency_meal_cooldown_hours", admin as never);
+                } catch {
+                    cooldownRelax = true; // no emergency cooldown set → relax to soft
+                }
+                try {
+                    maxPerDay = await getNumber("emergency_max_meals_per_day", admin as never);
+                } catch {
+                    mealLimitRelax = true; // no emergency limit set → relax to soft
+                }
+            }
+            const emTag = emergencyMode ? " (emergency mode)" : "";
+
             const startOfDay = new Date();
             startOfDay.setHours(0, 0, 0, 0);
             const lookbackMs = Math.max(cooldownHours, dedupHours) * 3_600_000;
@@ -526,10 +764,11 @@ export async function validateRedemption(
                     checks.push({
                         name: "cooldown",
                         pass: !within,
-                        hard: true,
-                        detail: within
-                            ? `last meal ${(sinceMs / 3_600_000).toFixed(1)}h ago (< ${cooldownHours}h)`
-                            : `last meal ≥ ${cooldownHours}h ago`,
+                        hard: !cooldownRelax, // emergency relief → soft (never blocks)
+                        detail:
+                            (within
+                                ? `last meal ${(sinceMs / 3_600_000).toFixed(1)}h ago (< ${cooldownHours}h)`
+                                : `last meal ≥ ${cooldownHours}h ago`) + emTag,
                     });
                 } else {
                     checks.push({
@@ -564,10 +803,11 @@ export async function validateRedemption(
                     checks.push({
                         name: "meal_limit",
                         pass: underLimit,
-                        hard: true,
-                        detail: underLimit
-                            ? `${todayCount}/${maxPerDay} meals today`
-                            : `daily meal limit reached (${todayCount}/${maxPerDay})`,
+                        hard: !mealLimitRelax, // emergency relief → soft (never blocks)
+                        detail:
+                            (underLimit
+                                ? `${todayCount}/${maxPerDay} meals today`
+                                : `daily meal limit reached (${todayCount}/${maxPerDay})`) + emTag,
                     });
                 }
             } else {
