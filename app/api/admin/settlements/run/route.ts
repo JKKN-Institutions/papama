@@ -41,6 +41,7 @@ export const POST = defineRoute(
             line_items: result.line_items,
             vendors: result.vendors,
             errors: result.errors, // vendors skipped + rolled back (run does not abort on one failure)
+            audit_queued: result.audit_queued, // settlements pulled into the random-audit queue (#10)
         };
     }
 );

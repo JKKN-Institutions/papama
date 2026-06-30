@@ -1,6 +1,8 @@
 import { BadRequestError, NotFoundError, defineRoute } from "@/lib/api/handler";
 import { resolveVendorId } from "@/lib/vendor/server-identity";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { computePhash, findDuplicateProof } from "@/lib/services/proofIntegrity";
+import { flagFraud } from "@/lib/services/fraud";
 
 /**
  * POST /api/vendor/redemptions/[id]/proof — submit proof of service (PROOF-1..4).
@@ -110,12 +112,18 @@ export const POST = defineRoute<{ id: string }>(
             throw new BadRequestError("proof storage not configured (apply m26)");
         }
 
+        // Perceptual hash of the plate photo (addon #10) — stored so future and
+        // past proofs can be compared for the same photo being re-used across
+        // redemptions. Computed from the bytes we already hold in memory.
+        const photoPhash = computePhash(await photo.arrayBuffer());
+
         const nowIso = new Date().toISOString();
         const { data: submitted, error } = await admin
             .from("token_redemptions")
             .update({
                 proof_photo_ref: photoPath,
                 proof_receipt_ref: receiptPath,
+                proof_photo_phash: photoPhash,
                 proof_uploaded_at: nowIso,
                 // Proof now goes to admin review; payment STAYS locked until approve.
                 proof_status: "submitted",
@@ -150,10 +158,70 @@ export const POST = defineRoute<{ id: string }>(
             },
         });
 
+        // DUPLICATE-PROOF DETECTION (addon #10) — best-effort, never blocks the
+        // upload. Soft-skips entirely when proof_phash_dup_distance is unset. If
+        // the plate photo matches an existing proof within the configured Hamming
+        // distance, we (1) HOLD any settlement(s) already covering either
+        // redemption so the suspect payout can't be released before review, and
+        // (2) raise a fraud flag (REUSING flag_type 'vendor_anomaly' — adding a
+        // fraud enum value would be irreversible). The proof itself still goes to
+        // admin review; this only adds guard-rails around the money.
+        let duplicateProof = false;
+        try {
+            const match = await findDuplicateProof(photoPhash, admin, redemptionId);
+            if (match) {
+                duplicateProof = true;
+
+                // Hold settlements covering either the new or the matched redemption.
+                const { data: lines } = await admin
+                    .from("settlement_line_items")
+                    .select("settlement_id")
+                    .in("redemption_id", [redemptionId, match.redemption_id]);
+                const settlementIds = [
+                    ...new Set(
+                        ((lines ?? []) as { settlement_id: string }[]).map((l) => l.settlement_id)
+                    ),
+                ];
+                if (settlementIds.length > 0) {
+                    await admin
+                        .from("vendor_settlements")
+                        .update({
+                            on_hold: true,
+                            hold_note: `duplicate proof photo detected (redemption ${redemptionId} ~ ${match.redemption_id}, distance ${match.distance})`,
+                        })
+                        .in("id", settlementIds);
+                }
+
+                await flagFraud(admin, {
+                    flag_type: "vendor_anomaly",
+                    severity: "high",
+                    detection_method: "pattern_analysis",
+                    entity: { kind: "vendor", id: vendorId },
+                    blocked: false,
+                });
+
+                await audit({
+                    action: "proof.duplicate_detected",
+                    entity_table: "token_redemptions",
+                    entity_id: redemptionId,
+                    summary: `duplicate proof photo detected: redemption ${redemptionId} matches ${match.redemption_id} (Hamming ${match.distance})`,
+                    metadata: {
+                        matched_redemption_id: match.redemption_id,
+                        distance: match.distance,
+                        held_settlements: settlementIds,
+                    },
+                });
+            }
+        } catch (e) {
+            // Detection must not break a legitimate proof submission; log + move on.
+            console.error("[proof] duplicate-detection failed:", e);
+        }
+
         return {
             redemption_id: redemptionId,
             payment_status: "locked",
             proof_status: "submitted",
+            duplicate_proof: duplicateProof,
         };
     }
 );

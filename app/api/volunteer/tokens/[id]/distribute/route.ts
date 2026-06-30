@@ -4,6 +4,7 @@ import { BadRequestError, defineRoute, parseBody } from "@/lib/api/handler";
 import { resolveVolunteerId } from "@/lib/volunteer/server-identity";
 import { GRANT_CHANNELS } from "@/lib/volunteer/holdings";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logActivity } from "@/lib/services/volunteerActivity";
 
 /**
  * POST /api/volunteer/tokens/[id]/distribute — the volunteer hands a held token
@@ -123,6 +124,14 @@ export const POST = defineRoute<{ id: string }>(
                 distribution_location: body.distribution_location ?? null,
             },
         });
+
+        // Field-activity log (addon #13) — best-effort: a logging failure must not
+        // undo the (already-committed) distribution.
+        try {
+            await logActivity(volunteerId, "token_distributed", tokenId, admin);
+        } catch (e) {
+            console.error("[volunteer.distribute] activity log failed:", e);
+        }
 
         return { token_id: tokenId, status: "distributed" };
     }
