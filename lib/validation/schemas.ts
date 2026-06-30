@@ -27,6 +27,7 @@ import {
     fraudSeveritySchema,
     fraudStatusSchema,
     kycStatusSchema,
+    mealTypeSchema,
     registrationStatusSchema,
     reportTypeSchema,
     settlementCycleSchema,
@@ -434,6 +435,94 @@ export const systemConfigUpdateRequestSchema = z.object({
     value: z.union([z.string(), z.number(), z.boolean(), z.null()]),
 });
 export type SystemConfigUpdateRequest = z.infer<typeof systemConfigUpdateRequestSchema>;
+
+// --- meal windows (addon #1) -----------------------------------------------
+
+/**
+ * A clock time as a zero-padded 24-hour 'HH:MM' string (e.g. '06:00', '18:30').
+ * Stored into the Postgres `time` column; the redemption engine parses the
+ * leading HH:MM (seconds optional) into minutes-of-day.
+ */
+export const clockTimeSchema = z
+    .string()
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "time must be 'HH:MM' (24-hour)");
+
+/** A meal-window row as returned to the admin console (addon #1). */
+export const mealWindowResponseSchema = z.object({
+    id: z.string().uuid(),
+    meal_type: mealTypeSchema,
+    vendor_id: z.string().uuid().nullable(),
+    vendor_name: z.string().nullable(),
+    start_time: z.string(),
+    end_time: z.string(),
+    is_active: z.boolean(),
+    created_at: isoTimestampSchema,
+    updated_at: isoTimestampSchema,
+});
+export type MealWindowResponse = z.infer<typeof mealWindowResponseSchema>;
+
+/**
+ * POST /api/admin/meal-windows — create one serving window (admin only). A null/
+ * omitted `vendor_id` creates a GLOBAL/default window for the slot; a vendor_id
+ * creates a per-vendor override. Overnight windows are rejected (start < end) —
+ * same as the DB CHECK; split an overnight slot into two rows.
+ */
+export const mealWindowCreateRequestSchema = z
+    .object({
+        meal_type: mealTypeSchema,
+        vendor_id: z.string().uuid().nullable().optional(),
+        start_time: clockTimeSchema,
+        end_time: clockTimeSchema,
+        is_active: z.boolean().optional(),
+    })
+    .strict()
+    .refine((v) => v.start_time < v.end_time, {
+        message: "start_time must be before end_time (overnight windows are out of scope)",
+        path: ["end_time"],
+    });
+export type MealWindowCreateRequest = z.infer<typeof mealWindowCreateRequestSchema>;
+
+/**
+ * PATCH /api/admin/meal-windows/[id] — edit / toggle one window (admin only).
+ * Every field is optional (partial edit); when both times are supplied they must
+ * still satisfy start < end. A times-only refine cannot see the stored value, so
+ * the route re-validates the merged row against the start<end rule too.
+ */
+export const mealWindowUpdateRequestSchema = z
+    .object({
+        meal_type: mealTypeSchema.optional(),
+        vendor_id: z.string().uuid().nullable().optional(),
+        start_time: clockTimeSchema.optional(),
+        end_time: clockTimeSchema.optional(),
+        is_active: z.boolean().optional(),
+    })
+    .strict()
+    .refine(
+        (v) =>
+            v.start_time === undefined ||
+            v.end_time === undefined ||
+            v.start_time < v.end_time,
+        {
+            message: "start_time must be before end_time",
+            path: ["end_time"],
+        }
+    );
+export type MealWindowUpdateRequest = z.infer<typeof mealWindowUpdateRequestSchema>;
+
+// --- emergency / disaster relief (addon #8) --------------------------------
+
+/**
+ * POST /api/admin/emergency/grant — issue one emergency-relief token (admin
+ * only). `reason` is a free-text note for the grant trail. NOTE: client Q7
+ * (how a beneficiary proves they are disaster-affected) is OPEN — there is no
+ * proof gating here on purpose (see lib/services/emergency.ts).
+ */
+export const emergencyGrantRequestSchema = z
+    .object({
+        reason: z.string().trim().max(500).optional(),
+    })
+    .strict();
+export type EmergencyGrantRequest = z.infer<typeof emergencyGrantRequestSchema>;
 
 // ===========================================================================
 // Admin-only response schemas — net-new Dev-2 tables (M07–M13). Field names &
