@@ -9,6 +9,7 @@ import { flagFraud } from "@/lib/services/fraud";
 import { embeddingFingerprint, toVectorLiteral } from "@/lib/face/embedding";
 import { faceCaptureSchema } from "@/lib/validation/schemas";
 import { dispatchNotification } from "@/lib/notifications/dispatch";
+import { incrementUsage } from "@/lib/services/vendorCapacity";
 
 /**
  * POST /api/vendor/redemptions — commit a redemption (RED-1..7, PROOF-4).
@@ -179,6 +180,19 @@ export const POST = defineRoute(
                 console.error("redemption.create: forfeited-balance insert failed", forfeitError);
                 secondaryWriteWarnings.push({ step: "forfeited_balances", error: forfeitError.message });
             }
+        }
+
+        // 5. Vendor daily-capacity counter (addon #4) — bump today's served count.
+        //    Best-effort + non-blocking like step 4: the meal already happened and
+        //    the token is burned, so a counter failure must NOT fail the redemption.
+        //    Atomic upsert via the SQL RPC; tolerant of the addon migration not yet
+        //    being applied (the warning is surfaced in the audit metadata).
+        try {
+            await incrementUsage(vendorId, admin);
+        } catch (capErr) {
+            const msg = capErr instanceof Error ? capErr.message : String(capErr);
+            console.error("redemption.create: capacity-usage increment failed", capErr);
+            secondaryWriteWarnings.push({ step: "vendor_capacity_usage", error: msg });
         }
 
         await audit({
