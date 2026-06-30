@@ -20,6 +20,44 @@ Per the Phase 1 Definition of Done, this file records decisions made in the abse
 - **`max_tokens_per_volunteer` numeric value:** the *number* is not yet given (mentor input pending). The feature itself is NOT open — it is decided and must be enforced from config, treating `NULL` as "limit not yet set". Only the value is awaited.
   - **Flag (2026-06-24, volunteer/beneficiary fix pass):** the holding cap remains **INERT/unenforced** until a mentor value is set. No value was invented and the enforcement logic was deliberately left unchanged — the allocation service still reads the `system_config` row and treats `NULL` as "no limit". The volunteer UI continues to show "No holding limit is set". Action awaited: mentor supplies the number; no code change is needed at that point beyond seeding the config value.
 
+## Phase-1 addon — placeholders for blocked sub-parts (2026-06-30)
+
+The Phase-1 addon (14 reviewer items; 10 genuine gaps built) shipped everything
+buildable now and stubbed the parts that depend on an open answer or an external
+provider behind a marked placeholder. **No open values were invented.**
+
+- **Emergency / disaster-affected proof rules (area #8, ties to client Q7 above).**
+  Emergency mode ships as a fully working admin toggle plus relaxed-limit hooks in
+  the redemption engine: when `system_config.emergency_mode_enabled` is on, the
+  cooldown / daily-meal-limit checks use `emergency_meal_cooldown_hours` /
+  `emergency_max_meals_per_day` if set, else degrade to soft (relief). The
+  **disaster-affected eligibility/proof gating is NOT implemented** — it is a marked
+  `TODO` in `lib/services/emergency.ts`. Both emergency numeric config keys are
+  seeded **NULL** (admin must set; unset → that rule soft-skips). Awaiting client Q7.
+
+- **Duplicate-BILL detection via OCR (area #10).** Duplicate **photo** detection is
+  built: `lib/services/proofIntegrity.ts` computes a perceptual hash on proof upload
+  and holds the settlement + raises a `vendor_anomaly` fraud flag on a near-duplicate
+  (Hamming ≤ `system_config.proof_phash_dup_distance`, seeded NULL → soft-skip until
+  set). The current hash is an **average-hash over the compressed file bytes**
+  (reliably catches byte-identical / near-identical re-uploads; not robust to
+  re-encode/resize) — a documented drop-in for a true pixel pHash once an image-decode
+  dependency is approved. Duplicate-**bill** OCR (reading bill number/amount) is a
+  marked `TODO` placeholder — it needs an OCR provider. No provider was added.
+
+- **CSR 80G utilization certificates (area #7).** CSR donor onboarding
+  (`corporate_csr_profiles`) and CSR reporting (reusing `compliance_reports`,
+  `report_type='csr'`) are built. **80G certificate generation is NOT built** — gated
+  behind `system_config.csr_80g_certificates_enabled` (seeded `false`) with a disabled
+  UI affordance and a marked `TODO`. It needs 80G registration + an email/PDF provider
+  (ties to the email/payment open items above). No provider was added.
+
+> All 13 addon `system_config` keys are seeded in
+> `supabase/migrations/20260630000002_addon_config_seed.sql` (7 boolean flags `false`,
+> 6 numeric thresholds NULL). Boolean flags ship **OFF** so every addon behaviour stays
+> dark until an admin opts in; numeric thresholds stay NULL so each rule soft-skips
+> until a value is set — same discipline as `max_tokens_per_volunteer`.
+
 ## Donor payment seams (decided June 2026 — donor remediation)
 
 - **UPI is REAL (manual confirm).** The public UPI QR donation (`/donate/qr`) now
