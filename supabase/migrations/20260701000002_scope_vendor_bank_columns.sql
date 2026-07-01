@@ -1,0 +1,22 @@
+-- Finding A — remove anon's surplus grant on public.vendors (VERIFIED; defense-in-depth).
+--
+-- INVESTIGATION (live DB, read-only) + CODE TRACE (app/api/**, lib/**):
+--   * public.vendors has RLS enabled. SELECT policies are:
+--       - vendors_select_own    : authenticated, USING (owner_id = auth.uid())
+--       - vendors_select_staff  : authenticated, USING (private.current_app_role() in
+--                                 admin / vendor_manager / compliance)
+--     There is NO anon policy of any kind, so anon can read/write ZERO vendor rows.
+--   * anon nonetheless held Supabase's default TABLE-LEVEL grant on public.vendors
+--     (SELECT/INSERT/UPDATE/DELETE/REFERENCES/TRIGGER/TRUNCATE), which also surfaces as
+--     column privileges on the bank columns. A COLUMN-level revoke cannot subtract columns
+--     from a table-level grant, so the correct fix is to drop the whole surplus grant.
+--   * No code path uses the anon client on vendors: public discovery
+--     (app/api/beneficiary/nearby-vendors -> lib/services/vendorDiscovery) and vendor
+--     self-registration (app/api/vendor/register) both run on the SERVICE-ROLE client.
+--     The vendor owner's own read/edit (app/api/vendor/profile) runs on the AUTHENTICATED
+--     client and is unaffected by this revoke.
+--
+-- Net effect: anon loses an unusable grant (RLS already blocked it); authenticated keeps
+-- its grants (vendor self-service intact). Safe, idempotent.
+
+revoke all on public.vendors from anon;
