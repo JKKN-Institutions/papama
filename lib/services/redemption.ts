@@ -2,7 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { getNumber, getBoolean, getString } from "@/lib/system-config";
+import { getNumber, getBoolean, getString, MissingConfigError } from "@/lib/system-config";
 import { qrHashOf } from "@/app/api/_lib/tokenQr";
 import { toVectorLiteral } from "@/lib/face/embedding";
 import { getGreatCircleDistanceKm } from "@/lib/services/geo";
@@ -628,7 +628,9 @@ export async function validateRedemption(
     } else {
         faceVector = toVectorLiteral(input.face.embedding);
 
-        // liveness / anti-spoof gate
+        // liveness / anti-spoof gate. FAIL-SAFE: a genuinely-unset config soft-skips
+        // (no floor set yet), but a TRANSIENT read error blocks — a DB/network hiccup
+        // must never silently disable the anti-spoof gate.
         try {
             const minLive = await getNumber("face_liveness_min", admin as never);
             const livePass = input.face.liveness >= minLive;
@@ -640,13 +642,22 @@ export async function validateRedemption(
                     ? `liveness ${input.face.liveness.toFixed(2)} ≥ ${minLive}`
                     : `liveness ${input.face.liveness.toFixed(2)} < ${minLive} (possible spoof)`,
             });
-        } catch {
-            checks.push({
-                name: "liveness",
-                pass: true,
-                hard: false,
-                detail: "face_liveness_min unset — liveness skipped",
-            });
+        } catch (err) {
+            if (err instanceof MissingConfigError) {
+                checks.push({
+                    name: "liveness",
+                    pass: true,
+                    hard: false,
+                    detail: "face_liveness_min unset — liveness skipped",
+                });
+            } else {
+                checks.push({
+                    name: "liveness",
+                    pass: false,
+                    hard: true,
+                    detail: "could not read liveness threshold (transient error) — redemption blocked",
+                });
+            }
         }
 
         let threshold: number | null = null;
