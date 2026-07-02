@@ -1,10 +1,9 @@
 # pApAmA — Demo Login Credentials
 
-Test accounts for reviewing each portal. **Shared password for all accounts:**
-
-```
-Demo@papama2026
-```
+Test accounts for reviewing each portal. **The shared password is NOT stored in
+this repo** (it was removed after a secret-scan alert). It is set via the
+`DEMO_PASSWORD` entry in `.env.local` and shared with reviewers out-of-band
+(e.g. over chat/email) — ask the maintainer for the current value.
 
 > These are demo-only accounts on the test environment. Please don't enter real
 > personal or payment data.

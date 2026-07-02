@@ -24,8 +24,9 @@ import { dirname, join } from "node:path";
 
 import { createClient } from "@supabase/supabase-js";
 
-// --- shared demo password (change here, then re-share docs/demo-credentials.md)
-const DEMO_PASSWORD = "Demo@papama2026";
+// --- shared demo password ----------------------------------------------------
+// Read from .env.local (DEMO_PASSWORD) — never hard-coded/committed. Set a value
+// there before running, then share it with reviewers out-of-band (not in git).
 
 // --- the roster: one account per role -----------------------------------------
 // `setup` runs after the auth user + role are in place; use it to attach the
@@ -164,10 +165,15 @@ async function main() {
   const env = loadEnv();
   const url = env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey = env.SUPABASE_SERVICE_ROLE_KEY;
+  const DEMO_PASSWORD = env.DEMO_PASSWORD;
   if (!url || !serviceKey) {
     console.error(
       "Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in .env.local"
     );
+    process.exit(1);
+  }
+  if (!DEMO_PASSWORD) {
+    console.error("Missing DEMO_PASSWORD in .env.local (set a demo password there).");
     process.exit(1);
   }
 
