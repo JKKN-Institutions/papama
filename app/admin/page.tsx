@@ -1,6 +1,9 @@
 import Link from "next/link";
 
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { getBoolean } from "@/lib/system-config";
+import { getTransparencyStats, type TransparencyStats } from "@/lib/services/transparency";
 import { ADMIN_SECTIONS } from "./adminSections";
 
 /**
@@ -78,6 +81,42 @@ async function loadRecentActivity(): Promise<ActivityRow[]> {
     return (data ?? []) as ActivityRow[];
 }
 
+/**
+ * Community-impact stats (addon #14), merged onto the admin home. Uses the
+ * service-role client (not the RLS session client) because the published flag
+ * lives in system_config — not session-readable — and the numbers come from the
+ * SECURITY DEFINER function public.public_transparency_stats(). Aggregate-only,
+ * no PII. Shown to admins even while unpublished, so they can preview the numbers
+ * before flipping transparency_dashboard_enabled on in System config.
+ */
+async function loadTransparency(): Promise<{ enabled: boolean; stats: TransparencyStats | null }> {
+    const admin = createAdminClient();
+    let enabled = false;
+    try {
+        enabled = await getBoolean("transparency_dashboard_enabled", admin as never);
+    } catch {
+        enabled = false;
+    }
+    try {
+        const stats = await getTransparencyStats(admin);
+        return { enabled, stats };
+    } catch {
+        return { enabled, stats: null };
+    }
+}
+
+const inr = (n: number) => `₹${n.toLocaleString("en-IN")}`;
+const num = (n: number) => n.toLocaleString("en-IN");
+
+function ImpactCard({ label, value }: { label: string; value: string }) {
+    return (
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <p className="text-lg font-semibold text-slate-900">{value}</p>
+            <p className="mt-0.5 text-xs text-slate-500">{label}</p>
+        </div>
+    );
+}
+
 function KpiCard({ k }: { k: Kpi }) {
     const body = (
         <>
@@ -100,7 +139,11 @@ function KpiCard({ k }: { k: Kpi }) {
 }
 
 export default async function AdminHomePage() {
-    const [kpis, activity] = await Promise.all([loadKpis(), loadRecentActivity()]);
+    const [kpis, activity, transparency] = await Promise.all([
+        loadKpis(),
+        loadRecentActivity(),
+        loadTransparency(),
+    ]);
 
     return (
         <div>
@@ -116,6 +159,55 @@ export default async function AdminHomePage() {
                     <KpiCard key={k.label} k={k} />
                 ))}
             </div>
+
+            {/* Community impact (addon #14) — same aggregate numbers the public
+                /transparency page shows, previewable here regardless of publish state. */}
+            {transparency.stats && (
+                <section className="mb-8">
+                    <div
+                        className={`mb-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4 ${
+                            transparency.enabled
+                                ? "border-green-200 bg-green-50"
+                                : "border-amber-200 bg-amber-50"
+                        }`}
+                    >
+                        <div>
+                            <h2 className="text-sm font-semibold text-slate-900">Community impact</h2>
+                            <p className="mt-0.5 text-xs text-slate-500">
+                                {transparency.enabled
+                                    ? "Published — these totals are live on the public transparency page."
+                                    : "Not published — the public /transparency page returns 404. Toggle "}
+                                {!transparency.enabled && (
+                                    <code className="font-mono">transparency_dashboard_enabled</code>
+                                )}
+                                {!transparency.enabled && " in System config to publish."}
+                            </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <Link
+                                href="/admin/system-config"
+                                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                            >
+                                System config
+                            </Link>
+                            <Link
+                                href="/transparency"
+                                className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-slate-700"
+                            >
+                                View public page
+                            </Link>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                        <ImpactCard label="Total donations" value={inr(transparency.stats.total_donations_inr)} />
+                        <ImpactCard label="Meals sponsored" value={num(transparency.stats.meals_sponsored)} />
+                        <ImpactCard label="Meals served" value={num(transparency.stats.meals_served)} />
+                        <ImpactCard label="Active vendors" value={num(transparency.stats.active_vendors)} />
+                        <ImpactCard label="Beneficiaries reached" value={num(transparency.stats.active_beneficiaries)} />
+                        <ImpactCard label="Cities covered" value={num(transparency.stats.cities_covered)} />
+                    </div>
+                </section>
+            )}
 
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
                 {/* Section directory */}

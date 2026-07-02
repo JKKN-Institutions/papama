@@ -19,6 +19,10 @@ export interface VolunteerActivitySummary {
     tokens_distributed: number;
     registrations_assisted: number;
     total: number;
+    /** Distinct calendar days on which this volunteer logged any activity (addon2 A4). */
+    active_days: number;
+    /** ISO timestamp of the most recent activity, or null if none. */
+    last_active_at: string | null;
 }
 
 /**
@@ -54,11 +58,11 @@ export async function volunteerActivitySummary(
 ): Promise<VolunteerActivitySummary> {
     const { data, error } = await admin
         .from("volunteer_activity_log")
-        .select("activity_type")
+        .select("activity_type, created_at")
         .eq("volunteer_id", volunteerId);
     if (error) throw new Error(error.message);
 
-    return summarise(volunteerId, (data ?? []) as { activity_type: string }[]);
+    return summarise(volunteerId, (data ?? []) as ActivityRow[]);
 }
 
 /** Build summaries for many volunteers in one query (powers the console list). */
@@ -72,14 +76,14 @@ export async function volunteerActivitySummaries(
 
     const { data, error } = await admin
         .from("volunteer_activity_log")
-        .select("volunteer_id, activity_type")
+        .select("volunteer_id, activity_type, created_at")
         .in("volunteer_id", volunteerIds);
     if (error) throw new Error(error.message);
 
-    const byVolunteer = new Map<string, { activity_type: string }[]>();
-    for (const row of (data ?? []) as { volunteer_id: string; activity_type: string }[]) {
+    const byVolunteer = new Map<string, ActivityRow[]>();
+    for (const row of (data ?? []) as { volunteer_id: string; activity_type: string; created_at: string }[]) {
         const list = byVolunteer.get(row.volunteer_id) ?? [];
-        list.push({ activity_type: row.activity_type });
+        list.push({ activity_type: row.activity_type, created_at: row.created_at });
         byVolunteer.set(row.volunteer_id, list);
     }
     for (const id of volunteerIds) {
@@ -88,20 +92,30 @@ export async function volunteerActivitySummaries(
     return out;
 }
 
-function summarise(
-    volunteerId: string,
-    rows: { activity_type: string }[]
-): VolunteerActivitySummary {
+interface ActivityRow {
+    activity_type: string;
+    created_at: string;
+}
+
+function summarise(volunteerId: string, rows: ActivityRow[]): VolunteerActivitySummary {
     let tokens = 0;
     let regs = 0;
+    const days = new Set<string>();
+    let lastActive: string | null = null;
     for (const r of rows) {
         if (r.activity_type === "token_distributed") tokens++;
         else if (r.activity_type === "registration_assisted") regs++;
+        if (r.created_at) {
+            days.add(r.created_at.substring(0, 10)); // YYYY-MM-DD
+            if (!lastActive || r.created_at > lastActive) lastActive = r.created_at;
+        }
     }
     return {
         volunteer_id: volunteerId,
         tokens_distributed: tokens,
         registrations_assisted: regs,
         total: rows.length,
+        active_days: days.size,
+        last_active_at: lastActive,
     };
 }

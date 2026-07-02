@@ -20,6 +20,36 @@ Per the Phase 1 Definition of Done, this file records decisions made in the abse
 - **`max_tokens_per_volunteer` numeric value:** the *number* is not yet given (mentor input pending). The feature itself is NOT open — it is decided and must be enforced from config, treating `NULL` as "limit not yet set". Only the value is awaited.
   - **Flag (2026-06-24, volunteer/beneficiary fix pass):** the holding cap remains **INERT/unenforced** until a mentor value is set. No value was invented and the enforcement logic was deliberately left unchanged — the allocation service still reads the `system_config` row and treats `NULL` as "no limit". The volunteer UI continues to show "No holding limit is set". Action awaited: mentor supplies the number; no code change is needed at that point beyond seeding the config value.
 
+## addon2 — decisions & placeholders (2026-07-02)
+
+Reconciling `docs/addon2.md` (see `docs/addon2-scope-mapping.md`) surfaced these
+owner-confirmed decisions and preserved placeholders. **No open values invented.**
+
+- **Refunds = internal credit-reversal ONLY (no donor money-back).** A donor money-back
+  refund would contradict the non-withdrawable-funds hard rule (AGENTS.md;
+  owner-scope §2.1/§4.1). `refundCredit` (`lib/services/creditRefund.ts`) only claws
+  back provisionally-granted credit — e.g. a payment reconciled as failed — and can
+  never remove more than the live balance. Typed `credit_transaction_type='refund_reversal'`.
+  A true money-back refund remains OUT of scope pending a Change Order + payment provider (Q17).
+- **Multi-city/district/state hierarchy = DEFERRED.** City-level model kept
+  (`operating_city` + `city_lock_enabled`). A region hierarchy + region-scoped RLS is a
+  designed-for Phase-2 seam; building it now would be a large cross-cutting RLS rewrite.
+- **Lost-token handling & token revalidation = DEFERRED (Phase-2).** `tokens.replacement_for_token_id`
+  seam only; revalidation would tension with the auto-invalidate-on-expiry hard rule.
+- **Notification templates ship editable but conservative.** `notification_templates`
+  seeds the two live donor alerts (redemption / thank_you). `dispatch.ts` falls back to
+  the caller's hard-coded copy when no active template exists, so behaviour is unchanged
+  until an admin activates one. SMS/email/WhatsApp remain no-op seams (Q4).
+- **Consent + retention.** `consent_records` captures donor data-privacy consent at
+  signup (version `v1`). `audit_log_retention_days` is seeded **NULL** — no retention
+  duration invented; `audit_logs` stays append-only and is never purged until an admin
+  sets a value and a sweep is enabled (the purge is a documented seam).
+- **"Four core features" paragraph (addon2 line 61)** lives in an EXTERNAL client doc,
+  not in this repo — cannot be edited here. Align the external wording to "four core
+  operational workflows supported by the underlying platform infrastructure".
+- **Generic document store (addon2 doc-management) = PROPOSED, not built.** `vendor_documents`
+  stays vendor-scoped; widening `doc_type`s vs a generic `documents` table is A8, deferred.
+
 ## Phase-1 addon — placeholders for blocked sub-parts (2026-06-30)
 
 The Phase-1 addon (14 reviewer items; 10 genuine gaps built) shipped everything

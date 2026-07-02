@@ -219,7 +219,16 @@ export const POST = defineRoute(
                 .select("name, city")
                 .eq("id", vendorId)
                 .maybeSingle();
+            // Human-readable token reference for the donor (addon2 A5). The proof
+            // photo is NOT yet uploaded at redemption time — it rides the later
+            // `meal_photo` alert sent when the admin approves the proof.
+            const { data: tk } = await admin
+                .from("tokens")
+                .select("serial_number")
+                .eq("id", token.id)
+                .maybeSingle();
             const meta = {
+                token_reference: tk?.serial_number ?? null,
                 // Keys MUST match the donor notifications UI reader
                 // (app/donor/notifications/page.tsx) and NotificationMeta:
                 // it reads `vendor_name` + `meal_info` — the old `vendor` key

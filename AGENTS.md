@@ -21,7 +21,7 @@ I own the entire codebase end-to-end (there is no Developer 1 / Developer 2 spli
 ## Source-of-truth documents (read these before building a feature)
 
 Reference docs live in `/docs`:
-- `docs/papama-phase1-spec.md` — **what to build in Phase 1.** The authoritative scope and the 5-layer build checklist. If something is deferred here, do not build it.
+- `docs/prd.md` — **what to build in Phase 1.** The authoritative scope and the 5-layer build checklist (titled "pApAmA — Phase 1 Specification"; the old `papama-phase1-spec.md` name no longer exists on disk). If something is deferred here, do not build it.
 - `docs/papama-owner-scope.md` — **how the logic must behave.** The owner's full requirements. When building redemption, proof, settlement, or fraud logic, follow the rules in this document's §4.4–4.8 and §5 — they are richer than the spec summary.
 - `docs/papama-client-decisions.md` — confirmed values and open items. Honor confirmed decisions; do NOT invent answers for open items (disaster-affected proof, email provider, payment provider).
 - `docs/CONTRACT_Developer_2_Admin_Backend_Module.md` — internal API contract (originally a two-developer seam). Route response shapes must match this contract so the frontend and backend stay in sync.

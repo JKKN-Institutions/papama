@@ -42,7 +42,9 @@ export type SystemConfigKey =
     | "settlement_random_audit_rate"
     | "institution_bulk_allocation_max"
     | "volunteer_zones_enabled"
-    | "transparency_dashboard_enabled";
+    | "transparency_dashboard_enabled"
+    // --- addon2 tunables ---
+    | "audit_log_retention_days";
 
 type ValueType = "number" | "boolean" | "string";
 

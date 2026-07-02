@@ -12,6 +12,7 @@ const NOTIF_ICONS = {
   token_generated: { icon: "🎫", color: "bg-teal-50 text-teal-600 border-teal-100 dark:bg-teal-950/20 dark:text-teal-400" },
   redemption: { icon: "🍲", color: "bg-amber-50 text-amber-600 border-amber-100 dark:bg-amber-950/20 dark:text-amber-400" },
   thank_you: { icon: "✉️", color: "bg-purple-50 text-purple-600 border-purple-100 dark:bg-purple-950/20 dark:text-purple-400" },
+  meal_photo: { icon: "📷", color: "bg-rose-50 text-rose-600 border-rose-100 dark:bg-rose-950/20 dark:text-rose-400" },
 };
 
 export default function NotificationsPage() {
@@ -139,13 +140,24 @@ export default function NotificationsPage() {
                         {notif.body}
                       </p>
 
-                      {/* Metadata block for Redemptions */}
-                      {notif.type === "redemption" && notif.meta && (
+                      {/* Metadata block for Redemptions and verified meal photos */}
+                      {(notif.type === "redemption" || notif.type === "meal_photo") && notif.meta && (
                         <div className="rounded-xl border border-zinc-100 bg-zinc-50/50 p-4 text-[11px] font-semibold text-zinc-600 dark:border-zinc-800 dark:bg-zinc-950/20 dark:text-zinc-400 space-y-1.5">
-                          <p className="flex justify-between">
-                            <span className="text-zinc-400">Meal Redeemed:</span>
-                            <strong className="text-zinc-800 dark:text-zinc-100">{notif.meta.meal_info}</strong>
-                          </p>
+                          {/* Verified meal photo (addon2 A5) — shown once proof is approved */}
+                          {notif.meta.meal_photo_url && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={notif.meta.meal_photo_url}
+                              alt="Photo of the meal you funded"
+                              className="mb-2 h-40 w-full rounded-lg object-cover"
+                            />
+                          )}
+                          {notif.meta.meal_info && (
+                            <p className="flex justify-between">
+                              <span className="text-zinc-400">Meal Redeemed:</span>
+                              <strong className="text-zinc-800 dark:text-zinc-100">{notif.meta.meal_info}</strong>
+                            </p>
+                          )}
                           <p className="flex justify-between gap-2">
                             <span className="text-zinc-400 shrink-0">Scan Location:</span>
                             <span className="text-right break-words">{notif.meta.vendor_name} ({notif.meta.location})</span>
@@ -156,6 +168,12 @@ export default function NotificationsPage() {
                               <span className="uppercase text-[10px] font-black text-amber-600">{notif.meta.beneficiary_category.replace("_", " ")}</span>
                             </p>
                           )}
+                          {notif.meta.token_reference && (
+                            <p className="flex justify-between">
+                              <span className="text-zinc-400">Token Reference:</span>
+                              <span className="font-mono text-[10px] text-zinc-500">{notif.meta.token_reference}</span>
+                            </p>
+                          )}
                           <p className="flex justify-between text-[10px]">
                             <span className="text-zinc-400 font-normal">Scan Timestamp:</span>
                             <span className="font-mono text-zinc-500 font-normal">{new Date(notif.meta.time || notif.created_at).toLocaleString()}</span>
@@ -163,8 +181,8 @@ export default function NotificationsPage() {
                         </div>
                       )}
 
-                      {/* Re-donate prompt on redemption notifications */}
-                      {notif.type === "redemption" && (
+                      {/* Re-donate prompt on redemption + meal-photo notifications */}
+                      {(notif.type === "redemption" || notif.type === "meal_photo") && (
                         <Link
                           href="/donor/donate"
                           className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline block pt-1"

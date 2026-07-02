@@ -11,10 +11,14 @@ running app, so UX quality counts as much as backend correctness.
   Claude-specific operating rules).
 - `docs/token-flow.md` — authoritative token lifecycle. Read before ANY
   token/distribution/volunteer work.
-- `docs/papama-phase1-spec.md`, `docs/papama-owner-scope.md`,
+- `docs/prd.md` (Phase 1 Specification), `docs/papama-owner-scope.md`,
   `docs/papama-client-decisions.md` — what to build + how the logic behaves.
-- `docs/db-schema-snapshot.md` — the existing tables (33, all RLS-enabled).
-  Inspect first; build on them, never duplicate.
+  (The old `papama-phase1-spec.md` name is gone; `prd.md` is that spec.)
+- `docs/db-schema-snapshot.md` — the original 33 tables (all RLS-enabled), plus a
+  staleness note listing the Phase-1-addon and addon2 tables added since.
+  Inspect the live schema first; build on it, never duplicate.
+- `docs/addon2-scope-mapping.md` — addon2 areas mapped to code (built / net-new /
+  deferred), and the addon2 decisions.
 - `ASSUMPTIONS.md` — decisions made without a client answer. Don't contradict;
   add new assumptions here.
 

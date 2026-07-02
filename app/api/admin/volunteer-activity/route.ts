@@ -66,6 +66,8 @@ export const GET = defineRoute({ feature: "token_distribution", action: "read" }
             tokens_distributed: s?.tokens_distributed ?? 0,
             registrations_assisted: s?.registrations_assisted ?? 0,
             activity_total: s?.total ?? 0,
+            active_days: s?.active_days ?? 0,
+            last_active_at: s?.last_active_at ?? null,
         };
     });
 

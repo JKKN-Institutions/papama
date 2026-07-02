@@ -86,6 +86,15 @@ export default function AdminDonationsPage() {
         successMessage: (d) => `Minted ${d.minted ?? ""} pool token(s) into the admin pool.`,
     });
 
+    const canReverse = useCan("donor_donation_credit", "update");
+    const reverse = useAction({
+        method: "POST",
+        endpoint: (id) => `/api/admin/donations/${id}/reverse`,
+        onDone: load,
+        successMessage: (d) =>
+            `Donation reversed; ₹${(d.reversed as number) ?? 0} credit clawed back${d.partial ? " (partial)" : ""}.`,
+    });
+
     const [count, setCount] = useState("");
 
     return (
@@ -158,7 +167,17 @@ export default function AdminDonationsPage() {
                 table={
                     <>
                         <TableShell>
-                            <TableHead columns={["Date", "Donor", "Amount", "Status", "Reference", "FY"]} />
+                            <TableHead
+                                columns={[
+                                    "Date",
+                                    "Donor",
+                                    "Amount",
+                                    "Status",
+                                    "Reference",
+                                    "FY",
+                                    ...(canReverse ? ["Actions"] : []),
+                                ]}
+                            />
                             <tbody className="divide-y divide-slate-100">
                                 {table.rows.map((d) => (
                                     <tr key={d.id} className="hover:bg-slate-50">
@@ -185,6 +204,27 @@ export default function AdminDonationsPage() {
                                         <td className="px-4 py-3 text-slate-500">
                                             <Dash>{d.financial_year}</Dash>
                                         </td>
+                                        {canReverse && (
+                                            <td className="px-4 py-3">
+                                                {d.status === "completed" ? (
+                                                    <ActionButton
+                                                        tone="danger"
+                                                        disabled={reverse.busyId === d.id}
+                                                        onClick={() =>
+                                                            reverse.run(
+                                                                d.id,
+                                                                {},
+                                                                `Reverse this ₹${d.amount_inr} donation as a failed payment and claw back the matching credit? This does NOT refund money to the donor.`
+                                                            )
+                                                        }
+                                                    >
+                                                        {reverse.busyId === d.id ? "Reversing…" : "Reverse"}
+                                                    </ActionButton>
+                                                ) : (
+                                                    <Dash>{null}</Dash>
+                                                )}
+                                            </td>
+                                        )}
                                     </tr>
                                 ))}
                             </tbody>

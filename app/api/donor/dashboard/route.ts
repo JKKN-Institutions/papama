@@ -17,11 +17,15 @@ import { createAdminClient } from "@/lib/supabase/admin";
 type DonationRow = { id: string; amount_inr: number; created_at: string };
 type TokenRow = {
     id: string;
+    serial_number: string | null;
     status: string;
     value_inr: number | null;
     minted_at: string | null;
     redeemed_at: string | null;
 };
+
+const PROOF_BUCKET = "vendor-proofs";
+const PHOTO_URL_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 days
 
 interface MonthlySummaryItem {
     month: string; // "YYYY-MM"
@@ -95,9 +99,10 @@ export const GET = defineRoute(
         // Tokens (status/value/timestamps).
         const { data: tokensData } = await supabase
             .from("tokens")
-            .select("id, status, value_inr, minted_at, redeemed_at")
+            .select("id, serial_number, status, value_inr, minted_at, redeemed_at")
             .order("minted_at", { ascending: false });
         const tokens = (tokensData as TokenRow[] | null) ?? [];
+        const serialByTokenId = new Map(tokens.map((t) => [t.id, t.serial_number]));
 
         const totalDonations = donations.reduce((sum, d) => sum + (d.amount_inr || 0), 0);
         const redeemedTokens = tokens.filter((t) => t.status === "redeemed");
@@ -119,13 +124,17 @@ export const GET = defineRoute(
             time: string;
             meal_info: string;
             beneficiary_category: string;
+            token_reference?: string;
+            meal_photo_url?: string;
         }[] = [];
 
         if (redeemedIds.length > 0) {
             const admin = createAdminClient();
             const { data: reds } = await admin
                 .from("token_redemptions")
-                .select("token_id, vendor_id, beneficiary_id, menu_value_inr, redeemed_at")
+                .select(
+                    "token_id, vendor_id, beneficiary_id, menu_value_inr, redeemed_at, proof_status, proof_photo_ref"
+                )
                 .in("token_id", redeemedIds)
                 .order("redeemed_at", { ascending: false });
             const redemptions = (reds ?? []) as {
@@ -134,7 +143,24 @@ export const GET = defineRoute(
                 beneficiary_id: string | null;
                 menu_value_inr: number | null;
                 redeemed_at: string;
+                proof_status: string | null;
+                proof_photo_ref: string | null;
             }[];
+
+            // Sign meal-photo URLs for redemptions whose proof was APPROVED (addon2
+            // A5) — only verified photos reach the donor. Batch-sign to avoid N calls.
+            const approvedRefs = redemptions
+                .filter((r) => r.proof_status === "approved" && r.proof_photo_ref)
+                .map((r) => r.proof_photo_ref as string);
+            const signedByRef = new Map<string, string>();
+            if (approvedRefs.length > 0) {
+                const { data: signed } = await admin.storage
+                    .from(PROOF_BUCKET)
+                    .createSignedUrls(approvedRefs, PHOTO_URL_TTL_SECONDS);
+                for (const s of signed ?? []) {
+                    if (s.path && s.signedUrl) signedByRef.set(s.path, s.signedUrl);
+                }
+            }
 
             // Resolve vendor names + (privacy-safe) beneficiary categories.
             const vendorIds = [...new Set(redemptions.map((r) => r.vendor_id).filter(Boolean))] as string[];
@@ -152,6 +178,8 @@ export const GET = defineRoute(
 
             redemptionHistory = redemptions.map((r) => {
                 const v = r.vendor_id ? vendorMap.get(r.vendor_id) : undefined;
+                const photoUrl =
+                    r.proof_photo_ref && signedByRef.get(r.proof_photo_ref);
                 return {
                     token_id: r.token_id,
                     vendor_name: v?.name ?? "Partner vendor",
@@ -163,6 +191,8 @@ export const GET = defineRoute(
                     // do NOT mislabel as a specific category like "patient".
                     beneficiary_category:
                         (r.beneficiary_id && benefMap.get(r.beneficiary_id)) || "beneficiary",
+                    token_reference: serialByTokenId.get(r.token_id) ?? undefined,
+                    ...(photoUrl ? { meal_photo_url: photoUrl } : {}),
                 };
             });
         }

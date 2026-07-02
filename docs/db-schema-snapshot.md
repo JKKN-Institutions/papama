@@ -1,9 +1,25 @@
 ﻿# Database Schema Snapshot
 
 Project ref: `qxdxefofeykzvegykitt` (auxilium/pApAmA). Generated from live DB via the Management API.
-Schema: `public` — 33 base tables. **RLS is enabled on every table.**
+Schema: `public`. **RLS is enabled on every table.**
 
 > Snapshot only — the live DB is the source of truth. Use the `supabase-papama` read-only MCP to re-inspect.
+
+> **STALENESS NOTE (updated 2026-07-02).** The per-table sections below capture
+> the original **33 base tables**. Later migration waves added more tables that are
+> NOT detailed below — re-inspect the live schema (or `supabase/migrations/`) for
+> their columns/policies:
+>
+> - **Phase-1 addon wave** (`20260624*`–`20260630*`): `face_embeddings`,
+>   `upi_qr_payments`, `courier_dispatches`, `vendor_capacity_usage`,
+>   `vendor_feedback`, `surprise_inspections`, `meal_windows`,
+>   `emergency_token_grants`, `institution_token_allocations`,
+>   `corporate_csr_profiles`, `settlement_audit_queue`, `volunteer_activity_log`,
+>   plus columns on `vendors`, `tokens`, `beneficiaries`, `token_redemptions`.
+> - **addon2 wave** (`20260702*`): `notification_templates` (A2),
+>   `consent_records` (A7); complaint-lifecycle columns on `vendor_feedback` (A3);
+>   `credit_transaction_type += 'refund_reversal'` (A6); `system_config` key
+>   `audit_log_retention_days` (A7). See `docs/addon2-scope-mapping.md`.
 
 ## `audit_logs`
 

@@ -94,6 +94,7 @@ export const CREDIT_TRANSACTION_TYPES = [
     "purchase",
     "donation",
     "token_conversion",
+    "refund_reversal", // internal compensating re-credit (NO money-back — addon2 A6)
     "pooling_supplement", // P2 seam
 ] as const;
 export type CreditTransactionType = ValueOf<typeof CREDIT_TRANSACTION_TYPES>;
@@ -266,3 +267,30 @@ export const VOLUNTEER_ACTIVITY_TYPES = [
     "registration_assisted",
 ] as const;
 export type VolunteerActivityType = ValueOf<typeof VOLUNTEER_ACTIVITY_TYPES>;
+
+// --- complaints & consent (addon2) -----------------------------------------
+
+/**
+ * Triage lifecycle for a beneficiary complaint (a vendor_feedback row flagged
+ * is_complaint). Staff move it open -> investigating -> resolved/dismissed
+ * (addon2 A3). NULL on non-complaint feedback.
+ */
+export const COMPLAINT_STATUSES = [
+    "open",
+    "investigating",
+    "resolved",
+    "dismissed",
+] as const;
+export type ComplaintStatus = ValueOf<typeof COMPLAINT_STATUSES>;
+
+/**
+ * Consent categories a subject (donor/beneficiary/volunteer/vendor) can grant or
+ * revoke (addon2 A7 data-privacy compliance). Versioned so a policy change can
+ * require re-consent.
+ */
+export const CONSENT_TYPES = [
+    "data_privacy",
+    "communications",
+    "data_processing",
+] as const;
+export type ConsentType = ValueOf<typeof CONSENT_TYPES>;

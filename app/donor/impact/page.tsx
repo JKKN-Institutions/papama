@@ -147,6 +147,16 @@ export default function ImpactPage() {
                         <div className="absolute top-0 right-0 w-2.5 h-full bg-emerald-500/20" />
 
                         <div className="space-y-4">
+                          {/* Verified meal photo (addon2 A5) — present once proof is approved */}
+                          {red.meal_photo_url && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={red.meal_photo_url}
+                              alt="Photo of the meal you funded"
+                              className="-mx-1 h-40 w-full rounded-xl object-cover"
+                            />
+                          )}
+
                           {/* Beneficiary Header */}
                           <div className="flex items-center justify-between gap-2 border-b border-zinc-100 pb-3 dark:border-zinc-800">
                             <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase ${category.color}`}>
@@ -154,7 +164,9 @@ export default function ImpactPage() {
                               {category.label}
                             </span>
                             <span className="font-mono text-[10px] text-zinc-400 uppercase font-semibold">
-                              Voucher ID: {red.token_id.substring(0, 8)}...
+                              {red.token_reference
+                                ? `Ref: ${red.token_reference}`
+                                : `Voucher ID: ${red.token_id.substring(0, 8)}...`}
                             </span>
                           </div>
 

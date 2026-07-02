@@ -118,6 +118,10 @@ export interface RedemptionHistoryItem {
   // 'beneficiary' is a neutral fallback when the category is unknown/private;
   // the UI maps any unrecognised value to a generic "Beneficiary" card.
   beneficiary_category: 'pregnant_women' | 'patient' | 'disability' | 'disaster_affected' | 'beneficiary' | string;
+  // addon2 A5 — human-readable token ref + verified meal photo (signed URL,
+  // present only once proof is approved).
+  token_reference?: string;
+  meal_photo_url?: string;
 }
 
 export interface DashboardResponse {
@@ -136,11 +140,15 @@ export interface NotificationMeta {
   time?: string;
   meal_info?: string;
   beneficiary_category?: 'pregnant_women' | 'patient' | 'disability' | 'disaster_affected';
+  // addon2 A5 — donor transparency: human-readable token ref + verified meal photo.
+  token_reference?: string;
+  meal_photo_url?: string;
+  value_inr?: number;
 }
 
 export interface NotificationItem {
   id: string;
-  type: 'donation_success' | 'threshold' | 'token_generated' | 'redemption' | 'thank_you';
+  type: 'donation_success' | 'threshold' | 'token_generated' | 'redemption' | 'thank_you' | 'meal_photo';
   title: string;
   body: string;
   read: boolean;

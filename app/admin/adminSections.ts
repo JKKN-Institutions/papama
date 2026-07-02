@@ -188,11 +188,27 @@ export const ADMIN_SECTIONS: AdminSection[] = [
         action: "read",
         navLabel: "Emergency",
     },
+    // --- addon2 areas -------------------------------------------------------
     {
-        href: "/admin/transparency",
-        title: "Transparency",
-        description: "Public transparency dashboard configuration and published metrics.",
+        href: "/admin/analytics",
+        title: "Analytics",
+        description: "Meals served, donation trends, vendor performance, token utilisation, financial and fraud summaries — by city and category.",
         feature: "audit_reports",
+        action: "read",
+    },
+    {
+        href: "/admin/notification-templates",
+        title: "Notification templates",
+        description: "Editable copy for donor notifications ({{placeholders}}) per kind and channel.",
+        feature: "audit_reports",
+        action: "read",
+        navLabel: "Templates",
+    },
+    {
+        href: "/admin/complaints",
+        title: "Complaints",
+        description: "Beneficiary complaint queue — triage open → investigating → resolved/dismissed.",
+        feature: "vendor_management",
         action: "read",
     },
 ];

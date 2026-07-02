@@ -31,6 +31,8 @@ interface ActivityRow {
     tokens_distributed: number;
     registrations_assisted: number;
     activity_total: number;
+    active_days: number;
+    last_active_at: string | null;
 }
 
 /**
@@ -71,7 +73,15 @@ export default function VolunteerActivityPage() {
         [table.tabCounts]
     );
 
-    const columns = ["Volunteer", "Zone", "Tokens distributed", "Registrations assisted", "Status"];
+    const columns = [
+        "Volunteer",
+        "Zone",
+        "Tokens distributed",
+        "Registrations assisted",
+        "Active days",
+        "Last active",
+        "Status",
+    ];
     if (canManage) columns.push("Assign zone");
 
     return (
@@ -119,6 +129,12 @@ export default function VolunteerActivityPage() {
                                     <td className="px-4 py-3 text-slate-700">{v.tokens_distributed}</td>
                                     <td className="px-4 py-3 text-slate-700">
                                         {v.registrations_assisted}
+                                    </td>
+                                    <td className="px-4 py-3 text-slate-700">{v.active_days}</td>
+                                    <td className="px-4 py-3 text-slate-500 text-xs">
+                                        {v.last_active_at
+                                            ? new Date(v.last_active_at).toLocaleDateString()
+                                            : "—"}
                                     </td>
                                     <td className="px-4 py-3">
                                         <StatusBadge value={v.status} />

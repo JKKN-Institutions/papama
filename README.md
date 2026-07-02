@@ -122,7 +122,8 @@ Then open the donor portal:
 Project reference docs live in [`/docs`](./docs):
 
 - `token-flow.md` — authoritative token lifecycle & distribution
-- `papama-phase1-spec.md` — Phase 1 scope
+- `prd.md` — Phase 1 scope (titled "pApAmA — Phase 1 Specification")
 - `papama-owner-scope.md` — redemption / proof / settlement / fraud rules
 - `papama-client-decisions.md` — confirmed values & open items
 - `CONTRACT_Developer_2_Admin_Backend_Module.md` — admin/backend API seam
+- `addon2-scope-mapping.md` — addon2 areas mapped to code (built / net-new / deferred)

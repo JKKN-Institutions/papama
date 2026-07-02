@@ -18,6 +18,7 @@ export default function DonorSignupPage() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [consent, setConsent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [confirmSent, setConfirmSent] = useState(false);
@@ -25,13 +26,21 @@ export default function DonorSignupPage() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+
+    // Data-privacy consent is required before an account is created (addon2 A7).
+    if (!consent) {
+      setError("Please accept the data privacy policy to continue.");
+      return;
+    }
     setLoading(true);
 
     const supabase = createClient();
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { full_name: fullName } },
+      // Stamp the consent intent on auth metadata as a durable record even on the
+      // email-confirmation path (the donor row is created on confirm).
+      options: { data: { full_name: fullName, consent_data_privacy: true } },
     });
 
     if (error) {
@@ -40,8 +49,20 @@ export default function DonorSignupPage() {
       return;
     }
 
-    // If a session is returned, confirmation is off → go straight to the portal.
+    // If a session is returned, confirmation is off → record consent, then portal.
     if (data.session) {
+      // Best-effort: RLS records it against this donor. A failure must not block
+      // the signup (the auth-metadata flag above preserves the intent).
+      try {
+        await fetch("/api/donor/consent", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ consent_type: "data_privacy" }),
+        });
+      } catch {
+        // ignore — consent can be re-recorded from the donor account later
+      }
       clearDonorCache();
       router.push("/donor/dashboard");
       router.refresh();
@@ -130,6 +151,19 @@ export default function DonorSignupPage() {
               placeholder="At least 6 characters"
             />
           </div>
+
+          <label className="flex items-start gap-2 text-xs text-zinc-600 dark:text-zinc-400">
+            <input
+              type="checkbox"
+              checked={consent}
+              onChange={(e) => setConsent(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500"
+            />
+            <span>
+              I agree to the pApAmA data privacy policy and consent to my data being
+              processed to run donations and meal transparency.
+            </span>
+          </label>
 
           {error && (
             <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">

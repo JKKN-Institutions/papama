@@ -2,6 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { renderTemplate } from "@/lib/services/notificationTemplates";
 import type { NotificationChannel } from "@/lib/types/enums";
 
 /**
@@ -34,6 +35,12 @@ export interface NotificationPayload {
     metadata?: Record<string, unknown>;
     /** Additional delivery channels beyond `in_app`. Defaults to none. */
     channels?: NotificationChannel[];
+    /**
+     * Values fed to an admin-editable template's {{var}} placeholders. Defaults
+     * to `metadata` when omitted, so redemption/thank-you alerts render their
+     * vendor_name/value_inr/etc. without extra plumbing.
+     */
+    templateVars?: Record<string, unknown>;
 }
 
 /**
@@ -46,12 +53,29 @@ export async function dispatchNotification(
     admin: SupabaseClient,
     p: NotificationPayload
 ): Promise<void> {
+    // Resolve an admin-editable template for this kind, if one is active. When
+    // none exists, fall back to the caller-supplied title/message (unchanged
+    // behaviour). Template rendering must never break delivery, so a failure
+    // here degrades to the caller's copy.
+    const vars = p.templateVars ?? p.metadata ?? {};
+    let title = p.title;
+    let message = p.message;
+    try {
+        const tpl = await renderTemplate(admin, p.kind, "in_app", vars);
+        if (tpl) {
+            title = tpl.subject;
+            message = tpl.message;
+        }
+    } catch (err) {
+        console.warn(`[notifications] template render failed for kind=${p.kind}, using caller copy`, err);
+    }
+
     // Always insert the in_app row — this is the real, working channel.
     await admin.from("notifications").insert({
         donor_id: p.donorId,
         kind: p.kind,
-        title: p.title,
-        message: p.message,
+        title,
+        message,
         metadata: p.metadata ?? {},
     });
 
