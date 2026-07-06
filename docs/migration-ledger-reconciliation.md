@@ -4,8 +4,48 @@
 **Updated:** 2026-06-25 (added the m31/m32/m34 batch; the live ledger now has 22 rows, not 19)  
 **Updated:** 2026-06-27 (added the two security-fix migrations; the live ledger now has 24 rows)  
 **Updated:** 2026-06-27 (added the UPI UTR double-credit ledger backstop; the live ledger now has 25 rows)  
+**Updated:** 2026-07-01 (RECONCILIATION CLOSED — recovered all live-only sources into `supabase/migrations/`; resolved m33; applied two fixes to live. See "2026-07-01 resolution" below.)  
 **Live project:** `qxdxefofeykzvegykitt`  
 **Source:** live `supabase_migrations.schema_migrations` inspected via MCP read-only; repo files in `supabase/migrations/`.
+
+---
+
+## 2026-07-01 resolution (reproducibility gap CLOSED)
+
+Done on branch `subhi-db-reconciliation` (PR against `main`). Note `docs/proposed-migrations/`
+does **not** exist in the tree, so the live-only sources were dumped read-only from the live DB
+(`pg_get_functiondef` / `pg_get_triggerdef` / `pg_indexes` / `pg_policies` / grants) rather than
+promoted. **No DB changes were made during recovery — reads only.**
+
+**13 recovered live-only sources** written to `supabase/migrations/` at their live ledger versions,
+all `RECOVERED`-headed and idempotent: m13b (documented no-op), m19_advisor_fixes, m20_revoke_anon,
+m19_donor_provisioning **trigger** (`on_auth_user_created`), m23_fix_signup_partial_index_arbiter,
+m27_credit_ops_rpc, m28_beneficiary_approve_rpc, m29_upi_transaction_id_unique,
+m31_perf_index_token_redemptions, m32_patient_eligibility_config, m31_guard_service_role_bypass,
+m34_definer_fns_to_private_schema_harmonized.
+
+- The **RLS full-state snapshot** (170 policies, originally m30_rls_hardening) is written as
+  `20260630000012_rls_policy_full_state_snapshot.sql` — renumbered so it runs AFTER m34 and the
+  `20260630*` addon tables it references (`CREATE POLICY` validates those refs at creation).
+
+**m33_vendor_bank_scoping — RESOLVED:** no live evidence it was ever applied (vendors bank columns
+originate in m04; no bank-specific policy/scoping existed). No file created for it. See the two
+fixes below for the actual bank-column hardening.
+
+**Two fixes applied to live (2026-07-01) and committed as forward migrations:**
+1. `fix_menu_guard_private_schema` — `guard_menu_controlled_cols` called the dropped
+   `public.current_app_role()` (broken live for non-admin/non-service_role menu edits); repointed to
+   `private.current_app_role()` like its siblings. Applied + verified.
+2. `scope_vendor_bank_columns` → `revoke all on public.vendors from anon`. The first attempt used a
+   column-level revoke, which is a no-op against Supabase's default TABLE-level grant; the effective
+   table-level revoke was then applied. anon has no RLS policy on vendors and no anon-client code path
+   touches it (discovery + registration use service-role), so this is safe defense-in-depth.
+   Applied + verified (anon vendor grants → 0; authenticated grants unchanged).
+   - Ledger note: the live ledger has a harmless extra entry `scope_vendor_bank_columns` (the no-op
+     column revoke) preceding `scope_vendor_bank_columns_effective_anon_revoke`. The single repo file
+     does the correct table-level revoke on a fresh `db reset`.
+
+After this, the per-file repro gap below is closed; the "baseline pull" path remains an alternative.
 
 ---
 
@@ -18,6 +58,11 @@ batch whose SQL still lives only in `docs/proposed-migrations/`). The live schem
 gap is purely **reproducibility** — `supabase db reset` would not rebuild prod until the
 docs/ sources are promoted into `supabase/migrations/` (or a baseline is pulled — see the bottom
 of this doc for the recommended robust path).
+
+> **Superseded 2026-07-01:** this Summary and the "Action items" below describe the gap as it
+> stood before recovery. The gap is now CLOSED per the "2026-07-01 resolution" section above —
+> the sources were dumped from live (not from `docs/proposed-migrations/`, which is absent) and
+> committed. The action items are retained for history.
 
 ---
 
@@ -51,8 +96,12 @@ of this doc for the recommended robust path).
 | 20260627125948 | decide\_volunteer\_request\_atomic | `20260625000017_decide_volunteer_request_atomic.sql` | MATCHED | Added 2026-06-27 (audit finding #2). Source IS in `supabase/migrations/`. Creates the `decide_volunteer_request` SECURITY DEFINER RPC (atomic claim+allocate, closes the double-grant TOCTOU). Idempotent (`create or replace`). |
 | 20260627133135 | donations\_upi\_ref\_unique | `20260625000018_donations_upi_ref_unique.sql` | MATCHED | Added 2026-06-27 (audit finding #3). Source IS in `supabase/migrations/`. Partial unique index on `donations(payment_ref) WHERE payment_ref LIKE 'upi:%'` — money-ledger backstop against UPI UTR double-credit (complements the m29 `upi_qr_payments_utr_key` on the intent table). Idempotent (`create unique index if not exists`). |
 
-⚠️ `docs/proposed-migrations/m33_vendor_bank_scoping.sql` has **no `m33` row in the live ledger** —
-confirm whether it was applied under another name or is genuinely unapplied before promoting it.
+⚠️ ~~`docs/proposed-migrations/m33_vendor_bank_scoping.sql` has **no `m33` row in the live ledger** —
+confirm whether it was applied under another name or is genuinely unapplied before promoting it.~~
+**RESOLVED 2026-07-01:** no live evidence of any m33 / vendor-bank-scoping migration — vendors bank
+columns come from m04, and no bank-specific policy or column scoping existed. Not applied, no file
+created. The actual bank hardening is `20260701000002_scope_vendor_bank_columns.sql` (see the
+2026-07-01 resolution section).
 
 Repo files in `supabase/migrations/` with **no live counterpart** (applied only on fresh reset):
 
@@ -78,6 +127,12 @@ Repo files in `supabase/migrations/` with **no live counterpart** (applied only 
 ---
 
 ## Action items for `supabase db reset` reproducibility
+
+> **All items below DONE as of 2026-07-01** (see the 2026-07-01 resolution section). Because
+> `docs/proposed-migrations/` does not exist in the tree, the sources were dumped read-only from the
+> live DB and committed to `supabase/migrations/` rather than "moved". m13b is a documented no-op;
+> m20/m21 intent is covered by the recovered `m19_advisor_fixes`/`m20_revoke_anon` and
+> `m19_donor_provisioning` trigger files; m33 is resolved (never applied). Retained below for history.
 
 1. **Move m27–m34 sources** from `docs/proposed-migrations/` into `supabase/migrations/` with
    version timestamps matching the live ledger entries
