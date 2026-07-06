@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #f2f9f4; }
+  @keyframes pa-grad { 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
+  @keyframes pa-floatA { 0%,100%{transform:translate(0,0) rotate(0deg)} 50%{transform:translate(18px,-26px) rotate(8deg)} }
+  @keyframes pa-floatC { 0%,100%{transform:translate(0,0)} 50%{transform:translate(14px,22px)} }
+  @keyframes pa-pulse { 0%{box-shadow:0 0 0 0 rgba(76,157,120,0.45)} 70%{box-shadow:0 0 0 16px rgba(76,157,120,0)} 100%{box-shadow:0 0 0 0 rgba(76,157,120,0)} }
+  @keyframes pa-blink { 0%,100%{opacity:1} 50%{opacity:0.35} }
+  @keyframes pa-marquee { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
+  @keyframes pa-rise { from{opacity:0;transform:translateY(30px)} to{opacity:1;transform:translateY(0)} }
+  @keyframes pa-chop {
+    0%, 8% { transform: rotate(-30deg) translate(0,0); }
+    15% { transform: rotate(-4deg) translate(6px,46px); }
+    22% { transform: rotate(-26deg) translate(2px,6px); }
+    32%, 58% { transform: rotate(-30deg) translate(0,0); }
+    64% { transform: rotate(-22deg) translate(0,-6px); }
+    70% { transform: rotate(-36deg) translate(0,0); }
+    76% { transform: rotate(-26deg) translate(0,-4px); }
+    82%, 100% { transform: rotate(-30deg) translate(0,0); }
+  }
+  @keyframes pa-thanks {
+    0%, 58% { opacity: 0; transform: scale(0) translateY(10px); }
+    64% { opacity: 1; transform: scale(1.15) translateY(0); }
+    70% { opacity: 1; transform: scale(1) translateY(0); }
+    86% { opacity: 1; transform: scale(1) translateY(-4px); }
+    94%, 100% { opacity: 0; transform: scale(0.7) translateY(-14px); }
+  }
+  @keyframes pa-slice {
+    0%, 15% { opacity: 1; transform: translate(0,0) rotate(0deg); }
+    24% { transform: translate(30px,-16px) rotate(12deg); }
+    54% { transform: translate(230px,40px) rotate(80deg); }
+    60%, 84% { opacity: 1; transform: translate(238px,54px) rotate(90deg); }
+    92% { opacity: 0; transform: translate(238px,54px) rotate(90deg); }
+    97% { opacity: 0; transform: translate(0,0) rotate(0deg); }
+    100% { opacity: 1; transform: translate(0,0) rotate(0deg); }
+  }
+  @keyframes pa-heart {
+    0%, 58% { opacity: 0; transform: scale(0) translateY(0); }
+    66% { opacity: 1; transform: scale(1.2) translateY(-8px); }
+    78% { opacity: 1; transform: scale(1) translateY(-22px); }
+    90%, 100% { opacity: 0; transform: scale(0.6) translateY(-38px); }
+  }
+  .pa-hero-word { animation: pa-rise .9s cubic-bezier(.22,1,.36,1) both; }
+  .pa-hero-d1 { animation-delay: .1s; } .pa-hero-d2 { animation-delay: .22s; } .pa-hero-d3 { animation-delay: .34s; } .pa-hero-d4 { animation-delay: .46s; }
+  .pa-card { transition: transform .3s cubic-bezier(.22,1,.36,1), box-shadow .3s ease; }
+  .pa-card:hover { transform: translateY(-6px); box-shadow: 0 18px 40px rgba(76,140,105,0.18); }
+  .pa-btn { transition: transform .2s ease, box-shadow .3s ease; }
+  .pa-btn:hover { transform: translateY(-2px); }
+  .pa-nav a { position: relative; text-decoration: none; color: inherit; }
+  .pa-nav a::after { content:''; position:absolute; left:0; bottom:-5px; height:2px; width:0; background:#4c9d78; transition: width .28s ease; }
+  .pa-nav a:hover::after { width:100%; }
+  .pa-portal { transition: transform .28s ease, background .28s ease; }
+  .pa-portal:hover { transform: translateY(-4px); }
+  .pa-portal:hover .pa-arrow { transform: translateX(6px); }
+  .pa-arrow { display:inline-block; transition: transform .28s ease; }
+</style>
+</helmet>
+
+<div ref="{{ setRoot }}" style="font-family: 'Poppins', sans-serif; color: #33463c; overflow-x: hidden;">
+
+  <!-- announcement ticker -->
+  <div style="background: #d5eedd; color: #2f6b51; overflow: hidden; white-space: nowrap; font-family: 'IBM Plex Mono', monospace; font-size: 13px; letter-spacing: 0.04em; padding: 9px 0;">
+    <div style="display: inline-flex; gap: 44px; animation: pa-marquee 26s linear infinite;">
+      <span>Thank you, Ananya — sponsored 2 meals</span><span>· Thank you, Karthik — donated ₹200</span><span>· Thank you, Priya — sponsored a meal in Chennai</span><span>· Thank you, Rahul — donated ₹150</span><span>· Thank you, Meera — sponsored a meal</span>
+      <span>Thank you, Ananya — sponsored 2 meals</span><span>· Thank you, Karthik — donated ₹200</span><span>· Thank you, Priya — sponsored a meal in Chennai</span><span>· Thank you, Rahul — donated ₹150</span><span>· Thank you, Meera — sponsored a meal</span>
+    </div>
+  </div>
+
+  <!-- nav -->
+  <div class="pa-nav" style="display: flex; align-items: center; justify-content: space-between; padding: 22px 64px; max-width: 1440px; margin: 0 auto;">
+    <div style="font-size: 28px; font-weight: 800; letter-spacing: -0.02em; color: #3c8a68;">pApAmA</div>
+    <div style="display: flex; gap: 38px; font-size: 15.5px; font-weight: 600; color: #4c5f54;">
+      <a href="#">Impact</a><a href="#">How it works</a><a href="#">Vendors</a><a href="#">Volunteer</a>
+    </div>
+    <div style="display: flex; gap: 14px; align-items: center;">
+      <span style="font-size: 15.5px; font-weight: 600; color: #3c8a68;">Portal login</span>
+      <span class="pa-btn" style="background: #3c8a68; color: #f7fcf9; font-size: 15.5px; font-weight: 700; padding: 11px 22px; border-radius: 999px;">Donate</span>
+    </div>
+  </div>
+
+  <!-- HERO -->
+  <div style="position: relative; margin: 12px 24px 0; border-radius: 36px; overflow: hidden; background: linear-gradient(130deg, #e3f4e9, #cfeadb, #dff2e6, #c4e5d2, #e3f4e9); background-size: 300% 300%; animation: pa-grad 18s ease infinite;">
+    <div style="position:absolute; top:10%; left:6%; width:110px; height:110px; border-radius:50%; background:rgba(255,255,255,0.55); animation: pa-floatA 9s ease-in-out infinite;"></div>
+    <div style="position:absolute; top:64%; left:10%; width:56px; height:56px; border-radius:50%; border:2px solid rgba(60,138,104,0.25); animation: pa-floatC 11s ease-in-out infinite;"></div>
+    <div style="position:absolute; top:14%; right:6%; width:130px; height:130px; border-radius:50%; background:rgba(140,200,168,0.3); animation: pa-floatA 10s ease-in-out infinite;"></div>
+
+    <div style="position: relative; padding: 84px 64px 88px; display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 40px; align-items: center;">
+      <div>
+        <div class="pa-hero-word pa-hero-d1" style="display:inline-flex; align-items:center; gap:9px; background:rgba(255,255,255,0.65); font-family:'IBM Plex Mono', monospace; font-size:12.5px; font-weight:600; letter-spacing:0.18em; text-transform:uppercase; padding:8px 16px; border-radius:999px; margin-bottom:28px; color:#2f6b51;">
+          <span style="width:8px; height:8px; background:#4c9d78; border-radius:999px; display:inline-block; animation: pa-blink 1.6s ease-in-out infinite;"></span> Transparent food giving
+        </div>
+        <h1 class="pa-hero-word pa-hero-d2" style="font-size: 76px; line-height: 1.0; font-weight: 800; letter-spacing: -0.035em; margin: 0 0 6px; color:#264434;">Give a meal.</h1>
+        <h1 class="pa-hero-word pa-hero-d3" style="font-size: 76px; line-height: 1.0; font-weight: 800; letter-spacing: -0.035em; margin: 0 0 24px; color:#4c9d78;">Follow it home.</h1>
+        <p class="pa-hero-word pa-hero-d3" style="font-size: 20px; line-height: 1.55; color: #4f6a5c; max-width: 540px; margin: 0 0 40px;">Your donation becomes a tamper-proof food token — never cash, never withdrawable — so you can trace your gift all the way to the plate it becomes.</p>
+        <div class="pa-hero-word pa-hero-d4" style="display: flex; gap: 16px;">
+          <span class="pa-btn" style="background: #3c8a68; color: #f7fcf9; font-size: 17px; font-weight: 700; padding: 18px 32px; border-radius: 999px; animation: pa-pulse 2.6s infinite;">Sponsor a meal <span class="pa-arrow">→</span></span>
+          <span class="pa-btn" style="background: rgba(255,255,255,0.75); color: #2f6b51; font-size: 17px; font-weight: 600; padding: 18px 32px; border-radius: 999px; border:1px solid rgba(60,138,104,0.25);">See our impact</span>
+        </div>
+      </div>
+
+      <!-- CARD SLICES BREAD illustration -->
+      <div class="pa-hero-word pa-hero-d4" data-illo style="position: relative; height: 420px;">
+        <div data-illo-stage style="position:absolute; left:50%; top:0; width:560px; height:420px; margin-left:-280px; transform-origin: top center;">
+        <!-- board -->
+        <div style="position:absolute; left:8%; bottom:88px; width:300px; height:22px; background:#a8d4bb; border-radius:12px;"></div>
+        <!-- loaf: body + 3 fixed slices worth of body -->
+        <div style="position:absolute; left:12%; bottom:108px; width:190px; height:110px; background:#bfe3cc; border-radius:54px 54px 18px 18px; box-shadow: inset 0 -14px 0 rgba(60,138,104,0.14);"></div>
+        <div style="position:absolute; left:12%; bottom:108px; width:190px; height:110px; border-radius:54px 54px 18px 18px; background:repeating-linear-gradient(90deg, transparent 0 44px, rgba(60,138,104,0.18) 44px 46px);"></div>
+        <!-- the travelling slice -->
+        <div style="position:absolute; left:calc(12% + 186px); bottom:108px; width:44px; height:104px; animation: pa-slice 6s ease-in-out infinite;">
+          <div style="width:100%; height:100%; background:#d9f0e2; border:2px solid #8cc8a8; border-radius:20px 20px 8px 8px;"></div>
+        </div>
+        <!-- credit card as knife -->
+        <div style="position:absolute; left:calc(12% + 168px); bottom:196px; width:150px; height:94px; transform-origin: 10% 90%; animation: pa-chop 6s ease-in-out infinite;">
+          <div style="width:100%; height:100%; background:#2f6b51; border-radius:12px; padding:12px; color:#d9f0e2;">
+            <div style="width:30px; height:20px; background:#8cc8a8; border-radius:4px;"></div>
+            <div style="font-family:'IBM Plex Mono', monospace; font-size:10px; letter-spacing:0.12em; margin-top:14px;">FOOD TOKEN</div>
+            <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; letter-spacing:0.16em; margin-top:4px;">•••• 0850</div>
+          </div>
+        </div>
+        <!-- beneficiary plate -->
+        <div style="position:absolute; right:2%; bottom:84px; width:130px; height:16px; background:#fff; border-radius:999px; box-shadow:0 4px 0 #a8d4bb;"></div>
+        <div style="position:absolute; right:1%; bottom:150px; animation: pa-thanks 6s ease-in-out infinite; transform-origin: bottom center;">
+          <div style="position:relative; background:#fff; border:2px solid #8cc8a8; border-radius:16px; padding:10px 16px; font-weight:700; font-size:15px; color:#2f6b51; box-shadow:0 8px 20px rgba(47,107,81,0.15); white-space:nowrap;">
+            Thank you! 💚
+            <div style="position:absolute; left:32px; bottom:-8px; width:14px; height:14px; background:#fff; border-right:2px solid #8cc8a8; border-bottom:2px solid #8cc8a8; transform:rotate(45deg);"></div>
+          </div>
+        </div>
+        <!-- caption -->
+        <div style="position:absolute; left:0; right:0; bottom:8px; text-align:center; font-family:'IBM Plex Mono', monospace; font-size:12px; letter-spacing:0.1em; color:#4f7a63;">YOUR TOKEN SLICES THE LOAF · A SHARE REACHES A PLATE</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LIVE IMPACT -->
+  <div style="max-width: 1440px; margin: 0 auto; padding: 88px 64px 40px;">
+    <div data-reveal style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 34px;">
+      <div>
+        <div style="font-family:'IBM Plex Mono', monospace; font-size:12.5px; font-weight:600; letter-spacing:0.16em; color:#4c9d78; text-transform:uppercase; margin-bottom:10px;">Our impact, live</div>
+        <h2 style="font-size: 40px; font-weight: 800; letter-spacing: -0.025em; margin: 0; color:#2c4a3b;">Real numbers, updated as it happens.</h2>
+      </div>
+      <span style="font-family:'IBM Plex Mono', monospace; font-size:12.5px; color:#8ba396; align-self:flex-end;">Programme-wide totals · no PII shown</span>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px;">
+      <div class="pa-card" data-reveal style="background:#cfeadb; border-radius:24px; padding:36px 32px;">
+        <div style="width:44px; height:44px; border-radius:14px; background:rgba(255,255,255,0.7); margin-bottom:20px; display:flex; align-items:center; justify-content:center;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2f6b51" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.5-1.5 2-3.2 2-4.5A4.5 4.5 0 0 0 12 6.6 4.5 4.5 0 0 0 3 9.5c0 1.3.5 3 2 4.5l7 6.5z"></path></svg></div>
+        <div data-count="850" data-prefix="₹" style="font-size:56px; font-weight:800; letter-spacing:-0.03em; line-height:1; color:#264434;">₹850</div>
+        <div style="font-family:'IBM Plex Mono', monospace; font-size:12px; letter-spacing:0.1em; text-transform:uppercase; color:#4f7a63; margin-top:12px;">Donated</div>
+      </div>
+      <div class="pa-card" data-reveal data-delay="80" style="background:#e3f4e9; border-radius:24px; padding:36px 32px;">
+        <div style="width:44px; height:44px; border-radius:14px; background:rgba(255,255,255,0.85); margin-bottom:20px; display:flex; align-items:center; justify-content:center;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2f6b51" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11h16a8 8 0 0 1-16 0z"></path><path d="M9 7c0-1 .5-1.5.5-2.5M13.5 7c0-1 .5-1.5.5-2.5"></path></svg></div>
+        <div data-count="4" style="font-size:56px; font-weight:800; letter-spacing:-0.03em; line-height:1; color:#264434;">4</div>
+        <div style="font-family:'IBM Plex Mono', monospace; font-size:12px; letter-spacing:0.1em; text-transform:uppercase; color:#4f7a63; margin-top:12px;">Meals sponsored</div>
+      </div>
+      <div class="pa-card" data-reveal data-delay="160" style="background:#d9f0e2; border-radius:24px; padding:36px 32px;">
+        <div style="width:44px; height:44px; border-radius:14px; background:rgba(255,255,255,0.8); margin-bottom:20px; display:flex; align-items:center; justify-content:center;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2f6b51" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="4"></circle></svg></div>
+        <div data-count="1" style="font-size:56px; font-weight:800; letter-spacing:-0.03em; line-height:1; color:#264434;">1</div>
+        <div style="font-family:'IBM Plex Mono', monospace; font-size:12px; letter-spacing:0.1em; text-transform:uppercase; color:#4f7a63; margin-top:12px;">Meals served</div>
+      </div>
+      <div class="pa-card" data-reveal data-delay="40" style="background:#e9f7ee; border-radius:24px; padding:36px 32px;">
+        <div style="width:44px; height:44px; border-radius:14px; background:rgba(255,255,255,0.9); margin-bottom:20px; display:flex; align-items:center; justify-content:center;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2f6b51" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"></circle><path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6"></path></svg></div>
+        <div data-count="1" style="font-size:56px; font-weight:800; letter-spacing:-0.03em; line-height:1; color:#264434;">1</div>
+        <div style="font-family:'IBM Plex Mono', monospace; font-size:12px; letter-spacing:0.1em; text-transform:uppercase; color:#4f7a63; margin-top:12px;">Beneficiaries reached</div>
+      </div>
+      <div class="pa-card" data-reveal data-delay="120" style="background:#c4e5d2; border-radius:24px; padding:36px 32px;">
+        <div style="width:44px; height:44px; border-radius:14px; background:rgba(255,255,255,0.7); margin-bottom:20px; display:flex; align-items:center; justify-content:center;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2f6b51" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10v10h16V10"></path><path d="M3 6l1.5-3h15L21 6a2.5 2.5 0 0 1-5 0 2.5 2.5 0 0 1-4 0 2.5 2.5 0 0 1-4 0 2.5 2.5 0 0 1-5 0z"></path><path d="M9 20v-6h6v6"></path></svg></div>
+        <div data-count="5" style="font-size:56px; font-weight:800; letter-spacing:-0.03em; line-height:1; color:#264434;">5</div>
+        <div style="font-family:'IBM Plex Mono', monospace; font-size:12px; letter-spacing:0.1em; text-transform:uppercase; color:#4f7a63; margin-top:12px;">Active vendors</div>
+      </div>
+      <div class="pa-card" data-reveal data-delay="200" style="background:#dff2e6; border-radius:24px; padding:36px 32px;">
+        <div style="width:44px; height:44px; border-radius:14px; background:rgba(255,255,255,0.8); margin-bottom:20px; display:flex; align-items:center; justify-content:center;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2f6b51" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6.1 7-11a7 7 0 1 0-14 0c0 4.9 7 11 7 11z"></path><circle cx="12" cy="10" r="2.5"></circle></svg></div>
+        <div data-count="4" style="font-size:56px; font-weight:800; letter-spacing:-0.03em; line-height:1; color:#264434;">4</div>
+        <div style="font-family:'IBM Plex Mono', monospace; font-size:12px; letter-spacing:0.1em; text-transform:uppercase; color:#4f7a63; margin-top:12px;">Cities covered</div>
+      </div>
+    </div>
+    <div data-reveal style="margin-top:26px; text-align:center;">
+      <span style="font-size:16px; font-weight:700; color:#3c8a68;">View full transparency dashboard <span class="pa-arrow">→</span></span>
+    </div>
+  </div>
+
+  <!-- HOW IT WORKS -->
+  <div style="max-width: 1440px; margin: 0 auto; padding: 72px 64px;">
+    <div data-reveal style="text-align:center; margin-bottom:48px;">
+      <div style="font-family:'IBM Plex Mono', monospace; font-size:12.5px; font-weight:600; letter-spacing:0.16em; color:#4c9d78; text-transform:uppercase; margin-bottom:12px;">How it works</div>
+      <h2 style="font-size:40px; font-weight:800; letter-spacing:-0.025em; margin:0; color:#2c4a3b;">How a token becomes a meal</h2>
+    </div>
+    <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:20px;">
+      <div class="pa-card" data-reveal style="background:#fff; border:1px solid #dcebe2; border-radius:24px; padding:30px;">
+        <div style="width:38px; height:38px; border-radius:999px; background:#e3f4e9; display:flex; align-items:center; justify-content:center; font-family:'IBM Plex Mono', monospace; font-size:13px; font-weight:600; color:#2f6b51;">01</div>
+        <div style="font-weight:700; font-size:19px; margin:16px 0 8px; color:#2c4a3b;">You give</div>
+        <div style="font-size:15px; line-height:1.55; color:#6f8378;">Your donation is converted into food tokens pegged to real meal value.</div>
+      </div>
+      <div class="pa-card" data-reveal data-delay="90" style="background:#fff; border:1px solid #dcebe2; border-radius:24px; padding:30px;">
+        <div style="width:38px; height:38px; border-radius:999px; background:#d9f0e2; display:flex; align-items:center; justify-content:center; font-family:'IBM Plex Mono', monospace; font-size:13px; font-weight:600; color:#2f6b51;">02</div>
+        <div style="font-weight:700; font-size:19px; margin:16px 0 8px; color:#2c4a3b;">Token issued</div>
+        <div style="font-size:15px; line-height:1.55; color:#6f8378;">Each token is tamper-proof and tracked — food value only, never cash.</div>
+      </div>
+      <div class="pa-card" data-reveal data-delay="180" style="background:#fff; border:1px solid #dcebe2; border-radius:24px; padding:30px;">
+        <div style="width:38px; height:38px; border-radius:999px; background:#cfeadb; display:flex; align-items:center; justify-content:center; font-family:'IBM Plex Mono', monospace; font-size:13px; font-weight:600; color:#2f6b51;">03</div>
+        <div style="font-weight:700; font-size:19px; margin:16px 0 8px; color:#2c4a3b;">Vendor redeems</div>
+        <div style="font-size:15px; line-height:1.55; color:#6f8378;">A verified vendor scans the token and prepares a fresh meal against it.</div>
+      </div>
+      <div class="pa-card" data-reveal data-delay="270" style="background:#cfeadb; border-radius:24px; padding:30px;">
+        <div style="width:38px; height:38px; border-radius:999px; background:rgba(255,255,255,0.75); display:flex; align-items:center; justify-content:center; font-family:'IBM Plex Mono', monospace; font-size:13px; font-weight:600; color:#2f6b51;">04</div>
+        <div style="font-weight:700; font-size:19px; margin:16px 0 8px; color:#264434;">Meal served</div>
+        <div style="font-size:15px; line-height:1.55; color:#4f7a63;">The redemption is logged to the public ledger — closing the loop on your gift.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PORTALS -->
+  <div style="max-width: 1440px; margin: 0 auto; padding: 40px 64px 88px;">
+    <div data-reveal style="font-family:'IBM Plex Mono', monospace; font-size:12.5px; font-weight:600; letter-spacing:0.16em; color:#8ba396; text-transform:uppercase; margin-bottom:22px;">Choose your portal</div>
+    <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:18px;">
+      <div class="pa-portal" data-reveal style="background:#fff; border:1px solid #dcebe2; border-radius:20px; padding:26px; cursor:pointer;" style-hover="background:#e3f4e9;">
+        <div style="font-weight:700; font-size:20px; color:#2c4a3b;">Donor</div>
+        <div style="font-size:14px; color:#8ba396; margin-top:6px;">Open dashboard <span class="pa-arrow">→</span></div>
+      </div>
+      <div class="pa-portal" data-reveal data-delay="80" style="background:#fff; border:1px solid #dcebe2; border-radius:20px; padding:26px; cursor:pointer;" style-hover="background:#d9f0e2;">
+        <div style="font-weight:700; font-size:20px; color:#2c4a3b;">Vendor</div>
+        <div style="font-size:14px; color:#8ba396; margin-top:6px;">Sign in or apply <span class="pa-arrow">→</span></div>
+      </div>
+      <div class="pa-portal" data-reveal data-delay="160" style="background:#fff; border:1px solid #dcebe2; border-radius:20px; padding:26px; cursor:pointer;" style-hover="background:#cfeadb;">
+        <div style="font-weight:700; font-size:20px; color:#2c4a3b;">Volunteer</div>
+        <div style="font-size:14px; color:#8ba396; margin-top:6px;">Sign in <span class="pa-arrow">→</span></div>
+      </div>
+      <div class="pa-portal" data-reveal data-delay="240" style="background:#fff; border:1px solid #dcebe2; border-radius:20px; padding:26px; cursor:pointer;" style-hover="background:#c4e5d2;">
+        <div style="font-weight:700; font-size:20px; color:#2c4a3b;">Admin</div>
+        <div style="font-size:14px; color:#8ba396; margin-top:6px;">Sign in <span class="pa-arrow">→</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div style="background:#dcefe3;">
+    <div style="max-width:1440px; margin:0 auto; padding:52px 64px; display:flex; justify-content:space-between; align-items:center;">
+      <div>
+        <div style="font-size:24px; font-weight:800; color:#2f6b51;">pApAmA</div>
+        <div style="font-size:14px; color:#5d7a69; margin-top:6px; max-width:420px;">Tokens represent food value only — never cash, never withdrawable.</div>
+      </div>
+      <div style="font-size:14.5px; color:#4f7a63; display:flex; gap:28px; font-weight:500;"><span>Transparency</span><span>Donate</span><span>Partner portal</span><span>© 2026 pApAmA</span></div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    return { setRoot: (el) => { this.rootEl = el; } };
+  }
+  componentDidMount() {
+    const root = this.rootEl;
+    if (!root) return;
+    const illo = root.querySelector('[data-illo]');
+    const stage = root.querySelector('[data-illo-stage]');
+    if (illo && stage) {
+      const fit = () => {
+        const w = illo.clientWidth;
+        const s = Math.min(1, w / 560);
+        stage.style.transform = 'scale(' + s + ')';
+        illo.style.height = Math.round(420 * s) + 'px';
+      };
+      fit();
+      if ('ResizeObserver' in window) { new ResizeObserver(fit).observe(illo); }
+      else { window.addEventListener('resize', fit); }
+    }
+    const counters = root.querySelectorAll('[data-count]');
+    const runCount = (el) => {
+      const target = parseFloat(el.getAttribute('data-count'));
+      const prefix = el.getAttribute('data-prefix') || '';
+      const dur = 1400, start = performance.now();
+      const step = (now) => {
+        const t = Math.min(1, (now - start) / dur);
+        const eased = 1 - Math.pow(1 - t, 3);
+        el.textContent = prefix + Math.round(target * eased).toLocaleString('en-IN');
+        if (t < 1) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    };
+    const reveals = root.querySelectorAll('[data-reveal]');
+    reveals.forEach((el) => {
+      el.style.opacity = '0';
+      el.style.transform = 'translateY(28px)';
+      el.style.transition = 'opacity .7s cubic-bezier(.22,1,.36,1), transform .7s cubic-bezier(.22,1,.36,1)';
+      el.style.transitionDelay = (el.getAttribute('data-delay') || '0') + 'ms';
+    });
+    counters.forEach((c) => { c.textContent = (c.getAttribute('data-prefix') || '') + '0'; });
+    if (!('IntersectionObserver' in window)) {
+      reveals.forEach((el) => { el.style.opacity = '1'; el.style.transform = 'none'; });
+      counters.forEach((c) => runCount(c));
+      return;
+    }
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((e) => {
+        if (e.isIntersecting) {
+          const el = e.target;
+          el.style.opacity = '1';
+          el.style.transform = 'none';
+          if (el.hasAttribute('data-count')) runCount(el);
+          io.unobserve(el);
+        }
+      });
+    }, { threshold: 0.25 });
+    reveals.forEach((el) => io.observe(el));
+    counters.forEach((c) => { if (!c.hasAttribute('data-reveal')) io.observe(c); });
+  }
+}
+</script>
+</body>
+</html>

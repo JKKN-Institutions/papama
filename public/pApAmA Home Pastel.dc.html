@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #fbf7f0; }
+  @keyframes pa-grad { 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
+  @keyframes pa-floatA { 0%,100%{transform:translate(0,0) rotate(0deg)} 50%{transform:translate(18px,-26px) rotate(8deg)} }
+  @keyframes pa-floatB { 0%,100%{transform:translate(0,0) rotate(0deg)} 50%{transform:translate(-22px,20px) rotate(-6deg)} }
+  @keyframes pa-floatC { 0%,100%{transform:translate(0,0)} 50%{transform:translate(14px,22px)} }
+  @keyframes pa-pulse { 0%{box-shadow:0 0 0 0 rgba(76,157,120,0.45)} 70%{box-shadow:0 0 0 16px rgba(76,157,120,0)} 100%{box-shadow:0 0 0 0 rgba(76,157,120,0)} }
+  @keyframes pa-blink { 0%,100%{opacity:1} 50%{opacity:0.35} }
+  @keyframes pa-marquee { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
+  @keyframes pa-rise { from{opacity:0;transform:translateY(30px)} to{opacity:1;transform:translateY(0)} }
+  .pa-hero-word { animation: pa-rise .9s cubic-bezier(.22,1,.36,1) both; }
+  .pa-hero-d1 { animation-delay: .1s; } .pa-hero-d2 { animation-delay: .22s; } .pa-hero-d3 { animation-delay: .34s; } .pa-hero-d4 { animation-delay: .46s; }
+  .pa-card { transition: transform .3s cubic-bezier(.22,1,.36,1), box-shadow .3s ease; }
+  .pa-card:hover { transform: translateY(-6px); box-shadow: 0 18px 40px rgba(90,120,105,0.18); }
+  .pa-btn { transition: transform .2s ease, box-shadow .3s ease; }
+  .pa-btn:hover { transform: translateY(-2px); }
+  .pa-nav a { position: relative; text-decoration: none; color: inherit; }
+  .pa-nav a::after { content:''; position:absolute; left:0; bottom:-5px; height:2px; width:0; background:#e8a798; transition: width .28s ease; }
+  .pa-nav a:hover::after { width:100%; }
+  .pa-portal { transition: transform .28s ease, background .28s ease; }
+  .pa-portal:hover { transform: translateY(-4px); }
+  .pa-portal:hover .pa-arrow { transform: translateX(6px); }
+  .pa-arrow { display:inline-block; transition: transform .28s ease; }
+</style>
+</helmet>
+
+<div ref="{{ setRoot }}" style="font-family: 'Poppins', sans-serif; color: #3a463f; overflow-x: hidden;">
+
+  <!-- announcement ticker -->
+  <div style="background: #dff0e6; color: #2f6b51; overflow: hidden; white-space: nowrap; font-family: 'IBM Plex Mono', monospace; font-size: 13px; letter-spacing: 0.04em; padding: 9px 0;">
+    <div style="display: inline-flex; gap: 44px; animation: pa-marquee 26s linear infinite;">
+      <span>🌱 ₹850 raised so far</span><span>· 4 meals sponsored</span><span>· 5 vendors live across 4 cities</span><span>· tokens are food-value only — never cash</span><span>· follow every gift to the plate</span>
+      <span>🌱 ₹850 raised so far</span><span>· 4 meals sponsored</span><span>· 5 vendors live across 4 cities</span><span>· tokens are food-value only — never cash</span><span>· follow every gift to the plate</span>
+    </div>
+  </div>
+
+  <!-- nav -->
+  <div class="pa-nav" style="display: flex; align-items: center; justify-content: space-between; padding: 22px 64px; max-width: 1440px; margin: 0 auto;">
+    <div style="font-size: 28px; font-weight: 800; letter-spacing: -0.02em; color: #3c8a68;">pApAmA</div>
+    <div style="display: flex; gap: 38px; font-size: 15.5px; font-weight: 600; color: #4c584f;">
+      <a href="#">Impact</a><a href="#">How it works</a><a href="#">Vendors</a><a href="#">Volunteer</a>
+    </div>
+    <div style="display: flex; gap: 14px; align-items: center;">
+      <span style="font-size: 15.5px; font-weight: 600; color: #3c8a68;">Portal login</span>
+      <span class="pa-btn" style="background: #3c8a68; color: #fdfbf6; font-size: 15.5px; font-weight: 700; padding: 11px 22px; border-radius: 999px;">Donate</span>
+    </div>
+  </div>
+
+  <!-- HERO -->
+  <div style="position: relative; margin: 12px 24px 0; border-radius: 36px; overflow: hidden; background: linear-gradient(130deg, #d8efe1, #fbeed3, #f9ddd3, #dcebf3, #d8efe1); background-size: 300% 300%; animation: pa-grad 18s ease infinite;">
+    <!-- floating pastel shapes -->
+    <div style="position:absolute; top:12%; left:8%; width:120px; height:120px; border-radius:50%; background:rgba(255,255,255,0.55); animation: pa-floatA 9s ease-in-out infinite;"></div>
+    <div style="position:absolute; top:60%; left:14%; width:64px; height:64px; border-radius:50%; border:2px solid rgba(60,138,104,0.25); animation: pa-floatC 11s ease-in-out infinite;"></div>
+    <div style="position:absolute; top:22%; right:10%; width:150px; height:150px; border-radius:50%; background:rgba(232,167,152,0.28); animation: pa-floatB 10s ease-in-out infinite;"></div>
+    <div style="position:absolute; top:68%; right:16%; width:38px; height:38px; border-radius:12px; background:rgba(173,196,226,0.4); animation: pa-floatA 8s ease-in-out infinite;"></div>
+
+    <div style="position: relative; padding: 96px 64px 104px; text-align: center; color: #2c4a3b;">
+      <div class="pa-hero-word pa-hero-d1" style="display:inline-flex; align-items:center; gap:9px; background:rgba(255,255,255,0.65); font-family:'IBM Plex Mono', monospace; font-size:12.5px; font-weight:600; letter-spacing:0.18em; text-transform:uppercase; padding:8px 16px; border-radius:999px; margin-bottom:30px; color:#2f6b51;">
+        <span style="width:8px; height:8px; background:#4c9d78; border-radius:999px; display:inline-block; animation: pa-blink 1.6s ease-in-out infinite;"></span> Transparent food giving
+      </div>
+      <h1 class="pa-hero-word pa-hero-d2" style="font-size: 92px; line-height: 0.98; font-weight: 800; letter-spacing: -0.035em; margin: 0 0 8px; color:#2c4a3b;">Give a meal.</h1>
+      <h1 class="pa-hero-word pa-hero-d3" style="font-size: 92px; line-height: 0.98; font-weight: 800; letter-spacing: -0.035em; margin: 0 0 26px; color:#d98a76;">Follow it home.</h1>
+      <p class="pa-hero-word pa-hero-d3" style="font-size: 21px; line-height: 1.55; color: #57685e; max-width: 620px; margin: 0 auto 44px;">Your donation becomes a tamper-proof food token — never cash, never withdrawable — so you can trace your gift all the way to the plate it becomes.</p>
+      <div class="pa-hero-word pa-hero-d4" style="display: flex; gap: 16px; justify-content: center;">
+        <span class="pa-btn" style="background: #3c8a68; color: #fdfbf6; font-size: 17px; font-weight: 700; padding: 18px 32px; border-radius: 999px; animation: pa-pulse 2.6s infinite;">Sponsor a meal <span class="pa-arrow">→</span></span>
+        <span class="pa-btn" style="background: rgba(255,255,255,0.75); color: #2f6b51; font-size: 17px; font-weight: 600; padding: 18px 32px; border-radius: 999px; border:1px solid rgba(60,138,104,0.25);">See our impact</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- LIVE IMPACT -->
+  <div style="max-width: 1440px; margin: 0 auto; padding: 88px 64px 40px;">
+    <div data-reveal style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 34px;">
+      <div>
+        <div style="font-family:'IBM Plex Mono', monospace; font-size:12.5px; font-weight:600; letter-spacing:0.16em; color:#4c9d78; text-transform:uppercase; margin-bottom:10px;">Our impact, live</div>
+        <h2 style="font-size: 40px; font-weight: 800; letter-spacing: -0.025em; margin: 0; color:#33413a;">Real numbers, updated as it happens.</h2>
+      </div>
+      <span style="font-family:'IBM Plex Mono', monospace; font-size:12.5px; color:#9aa398; align-self:flex-end;">Programme-wide totals · no PII shown</span>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px;">
+      <div class="pa-card" data-reveal style="background:#d8efe1; border-radius:24px; padding:36px 32px;">
+        <div style="width:44px; height:44px; border-radius:14px; background:rgba(255,255,255,0.7); margin-bottom:20px;"></div>
+        <div data-count="850" data-prefix="₹" style="font-size:56px; font-weight:800; letter-spacing:-0.03em; line-height:1; color:#2c4a3b;">₹850</div>
+        <div style="font-family:'IBM Plex Mono', monospace; font-size:12px; letter-spacing:0.1em; text-transform:uppercase; color:#4f7a63; margin-top:12px;">Donated</div>
+      </div>
+      <div class="pa-card" data-reveal data-delay="80" style="background:#fbeed3; border-radius:24px; padding:36px 32px;">
+        <div style="width:44px; height:44px; border-radius:14px; background:rgba(255,255,255,0.7); margin-bottom:20px;"></div>
+        <div data-count="4" style="font-size:56px; font-weight:800; letter-spacing:-0.03em; line-height:1; color:#6d5836;">4</div>
+        <div style="font-family:'IBM Plex Mono', monospace; font-size:12px; letter-spacing:0.1em; text-transform:uppercase; color:#a08a5f; margin-top:12px;">Meals sponsored</div>
+      </div>
+      <div class="pa-card" data-reveal data-delay="160" style="background:#f9ddd3; border-radius:24px; padding:36px 32px;">
+        <div style="width:44px; height:44px; border-radius:14px; background:rgba(255,255,255,0.7); margin-bottom:20px;"></div>
+        <div data-count="1" style="font-size:56px; font-weight:800; letter-spacing:-0.03em; line-height:1; color:#7a4a3a;">1</div>
+        <div style="font-family:'IBM Plex Mono', monospace; font-size:12px; letter-spacing:0.1em; text-transform:uppercase; color:#b0806f; margin-top:12px;">Meals served</div>
+      </div>
+      <div class="pa-card" data-reveal data-delay="40" style="background:#e6e1f4; border-radius:24px; padding:36px 32px;">
+        <div style="width:44px; height:44px; border-radius:14px; background:rgba(255,255,255,0.7); margin-bottom:20px;"></div>
+        <div data-count="1" style="font-size:56px; font-weight:800; letter-spacing:-0.03em; line-height:1; color:#54497a;">1</div>
+        <div style="font-family:'IBM Plex Mono', monospace; font-size:12px; letter-spacing:0.1em; text-transform:uppercase; color:#8a80ad; margin-top:12px;">Beneficiaries reached</div>
+      </div>
+      <div class="pa-card" data-reveal data-delay="120" style="background:#dcebf3; border-radius:24px; padding:36px 32px;">
+        <div style="width:44px; height:44px; border-radius:14px; background:rgba(255,255,255,0.7); margin-bottom:20px;"></div>
+        <div data-count="5" style="font-size:56px; font-weight:800; letter-spacing:-0.03em; line-height:1; color:#3d5a70;">5</div>
+        <div style="font-family:'IBM Plex Mono', monospace; font-size:12px; letter-spacing:0.1em; text-transform:uppercase; color:#7595ab; margin-top:12px;">Active vendors</div>
+      </div>
+      <div class="pa-card" data-reveal data-delay="200" style="background:#d8efe1; border-radius:24px; padding:36px 32px;">
+        <div style="width:44px; height:44px; border-radius:14px; background:rgba(255,255,255,0.7); margin-bottom:20px;"></div>
+        <div data-count="4" style="font-size:56px; font-weight:800; letter-spacing:-0.03em; line-height:1; color:#2c4a3b;">4</div>
+        <div style="font-family:'IBM Plex Mono', monospace; font-size:12px; letter-spacing:0.1em; text-transform:uppercase; color:#4f7a63; margin-top:12px;">Cities covered</div>
+      </div>
+    </div>
+    <div data-reveal style="margin-top:26px; text-align:center;">
+      <span style="font-size:16px; font-weight:700; color:#3c8a68;">View full transparency dashboard <span class="pa-arrow">→</span></span>
+    </div>
+  </div>
+
+  <!-- HOW IT WORKS -->
+  <div style="max-width: 1440px; margin: 0 auto; padding: 72px 64px;">
+    <div data-reveal style="text-align:center; margin-bottom:48px;">
+      <div style="font-family:'IBM Plex Mono', monospace; font-size:12.5px; font-weight:600; letter-spacing:0.16em; color:#4c9d78; text-transform:uppercase; margin-bottom:12px;">How it works</div>
+      <h2 style="font-size:40px; font-weight:800; letter-spacing:-0.025em; margin:0; color:#33413a;">How a token becomes a meal</h2>
+    </div>
+    <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:20px;">
+      <div class="pa-card" data-reveal style="background:#fff; border:1px solid #ece5d6; border-radius:24px; padding:30px;">
+        <div style="width:38px; height:38px; border-radius:999px; background:#d8efe1; display:flex; align-items:center; justify-content:center; font-family:'IBM Plex Mono', monospace; font-size:13px; font-weight:600; color:#2f6b51;">01</div>
+        <div style="font-weight:700; font-size:19px; margin:16px 0 8px; color:#33413a;">You give</div>
+        <div style="font-size:15px; line-height:1.55; color:#7d857b;">Your donation is converted into food tokens pegged to real meal value.</div>
+      </div>
+      <div class="pa-card" data-reveal data-delay="90" style="background:#fff; border:1px solid #ece5d6; border-radius:24px; padding:30px;">
+        <div style="width:38px; height:38px; border-radius:999px; background:#fbeed3; display:flex; align-items:center; justify-content:center; font-family:'IBM Plex Mono', monospace; font-size:13px; font-weight:600; color:#8a6f3e;">02</div>
+        <div style="font-weight:700; font-size:19px; margin:16px 0 8px; color:#33413a;">Token issued</div>
+        <div style="font-size:15px; line-height:1.55; color:#7d857b;">Each token is tamper-proof and tracked — food value only, never cash.</div>
+      </div>
+      <div class="pa-card" data-reveal data-delay="180" style="background:#fff; border:1px solid #ece5d6; border-radius:24px; padding:30px;">
+        <div style="width:38px; height:38px; border-radius:999px; background:#f9ddd3; display:flex; align-items:center; justify-content:center; font-family:'IBM Plex Mono', monospace; font-size:13px; font-weight:600; color:#9a5d49;">03</div>
+        <div style="font-weight:700; font-size:19px; margin:16px 0 8px; color:#33413a;">Vendor redeems</div>
+        <div style="font-size:15px; line-height:1.55; color:#7d857b;">A verified vendor scans the token and prepares a fresh meal against it.</div>
+      </div>
+      <div class="pa-card" data-reveal data-delay="270" style="background:#d8efe1; border-radius:24px; padding:30px;">
+        <div style="width:38px; height:38px; border-radius:999px; background:rgba(255,255,255,0.75); display:flex; align-items:center; justify-content:center; font-family:'IBM Plex Mono', monospace; font-size:13px; font-weight:600; color:#2f6b51;">04</div>
+        <div style="font-weight:700; font-size:19px; margin:16px 0 8px; color:#2c4a3b;">Meal served</div>
+        <div style="font-size:15px; line-height:1.55; color:#4f7a63;">The redemption is logged to the public ledger — closing the loop on your gift.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PORTALS -->
+  <div style="max-width: 1440px; margin: 0 auto; padding: 40px 64px 88px;">
+    <div data-reveal style="font-family:'IBM Plex Mono', monospace; font-size:12.5px; font-weight:600; letter-spacing:0.16em; color:#9aa398; text-transform:uppercase; margin-bottom:22px;">Choose your portal</div>
+    <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:18px;">
+      <div class="pa-portal" data-reveal style="background:#fff; border:1px solid #ece5d6; border-radius:20px; padding:26px; cursor:pointer;" style-hover="background:#d8efe1;">
+        <div style="font-weight:700; font-size:20px; color:#33413a;">Donor</div>
+        <div style="font-size:14px; color:#9aa398; margin-top:6px;">Open dashboard <span class="pa-arrow">→</span></div>
+      </div>
+      <div class="pa-portal" data-reveal data-delay="80" style="background:#fff; border:1px solid #ece5d6; border-radius:20px; padding:26px; cursor:pointer;" style-hover="background:#fbeed3;">
+        <div style="font-weight:700; font-size:20px; color:#33413a;">Vendor</div>
+        <div style="font-size:14px; color:#9aa398; margin-top:6px;">Sign in or apply <span class="pa-arrow">→</span></div>
+      </div>
+      <div class="pa-portal" data-reveal data-delay="160" style="background:#fff; border:1px solid #ece5d6; border-radius:20px; padding:26px; cursor:pointer;" style-hover="background:#f9ddd3;">
+        <div style="font-weight:700; font-size:20px; color:#33413a;">Volunteer</div>
+        <div style="font-size:14px; color:#9aa398; margin-top:6px;">Sign in <span class="pa-arrow">→</span></div>
+      </div>
+      <div class="pa-portal" data-reveal data-delay="240" style="background:#fff; border:1px solid #ece5d6; border-radius:20px; padding:26px; cursor:pointer;" style-hover="background:#e6e1f4;">
+        <div style="font-weight:700; font-size:20px; color:#33413a;">Admin</div>
+        <div style="font-size:14px; color:#9aa398; margin-top:6px;">Sign in <span class="pa-arrow">→</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div style="background:#e7f1ea;">
+    <div style="max-width:1440px; margin:0 auto; padding:52px 64px; display:flex; justify-content:space-between; align-items:center;">
+      <div>
+        <div style="font-size:24px; font-weight:800; color:#3c8a68;">pApAmA</div>
+        <div style="font-size:14px; color:#6d7f74; margin-top:6px; max-width:420px;">Tokens represent food value only — never cash, never withdrawable.</div>
+      </div>
+      <div style="font-size:14.5px; color:#5d7267; display:flex; gap:28px; font-weight:500;"><span>Transparency</span><span>Donate</span><span>Partner portal</span><span>© 2026 pApAmA</span></div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    return { setRoot: (el) => { this.rootEl = el; } };
+  }
+  componentDidMount() {
+    const root = this.rootEl;
+    if (!root) return;
+    const counters = root.querySelectorAll('[data-count]');
+    const runCount = (el) => {
+      const target = parseFloat(el.getAttribute('data-count'));
+      const prefix = el.getAttribute('data-prefix') || '';
+      const dur = 1400, start = performance.now();
+      const step = (now) => {
+        const t = Math.min(1, (now - start) / dur);
+        const eased = 1 - Math.pow(1 - t, 3);
+        el.textContent = prefix + Math.round(target * eased).toLocaleString('en-IN');
+        if (t < 1) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    };
+    const reveals = root.querySelectorAll('[data-reveal]');
+    reveals.forEach((el) => {
+      el.style.opacity = '0';
+      el.style.transform = 'translateY(28px)';
+      el.style.transition = 'opacity .7s cubic-bezier(.22,1,.36,1), transform .7s cubic-bezier(.22,1,.36,1)';
+      el.style.transitionDelay = (el.getAttribute('data-delay') || '0') + 'ms';
+    });
+    counters.forEach((c) => { c.textContent = (c.getAttribute('data-prefix') || '') + '0'; });
+    if (!('IntersectionObserver' in window)) {
+      reveals.forEach((el) => { el.style.opacity = '1'; el.style.transform = 'none'; });
+      counters.forEach((c) => runCount(c));
+      return;
+    }
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((e) => {
+        if (e.isIntersecting) {
+          const el = e.target;
+          el.style.opacity = '1';
+          el.style.transform = 'none';
+          if (el.hasAttribute('data-count')) runCount(el);
+          io.unobserve(el);
+        }
+      });
+    }, { threshold: 0.25 });
+    reveals.forEach((el) => io.observe(el));
+    counters.forEach((c) => { if (!c.hasAttribute('data-reveal')) io.observe(c); });
+  }
+}
+</script>
+</body>
+</html>

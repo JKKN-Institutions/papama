@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #f2f9f4; }
+  @keyframes pa-grad { 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
+  @keyframes pa-floatA { 0%,100%{transform:translate(0,0) rotate(0deg)} 50%{transform:translate(18px,-26px) rotate(8deg)} }
+  @keyframes pa-floatC { 0%,100%{transform:translate(0,0)} 50%{transform:translate(14px,22px)} }
+  @keyframes pa-blink { 0%,100%{opacity:1} 50%{opacity:0.35} }
+  @keyframes pa-give {
+    0% { opacity: 0; transform: translate(-90px,-50px) rotate(-8deg); }
+    3% { opacity: 1; transform: translate(0,0) rotate(0deg); }
+    8% { transform: translate(4px,8px) rotate(16deg); }
+    13% { transform: translate(0,0) rotate(0deg); }
+    17%, 33% { opacity: 0; transform: translate(-90px,-50px) rotate(-8deg); }
+    36% { opacity: 1; transform: translate(0,0) rotate(0deg); }
+    41% { transform: translate(4px,8px) rotate(16deg); }
+    46% { transform: translate(0,0) rotate(0deg); }
+    50%, 66% { opacity: 0; transform: translate(-90px,-50px) rotate(-8deg); }
+    69% { opacity: 1; transform: translate(0,0) rotate(0deg); }
+    74% { transform: translate(4px,8px) rotate(16deg); }
+    79% { transform: translate(0,0) rotate(0deg); }
+    83%, 100% { opacity: 0; transform: translate(-90px,-50px) rotate(-8deg); }
+  }
+  @keyframes pa-drop {
+    0%, 7% { opacity: 0; transform: translateY(-8px); }
+    9% { opacity: 1; transform: translateY(0); }
+    14% { opacity: 1; transform: translateY(88px); }
+    16%, 40% { opacity: 0; transform: translateY(-8px); }
+    42% { opacity: 1; transform: translateY(0); }
+    47% { opacity: 1; transform: translateY(88px); }
+    49%, 73% { opacity: 0; transform: translateY(-8px); }
+    75% { opacity: 1; transform: translateY(0); }
+    80% { opacity: 1; transform: translateY(88px); }
+    82%, 100% { opacity: 0; transform: translateY(-8px); }
+  }
+  @keyframes pa-grow1 {
+    0%, 14% { opacity: 1; transform: scaleY(0); }
+    19% { opacity: 1; transform: scaleY(1.12); }
+    22% { opacity: 1; transform: scaleY(1); }
+    45% { opacity: 1; }
+    49%, 100% { opacity: 0; transform: scaleY(1); }
+  }
+  @keyframes pa-grow2 {
+    0%, 47% { opacity: 0; transform: scale(0); }
+    52% { opacity: 1; transform: scale(1.08); }
+    55% { opacity: 1; transform: scale(1); }
+    78% { opacity: 1; }
+    82%, 100% { opacity: 0; transform: scale(1); }
+  }
+  @keyframes pa-grow3 {
+    0%, 78% { opacity: 0; transform: scale(0); }
+    83% { opacity: 1; transform: scale(1.06); }
+    86% { opacity: 1; transform: scale(1); }
+    90% { opacity: 1; transform: scale(1); }
+    94%, 100% { opacity: 0; transform: scale(0.12); }
+  }
+  @keyframes pa-fruit {
+    0%, 84% { opacity: 0; transform: scale(0); }
+    87% { opacity: 1; transform: scale(1.25); }
+    89% { opacity: 1; transform: scale(1); }
+    92%, 100% { opacity: 0; transform: scale(0.8); }
+  }
+  @keyframes pa-token-final {
+    0%, 92% { opacity: 0; transform: scale(0) rotate(-40deg); }
+    95% { opacity: 1; transform: scale(1.18) rotate(6deg); }
+    97% { opacity: 1; transform: scale(1) rotate(0deg); }
+    99% { opacity: 1; transform: scale(1) rotate(0deg); }
+    100% { opacity: 0; transform: scale(0.8) rotate(0deg); }
+  }
+  @keyframes pa-token-ring {
+    0%, 93% { opacity: 0; transform: scale(0.4); }
+    96% { opacity: 0.6; transform: scale(1); }
+    100% { opacity: 0; transform: scale(1.8); }
+  }
+  @keyframes pa-on1 { 0%, 14% { opacity: 0; } 19%, 45% { opacity: 1; } 49%, 100% { opacity: 0; } }
+  @keyframes pa-on2 { 0%, 47% { opacity: 0; } 52%, 78% { opacity: 1; } 82%, 100% { opacity: 0; } }
+  @keyframes pa-on3 { 0%, 80% { opacity: 0; } 86%, 97% { opacity: 1; } 100% { opacity: 0; } }
+  .pa-btn { transition: transform .2s ease, box-shadow .3s ease; cursor: pointer; }
+  .pa-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(47,107,81,0.22); }
+  .pa-input:focus { outline: none; border-color: #4c9d78 !important; box-shadow: 0 0 0 3px rgba(76,157,120,0.18); }
+</style>
+</helmet>
+
+<div style="font-family: 'Poppins', sans-serif; color: #33463c; min-height: 100vh; display: grid; grid-template-columns: 1fr 1fr;">
+
+  <!-- LEFT: brand panel -->
+  <div style="position: relative; overflow: hidden; background: linear-gradient(140deg, #dff2e6, #c4e5d2, #d9f0e2, #cfeadb); background-size: 300% 300%; animation: pa-grad 18s ease infinite; display: flex; flex-direction: column; justify-content: space-between; padding: 48px 56px;">
+    <div style="position:absolute; top:12%; right:10%; width:130px; height:130px; border-radius:50%; background:rgba(255,255,255,0.5); animation: pa-floatA 10s ease-in-out infinite;"></div>
+    <div style="position:absolute; bottom:18%; left:8%; width:70px; height:70px; border-radius:50%; border:2px solid rgba(60,138,104,0.25); animation: pa-floatC 11s ease-in-out infinite;"></div>
+    <div style="position:absolute; top:48%; right:22%; width:40px; height:40px; border-radius:12px; background:rgba(140,200,168,0.35); animation: pa-floatA 8s ease-in-out infinite;"></div>
+
+    <a href="pApAmA Home Pastel v2.dc.html" style="position:relative; font-size: 28px; font-weight: 800; letter-spacing: -0.02em; color: #2f6b51; text-decoration: none;">pApAmA</a>
+
+    <div style="position:relative;">
+      <div style="display:inline-flex; align-items:center; gap:9px; background:rgba(255,255,255,0.65); font-family:'IBM Plex Mono', monospace; font-size:12px; font-weight:600; letter-spacing:0.16em; text-transform:uppercase; padding:8px 16px; border-radius:999px; margin-bottom:24px; color:#2f6b51;">
+        <span style="width:8px; height:8px; background:#4c9d78; border-radius:999px; display:inline-block; animation: pa-blink 1.6s ease-in-out infinite;"></span> Transparent food giving
+      </div>
+      <div style="font-size: 44px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; color: #264434; max-width: 420px;">Every gift traced to the plate it becomes.</div>
+      <p style="font-size: 16px; line-height: 1.6; color: #4f6a5c; max-width: 400px; margin: 18px 0 0;">Sign in to your portal to donate, redeem tokens, coordinate deliveries, or run the programme.</p>
+
+      <!-- small amount, big impact: coin → seed → plant → tree -->
+      <div ref="{{ setRippleStage }}" onClick="{{ replayRipple }}" style="position:relative; width:400px; height:218px; margin-top:30px; cursor:pointer;" title="Click to replay">
+        <div style="position:absolute; left:50%; top:0; width:560px; height:300px; margin-left:-280px; transform:scale(0.714); transform-origin: top center;">
+
+          <!-- soil -->
+          <div style="position:absolute; left:220px; top:224px; width:120px; height:26px; background:rgba(255,255,255,0.65); border-radius:999px;"></div>
+
+          <!-- giving hand + coin -->
+          <div style="position:absolute; left:140px; top:52px; animation: pa-give 13s ease-in-out infinite;">
+            <div style="position:relative; width:120px; height:64px;">
+              <svg width="120" height="64" viewBox="0 0 120 64" fill="none">
+                <rect x="0" y="26" width="30" height="26" rx="7" fill="#2f6b51"></rect>
+                <path d="M26 30 C26 24 32 21 38 21 L84 21 C88 21 91 24 91 27 C91 30 88 33 84 33 L70 33 L86 33 C90 33 93 36 93 39 C93 42 90 45 86 45 L70 45 L82 45 C85.5 45 88 47.5 88 50 C88 52.5 85.5 55 82 55 L48 55 C36 55 26 48 26 38 Z" fill="#4c9d78"></path>
+                <path d="M46 21 C42 14 46 8 52 8 C57 8 60 12 60 17 L60 21 Z" fill="#4c9d78"></path>
+              </svg>
+              <div style="position:absolute; left:58px; top:-8px; width:28px; height:28px; border-radius:999px; background:#fff; border:2.5px solid #2f6b51; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:800; color:#2f6b51; box-shadow:0 4px 10px rgba(47,107,81,0.2);">₹</div>
+            </div>
+          </div>
+          <!-- falling coin -->
+          <div style="position:absolute; left:266px; top:118px; animation: pa-drop 13s ease-in infinite;">
+            <div style="width:26px; height:26px; border-radius:999px; background:#fff; border:2px solid #4c9d78; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; color:#2f6b51;">₹</div>
+          </div>
+
+          <!-- stage 1: sprout -->
+          <div style="position:absolute; left:250px; top:170px; width:60px; height:64px; transform-origin: bottom center; animation: pa-grow1 13s ease-in-out infinite;">
+            <div style="position:absolute; left:28px; bottom:0; width:4px; height:34px; background:#2f6b51; border-radius:4px;"></div>
+            <div style="position:absolute; left:8px; bottom:26px; width:20px; height:12px; background:#4c9d78; border-radius:0 12px 0 12px; transform:rotate(-16deg);"></div>
+            <div style="position:absolute; left:32px; bottom:26px; width:20px; height:12px; background:#6fb893; border-radius:12px 0 12px 0; transform:rotate(16deg);"></div>
+          </div>
+
+          <!-- stage 2: plant -->
+          <div style="position:absolute; left:240px; top:120px; width:80px; height:114px; transform-origin: bottom center; animation: pa-grow2 13s ease-in-out infinite;">
+            <div style="position:absolute; left:38px; bottom:0; width:5px; height:74px; background:#2f6b51; border-radius:4px;"></div>
+            <div style="position:absolute; left:12px; bottom:60px; width:24px; height:14px; background:#4c9d78; border-radius:0 14px 0 14px; transform:rotate(-18deg);"></div>
+            <div style="position:absolute; left:44px; bottom:60px; width:24px; height:14px; background:#6fb893; border-radius:14px 0 14px 0; transform:rotate(18deg);"></div>
+            <div style="position:absolute; left:16px; bottom:34px; width:22px; height:13px; background:#8cc8a8; border-radius:0 13px 0 13px; transform:rotate(-24deg);"></div>
+            <div style="position:absolute; left:42px; bottom:34px; width:22px; height:13px; background:#4c9d78; border-radius:13px 0 13px 0; transform:rotate(24deg);"></div>
+          </div>
+
+          <!-- stage 3: tree -->
+          <div style="position:absolute; left:210px; top:56px; width:140px; height:178px; transform-origin: bottom center; animation: pa-grow3 13s ease-in-out infinite;">
+            <svg width="140" height="178" viewBox="0 0 140 178" fill="none">
+              <path d="M66 178 L66 110 L44 88 L48 84 L66 100 L66 78 L74 78 L74 92 L94 74 L98 78 L74 102 L74 178 Z" fill="#2f6b51"></path>
+              <ellipse cx="70" cy="52" rx="54" ry="44" fill="#4c9d78"></ellipse>
+              <circle cx="32" cy="72" r="26" fill="#4c9d78"></circle>
+              <circle cx="108" cy="70" r="24" fill="#4c9d78"></circle>
+              <circle cx="52" cy="36" r="16" fill="#6fb893"></circle>
+              <circle cx="92" cy="46" r="12" fill="#6fb893"></circle>
+            </svg>
+            <div style="position:absolute; left:38px; top:52px; width:14px; height:14px; border-radius:999px; background:#e9f7ee; animation: pa-fruit 13s ease-in-out infinite;"></div>
+            <div style="position:absolute; left:88px; top:32px; width:12px; height:12px; border-radius:999px; background:#e9f7ee; animation: pa-fruit 13s ease-in-out infinite; animation-delay:.2s;"></div>
+            <div style="position:absolute; left:66px; top:70px; width:11px; height:11px; border-radius:999px; background:#e9f7ee; animation: pa-fruit 13s ease-in-out infinite; animation-delay:.4s;"></div>
+          </div>
+
+          <!-- final beat: the tree becomes a food token -->
+          <div style="position:absolute; left:244px; top:104px; width:72px; height:72px; border-radius:999px; border:3px solid #2f6b51; animation: pa-token-ring 13s ease-out infinite;"></div>
+          <div style="position:absolute; left:244px; top:104px; width:72px; height:72px; animation: pa-token-final 13s ease-in-out infinite;">
+            <div style="width:72px; height:72px; border-radius:999px; background:#fff; border:3px solid #2f6b51; display:flex; flex-direction:column; align-items:center; justify-content:center; box-shadow:0 10px 24px rgba(47,107,81,0.25);">
+              <div style="font-size:20px; font-weight:800; color:#2f6b51; line-height:1;">₹</div>
+              <div style="font-family:'IBM Plex Mono', monospace; font-size:7px; letter-spacing:0.12em; color:#4c9d78; margin-top:3px;">FOOD TOKEN</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="position:relative; font-family:'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.08em; color: #4f7a63;">TOKENS ARE FOOD-VALUE ONLY · NEVER CASH</div>
+  </div>
+
+  <!-- RIGHT: login form -->
+  <div style="display: flex; align-items: center; justify-content: center; padding: 48px;">
+    <div style="width: 100%; max-width: 440px;">
+
+      <!-- portal tabs -->
+      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; background: #e3f0e8; border-radius: 999px; padding: 6px; margin-bottom: 36px;">
+        <sc-for list="{{ portals }}" as="p" hint-placeholder-count="4">
+          <div onClick="{{ p.select }}" class="pa-btn" style="text-align:center; font-size:13.5px; font-weight:{{ p.weight }}; padding:9px 0; border-radius:999px; background:{{ p.bg }}; color:{{ p.color }}; box-shadow:{{ p.shadow }};">{{ p.label }}</div>
+        </sc-for>
+      </div>
+
+      <div style="font-size: 32px; font-weight: 800; letter-spacing: -0.025em; color: #264434;">{{ heading }}</div>
+      <p style="font-size: 15px; color: #6f8378; margin: 8px 0 32px; line-height: 1.55;">{{ subtitle }}</p>
+
+      <div style="display: flex; flex-direction: column; gap: 18px;">
+        <div>
+          <div style="font-size: 13.5px; font-weight: 600; color: #4f6a5c; margin-bottom: 8px;">{{ idLabel }}</div>
+          <input class="pa-input" type="text" placeholder="{{ idPlaceholder }}" style="width:100%; font-family:'Poppins',sans-serif; font-size:15px; padding:14px 18px; border:1.5px solid #d5e6db; border-radius:14px; background:#fbfdfc; color:#264434; transition: border-color .2s ease, box-shadow .2s ease;">
+        </div>
+        <div>
+          <div style="display:flex; justify-content:space-between; margin-bottom: 8px;">
+            <span style="font-size: 13.5px; font-weight: 600; color: #4f6a5c;">Password</span>
+            <span style="font-size: 13px; font-weight: 600; color: #3c8a68; cursor:pointer;">Forgot?</span>
+          </div>
+          <input class="pa-input" type="password" placeholder="••••••••" style="width:100%; font-family:'Poppins',sans-serif; font-size:15px; padding:14px 18px; border:1.5px solid #d5e6db; border-radius:14px; background:#fbfdfc; color:#264434; transition: border-color .2s ease, box-shadow .2s ease;">
+        </div>
+        <div class="pa-btn" style="background:#3c8a68; color:#f7fcf9; font-size:16px; font-weight:700; padding:16px; border-radius:999px; text-align:center; margin-top:6px;">{{ cta }}</div>
+      </div>
+
+      <sc-if value="{{ showAlt }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex; align-items:center; gap:14px; margin:26px 0;">
+          <div style="flex:1; height:1px; background:#dcebe2;"></div>
+          <span style="font-size:12.5px; color:#8ba396;">or</span>
+          <div style="flex:1; height:1px; background:#dcebe2;"></div>
+        </div>
+        <div class="pa-btn" style="border:1.5px solid #d5e6db; background:#fff; color:#33463c; font-size:15px; font-weight:600; padding:14px; border-radius:999px; text-align:center;">Continue with Google</div>
+      </sc-if>
+
+      <p style="font-size: 14px; color: #6f8378; text-align:center; margin-top: 30px;">{{ footNote }} <span style="color:#3c8a68; font-weight:700; cursor:pointer;">{{ footAction }}</span></p>
+
+      <sc-if value="{{ isAdmin }}" hint-placeholder-val="{{ false }}">
+        <div style="margin-top: 22px; display:flex; align-items:center; justify-content:center; gap:8px; font-family:'IBM Plex Mono', monospace; font-size:11.5px; letter-spacing:0.08em; color:#8ba396;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#8ba396" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></svg>
+          RESTRICTED ACCESS · ALL ACTIONS ARE AUDIT-LOGGED
+        </div>
+      </sc-if>
+
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { portal: 'donor' };
+
+  componentDidMount() {
+    const p = new URLSearchParams(window.location.search).get('portal');
+    if (p && ['donor','vendor','volunteer','admin'].includes(p)) this.setState({ portal: p });
+  }
+
+  renderVals() {
+    const setRippleStage = (el) => { this.rippleEl = el; };
+    const replayRipple = () => {
+      if (this.rippleEl && this.rippleEl.getAnimations) {
+        this.rippleEl.getAnimations({ subtree: true }).forEach((a) => { a.currentTime = 0; });
+      }
+    };
+    const portal = this.state.portal;
+    const defs = {
+      donor: {
+        label: 'Donor', heading: 'Welcome back, giver.',
+        subtitle: 'Sign in to sponsor meals and follow every token you have gifted.',
+        idLabel: 'Email', idPlaceholder: 'you@example.com',
+        cta: 'Sign in to donate', showAlt: true,
+        footNote: 'New to pApAmA?', footAction: 'Create a donor account',
+      },
+      vendor: {
+        label: 'Vendor', heading: 'Vendor sign in',
+        subtitle: 'Scan and redeem food tokens, track settlements, and manage your stall.',
+        idLabel: 'Vendor ID or email', idPlaceholder: 'VND-0042 or you@stall.in',
+        cta: 'Sign in to redeem', showAlt: false,
+        footNote: 'Run a food stall?', footAction: 'Apply to become a vendor',
+      },
+      volunteer: {
+        label: 'Volunteer', heading: 'Hello, helper.',
+        subtitle: 'Coordinate deliveries and confirm meals reached the right hands.',
+        idLabel: 'Email', idPlaceholder: 'you@example.com',
+        cta: 'Sign in to volunteer', showAlt: true,
+        footNote: 'Want to join the field team?', footAction: 'Register as a volunteer',
+      },
+      admin: {
+        label: 'Admin', heading: 'Programme console',
+        subtitle: 'Manage vendors, verify redemptions, and publish the transparency ledger.',
+        idLabel: 'Admin email', idPlaceholder: 'admin@papama.org',
+        cta: 'Sign in securely', showAlt: false,
+        footNote: 'Access is invite-only.', footAction: 'Contact the programme lead',
+      },
+    };
+    const d = defs[portal];
+    const portals = ['donor','vendor','volunteer','admin'].map((key) => ({
+      label: defs[key].label,
+      select: () => this.setState({ portal: key }),
+      bg: key === portal ? '#ffffff' : 'transparent',
+      color: key === portal ? '#2f6b51' : '#6f8378',
+      weight: key === portal ? 700 : 500,
+      shadow: key === portal ? '0 3px 10px rgba(47,107,81,0.14)' : 'none',
+    }));
+    return {
+      setRippleStage, replayRipple,
+      portals,
+      heading: d.heading, subtitle: d.subtitle,
+      idLabel: d.idLabel, idPlaceholder: d.idPlaceholder,
+      cta: d.cta, showAlt: d.showAlt,
+      footNote: d.footNote, footAction: d.footAction,
+      isAdmin: portal === 'admin',
+    };
+  }
+}
+</script>
+</body>
+</html>
