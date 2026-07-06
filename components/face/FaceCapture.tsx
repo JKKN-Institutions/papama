@@ -15,10 +15,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { FACE_EMBEDDING_DIM, type FaceCapture as FaceCaptureValue } from "@/lib/validation/schemas";
+import { l2normalize } from "@/lib/face/vector";
 
-// Switch to "/models" once the model files are bundled into /public/models (offline).
-const MODEL_BASE_PATH = "https://vladmandic.github.io/human-models/models/";
+// Model source. Defaults to the Human CDN; set NEXT_PUBLIC_FACE_MODEL_PATH to
+// "/models" (with the model files copied into /public/models) for an offline /
+// Play-Store build with no third-party runtime dependency.
+const MODEL_BASE_PATH =
+    process.env.NEXT_PUBLIC_FACE_MODEL_PATH ||
+    "https://vladmandic.github.io/human-models/models/";
 const MIN_FACE_SCORE = 0.6; // reject low-confidence detections before we even embed
+// First-line client liveness floor. Mirrors the system_config `face_liveness_min`
+// seed (0.5); the SERVER re-checks authoritatively — this only avoids a wasted
+// round-trip and gives instant feedback. Override via the `minLiveness` prop.
+const CLIENT_LIVENESS_FLOOR_DEFAULT = 0.5;
 
 type Status =
     | "idle"
@@ -37,6 +46,13 @@ interface FaceCaptureProps {
     disabled?: boolean;
     /** Override the on-screen label. */
     label?: string;
+    /**
+     * Client-side liveness/anti-spoof floor (0..1). A capture scoring below this
+     * is rejected before it is emitted, forcing a retake. Defaults to
+     * CLIENT_LIVENESS_FLOOR_DEFAULT (mirrors system_config face_liveness_min).
+     * The server always re-checks against config — this is first-line UX only.
+     */
+    minLiveness?: number;
 }
 
 const STATUS_TEXT: Record<Status, string> = {
@@ -51,7 +67,12 @@ const STATUS_TEXT: Record<Status, string> = {
     error: "Camera/model error — see console",
 };
 
-export default function FaceCapture({ onCapture, disabled, label }: FaceCaptureProps) {
+export default function FaceCapture({
+    onCapture,
+    disabled,
+    label,
+    minLiveness = CLIENT_LIVENESS_FLOOR_DEFAULT,
+}: FaceCaptureProps) {
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const streamRef = useRef<MediaStream | null>(null);
     // Human instance is loaded lazily and kept across renders without re-creating.
@@ -158,14 +179,21 @@ export default function FaceCapture({ onCapture, disabled, label }: FaceCaptureP
                 return setStatus("low-quality");
             }
 
-            onCapture({ embedding, liveness });
+            // First-line anti-spoof: reject a clearly-low liveness before emitting.
+            // The server re-checks against system_config.face_liveness_min.
+            if (liveness < minLiveness) {
+                return setStatus("low-quality");
+            }
+
+            // Emit a canonical UNIT-length embedding (see lib/face/vector.ts).
+            onCapture({ embedding: l2normalize(embedding), liveness });
             setStatus("captured");
             stopCamera();
         } catch (err) {
             console.error("[FaceCapture] detect failed", err);
             setStatus("error");
         }
-    }, [onCapture, stopCamera]);
+    }, [onCapture, stopCamera, minLiveness]);
 
     return (
         <div className="flex flex-col gap-2">

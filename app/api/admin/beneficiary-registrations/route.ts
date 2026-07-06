@@ -1,10 +1,10 @@
 import { z } from "zod";
 
-import { BadRequestError, defineRoute, parseBody } from "@/lib/api/handler";
+import { defineRoute, parseBody } from "@/lib/api/handler";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { getNumber } from "@/lib/system-config";
 import { embeddingFingerprint, toVectorLiteral } from "@/lib/face/embedding";
+import { assertLiveness } from "@/lib/face/liveness";
 import { faceCaptureSchema } from "@/lib/validation/schemas";
 
 /**
@@ -66,17 +66,13 @@ export const POST = defineRoute(
         const body = await parseBody(req, createSchema);
         const admin = createAdminClient();
 
-        // On-device face capture (preferred): gate liveness, then store the embedding.
-        // Legacy `face_hash` is derived from the embedding so presence flags keep working.
+        // On-device face capture (preferred): gate liveness (fail-safe — see
+        // lib/face/liveness.ts), then store the embedding. Legacy `face_hash` is
+        // derived from the embedding so presence flags keep working.
         let faceEmbedding: string | null = null;
         let faceHash: string | null = body.face_hash ?? null;
         if (body.face_capture) {
-            const minLiveness = await getNumber("face_liveness_min", admin as never).catch(() => 0);
-            if (body.face_capture.liveness < minLiveness) {
-                throw new BadRequestError(
-                    "face capture failed the liveness/anti-spoof check — retake in good lighting"
-                );
-            }
+            await assertLiveness(body.face_capture, admin as never);
             faceEmbedding = toVectorLiteral(body.face_capture.embedding);
             faceHash = body.face_hash ?? embeddingFingerprint(body.face_capture.embedding);
         }
