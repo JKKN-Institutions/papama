@@ -112,6 +112,22 @@ provider behind a marked placeholder. **No open values were invented.**
 - **TOKEN_QR_SECRET** added as the dedicated token-QR HMAC secret, with fallback to
   `SUPABASE_SERVICE_ROLE_KEY` so nothing breaks pre-provisioning. See `.env.example`.
 
+## Face liveness fail-safe — hardening follow-up (2026-07-06, PR #6 merge)
+
+- **Known gap:** `assertLiveness()` (`lib/face/liveness.ts`) and the redemption
+  liveness gate (`lib/services/redemption.ts`) treat `MissingConfigError` as
+  "config unset → soft-skip the anti-spoof check". But `getConfig()`
+  (`lib/system-config.ts`) collapses **any** Supabase query failure (network /
+  timeout / RLS) into `MissingConfigError(..., "missing")`, so a *transient* DB
+  error is misclassified as "unset" and the gate soft-skips rather than blocks.
+  PR #6 is still strictly safer than the prior `.catch(() => 0)` (which set the
+  floor to 0 and accepted anything on any error), so it was merged as-is.
+- **Fix when hardening:** make `getConfig` distinguish PostgREST "row not found"
+  (`error.code === 'PGRST116'`) — the genuine unset case → keep `MissingConfigError`
+  — from every other error, which should surface as a distinct transient/DB error
+  type so the liveness gates **block** (fail-closed) instead of skipping. No behaviour
+  change intended for the genuinely-unset path.
+
 ## Schema decisions to confirm
 
 - Token **current-holder** representation: explicit `current_holder_type`/`current_holder_id` on `tokens`, vs. derived from status + latest `token_distribution_records`. (Pick one; keep consistent.)
