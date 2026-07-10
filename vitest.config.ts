@@ -9,6 +9,8 @@ export default defineConfig({
             "server-only": path.resolve(__dirname, "test/stubs/empty.ts"),
             // Mirror the tsconfig "@/*" path alias.
             "@": path.resolve(__dirname),
+            // Test helpers alias.
+            "@test": path.resolve(__dirname, "test"),
         },
     },
     test: {
