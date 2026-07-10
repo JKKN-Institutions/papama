@@ -19,7 +19,7 @@ import { emergencyGrantRequestSchema } from "@/lib/validation/schemas";
  * undecided, so issuance is NOT proof-gated (see lib/services/emergency TODO).
  */
 export const POST = defineRoute(
-    { feature: "token_generation", action: "create" },
+    { feature: "emergency_disaster_mode", action: "create" },
     async ({ req, user }) => {
         const body = await parseBody(req, emergencyGrantRequestSchema);
         const result = await issueEmergencyToken({ reason: body.reason ?? null }, user);

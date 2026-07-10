@@ -15,7 +15,7 @@ const BUCKET = "vendor-documents";
 const SIGNED_URL_TTL_SECONDS = 3600;
 
 export const GET = defineRoute<{ id: string }>(
-    { feature: "vendor_management", action: "read" },
+    { feature: "document_management", action: "read" },
     async ({ params }) => {
         const admin = createAdminClient();
 

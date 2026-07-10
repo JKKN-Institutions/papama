@@ -12,7 +12,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * vendors/beneficiaries/settlements the caller's own RLS would scope out); the
  * matrix check above is the authorization gate.
  */
-export const GET = defineRoute({ feature: "audit_reports", action: "read" }, async () => {
+export const GET = defineRoute({ feature: "analytics_dashboard", action: "read" }, async () => {
     const admin = createAdminClient();
     const analytics = await getAnalytics(admin);
     return { analytics };

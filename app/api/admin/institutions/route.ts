@@ -32,7 +32,7 @@ const reportQuerySchema = z.object({
  *   - default: list bulk-allocation ledger rows (newest first), institution name joined.
  *   - ?report=redemption&ngo_partner_id=…[&start=&end=]: per-institution meals-served report.
  */
-export const GET = defineRoute({ feature: "audit_reports", action: "read" }, async ({ req, user }) => {
+export const GET = defineRoute({ feature: "institution_bulk_allocation", action: "read" }, async ({ req, user }) => {
     const url = new URL(req.url);
 
     if (url.searchParams.get("report") === "redemption") {
@@ -83,7 +83,7 @@ export const GET = defineRoute({ feature: "audit_reports", action: "read" }, asy
  * (cap-checked against institution_bulk_allocation_max). Admin only. Audited.
  */
 export const POST = defineRoute(
-    { feature: "audit_reports", action: "create" },
+    { feature: "institution_bulk_allocation", action: "create" },
     async ({ req, user, audit }) => {
         const body = await parseBody(req, institutionAllocateRequestSchema);
         const admin = createAdminClient();

@@ -17,7 +17,7 @@ const postSchema = z
     .strict();
 
 export const POST = defineRoute(
-    { feature: "donor_donation_credit", action: "create", scope: "own" },
+    { feature: "consent_management", action: "create", scope: "own" },
     async ({ req, user }) => {
         if (!user.donor_id) throw new BadRequestError("no donor profile for this account");
         const body = await parseBody(req, postSchema);
@@ -34,7 +34,7 @@ export const POST = defineRoute(
 );
 
 export const GET = defineRoute(
-    { feature: "donor_donation_credit", action: "read", scope: "own" },
+    { feature: "consent_management", action: "read", scope: "own" },
     async ({ user }) => {
         if (!user.donor_id) return { consents: [] };
         const supabase = await createClient();

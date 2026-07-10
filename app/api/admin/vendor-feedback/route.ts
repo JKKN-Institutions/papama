@@ -20,7 +20,7 @@ interface FeedbackRow {
     vendors: { name: string | null } | { name: string | null }[] | null;
 }
 
-export const GET = defineRoute({ feature: "vendor_management", action: "read" }, async () => {
+export const GET = defineRoute({ feature: "quality_feedback_complaints_inspections", action: "read" }, async () => {
     const supabase = await createClient();
 
     const [{ data: feedbackData, error: feedbackErr }, { data: vendorData, error: vendorErr }] =

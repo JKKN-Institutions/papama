@@ -14,7 +14,7 @@ function todayIso(): string {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-export const GET = defineRoute({ feature: "vendor_management", action: "read" }, async () => {
+export const GET = defineRoute({ feature: "vendor_capacity_availability", action: "read" }, async () => {
     const supabase = await createClient();
 
     const [{ data: vendorData, error: vendorErr }, { data: usageData, error: usageErr }] =

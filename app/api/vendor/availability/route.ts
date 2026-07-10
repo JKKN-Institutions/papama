@@ -17,7 +17,7 @@ import { getRemainingCapacity } from "@/lib/services/vendorCapacity";
  * for the usage row, after the matrix check has passed).
  */
 export const GET = defineRoute(
-    { feature: "vendor_management", action: "read", scope: "own" },
+    { feature: "vendor_capacity_availability", action: "read", scope: "own" },
     async ({ user }) => {
         const supabase = await createClient();
         const { data, error } = await supabase
@@ -71,7 +71,7 @@ const availabilityPatchSchema = z
     .strict();
 
 export const PATCH = defineRoute(
-    { feature: "vendor_management", action: "update", scope: "own" },
+    { feature: "vendor_capacity_availability", action: "update", scope: "own" },
     async ({ req, user, audit }) => {
         const body = await parseBody(req, availabilityPatchSchema);
 

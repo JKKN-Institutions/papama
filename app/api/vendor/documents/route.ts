@@ -19,7 +19,7 @@ const BUCKET = "vendor-documents";
 const SIGNED_URL_TTL_SECONDS = 3600;
 
 export const POST = defineRoute(
-    { feature: "vendor_management", action: "update", scope: "own" },
+    { feature: "document_management", action: "update", scope: "own" },
     async ({ req, user, audit }) => {
         let form: FormData;
         try {
@@ -81,7 +81,7 @@ export const POST = defineRoute(
 );
 
 export const GET = defineRoute(
-    { feature: "vendor_management", action: "read", scope: "own" },
+    { feature: "document_management", action: "read", scope: "own" },
     async ({ user }) => {
         const admin = createAdminClient();
         const vendorId = await resolveVendorId(user, admin);

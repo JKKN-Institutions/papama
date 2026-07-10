@@ -62,7 +62,7 @@ function buildMonthlySummary(
 }
 
 export const GET = defineRoute(
-    { feature: "donor_donation_credit", action: "read", scope: "own" },
+    { feature: "donor_sponsorship_counters", action: "read", scope: "own" },
     async ({ user }) => {
         const supabase = await createClient();
         const donorId = user.donor_id;

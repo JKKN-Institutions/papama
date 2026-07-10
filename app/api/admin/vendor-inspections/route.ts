@@ -25,7 +25,7 @@ interface InspectionRow {
     vendors: { name: string | null } | { name: string | null }[] | null;
 }
 
-export const GET = defineRoute({ feature: "vendor_management", action: "read" }, async () => {
+export const GET = defineRoute({ feature: "quality_feedback_complaints_inspections", action: "read" }, async () => {
     const supabase = await createClient();
     const { data, error } = await supabase
         .from("surprise_inspections")
@@ -65,7 +65,7 @@ const createSchema = z
     .strict();
 
 export const POST = defineRoute(
-    { feature: "vendor_management", action: "create" },
+    { feature: "quality_feedback_complaints_inspections", action: "create" },
     async ({ req, user, audit }) => {
         const body = await parseBody(req, createSchema);
 

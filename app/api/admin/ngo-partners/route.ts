@@ -29,7 +29,7 @@ const patchSchema = z.object({
  * has read oversight (matrix §6 "Audit & Reports" altitude). `status` is
  * text+CHECK (active|inactive|suspended); the ngo_status enum is a later slice.
  */
-export const GET = defineRoute({ feature: "audit_reports", action: "read" }, async () => {
+export const GET = defineRoute({ feature: "institution_bulk_allocation", action: "read" }, async () => {
     const supabase = await createClient();
 
     const { data, error } = await supabase
@@ -66,7 +66,7 @@ export const GET = defineRoute({ feature: "audit_reports", action: "read" }, asy
  * `audit_reports/create` (admin). Lands `active`. Audited.
  */
 export const POST = defineRoute(
-    { feature: "audit_reports", action: "create" },
+    { feature: "institution_bulk_allocation", action: "create" },
     async ({ req, audit }) => {
         const body = await parseBody(req, createSchema);
         const admin = createAdminClient();
@@ -107,7 +107,7 @@ export const POST = defineRoute(
  * `audit_reports/update` (admin). active | inactive | suspended. Audited.
  */
 export const PATCH = defineRoute(
-    { feature: "audit_reports", action: "update" },
+    { feature: "institution_bulk_allocation", action: "update" },
     async ({ req, audit }) => {
         const body = await parseBody(req, patchSchema);
         const admin = createAdminClient();

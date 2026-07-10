@@ -16,7 +16,7 @@ type VolunteerStatus = VolunteerResponse["status"];
  * volunteer own). `status` is text+CHECK in the DB (active|inactive|suspended);
  * the dedicated enum is a later slice. Newest first.
  */
-export const GET = defineRoute({ feature: "token_distribution", action: "read" }, async () => {
+export const GET = defineRoute({ feature: "volunteer_management", action: "read" }, async () => {
     const supabase = await createClient();
 
     const { data, error } = await supabase
@@ -59,7 +59,7 @@ export const GET = defineRoute({ feature: "token_distribution", action: "read" }
  * already exist, so this works immediately.
  */
 export const POST = defineRoute(
-    { feature: "token_distribution", action: "create" },
+    { feature: "volunteer_management", action: "create" },
     async ({ req, audit }) => {
         const body = await parseBody(req, volunteerCreateRequestSchema);
         const admin = createAdminClient();
@@ -171,7 +171,7 @@ const VOLUNTEER_ACTION_RULES: Record<string, VolunteerActionRule> = {
 };
 
 export const PATCH = defineRoute(
-    { feature: "token_distribution", action: "update" },
+    { feature: "volunteer_management", action: "update" },
     async ({ req, audit }) => {
         const body = await parseBody(req, volunteerActionRequestSchema);
         const rule = VOLUNTEER_ACTION_RULES[body.action];

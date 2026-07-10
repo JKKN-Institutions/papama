@@ -21,7 +21,7 @@ const PROFILE_COLUMNS =
     "id, donor_id, company_name, cin, registration_number, csr_focus_area, ngo_partner_id, created_at, updated_at";
 
 export const GET = defineRoute(
-    { feature: "donor_donation_credit", action: "read", scope: "own" },
+    { feature: "csr_module", action: "read", scope: "own" },
     async ({ user }) => {
         const admin = createAdminClient();
         const donorId = await resolveDonorId(user, admin);
@@ -39,7 +39,7 @@ export const GET = defineRoute(
 );
 
 export const POST = defineRoute(
-    { feature: "donor_donation_credit", action: "update", scope: "own" },
+    { feature: "csr_module", action: "update", scope: "own" },
     async ({ req, user, audit }) => {
         const body = await parseBody(req, corporateCsrProfileRequestSchema);
 

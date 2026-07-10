@@ -17,7 +17,7 @@ import {
  * the feature flag so the UI can show a disabled affordance.
  */
 
-export const GET = defineRoute({ feature: "audit_reports", action: "read" }, async () => {
+export const GET = defineRoute({ feature: "csr_module", action: "read" }, async () => {
     const supabase = await createClient();
     const admin = createAdminClient();
 
@@ -64,7 +64,7 @@ export const GET = defineRoute({ feature: "audit_reports", action: "read" }, asy
 });
 
 export const POST = defineRoute(
-    { feature: "audit_reports", action: "create" },
+    { feature: "csr_module", action: "create" },
     async ({ req, user, audit }) => {
         const body = await parseBody(req, csrReportGenerateRequestSchema);
         const admin = createAdminClient();

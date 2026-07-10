@@ -12,7 +12,7 @@ import { COMPLAINT_STATUSES } from "@/lib/types/enums";
  * elsewhere). Vendor-RAISED disputes live in vendor_escalations, not here.
  */
 
-export const GET = defineRoute({ feature: "vendor_management", action: "read" }, async () => {
+export const GET = defineRoute({ feature: "quality_feedback_complaints_inspections", action: "read" }, async () => {
     const admin = createAdminClient();
 
     const { data, error } = await admin
@@ -56,7 +56,7 @@ const decideSchema = z
     );
 
 export const PATCH = defineRoute(
-    { feature: "vendor_management", action: "update" },
+    { feature: "quality_feedback_complaints_inspections", action: "update" },
     async ({ req, user, audit }) => {
         const body = await parseBody(req, decideSchema);
         const admin = createAdminClient();

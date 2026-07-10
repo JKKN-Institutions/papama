@@ -20,7 +20,7 @@ const reverseSchema = z
     .strict();
 
 export const POST = defineRoute<{ id: string }>(
-    { feature: "donor_donation_credit", action: "update" },
+    { feature: "refunds_failed_payments", action: "update" },
     async ({ req, params, audit }) => {
         const body = await parseBody(req, reverseSchema);
         const admin = createAdminClient();

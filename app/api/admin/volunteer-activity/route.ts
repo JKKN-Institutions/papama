@@ -19,7 +19,7 @@ import { volunteerActivitySummaries } from "@/lib/services/volunteerActivity";
  * `token_distribution/update` (admin). Sets volunteers.assigned_area and stamps
  * the reviewing staff (approved_by/approved_at). Audited.
  */
-export const GET = defineRoute({ feature: "token_distribution", action: "read" }, async () => {
+export const GET = defineRoute({ feature: "volunteer_management", action: "read" }, async () => {
     const supabase = await createClient();
     const admin = createAdminClient();
 
@@ -81,7 +81,7 @@ const patchSchema = z.object({
 });
 
 export const PATCH = defineRoute(
-    { feature: "token_distribution", action: "update" },
+    { feature: "volunteer_management", action: "update" },
     async ({ req, user, audit }) => {
         const body = await parseBody(req, patchSchema);
         const admin = createAdminClient();
