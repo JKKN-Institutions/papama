@@ -7,6 +7,7 @@ import type { UserRole } from "@/lib/types/enums";
 
 /** The protected feature areas (rows of the §6 matrix). */
 export const FEATURES = [
+    // --- Original 11 ---
     "donor_donation_credit",
     "token_generation",
     "token_distribution",
@@ -18,6 +19,21 @@ export const FEATURES = [
     "proof_of_service",
     "fraud_monitoring",
     "audit_reports",
+    // --- Spec §6 Revision 2 features ---
+    "donor_sponsorship_counters",                // [M1-2]
+    "institution_bulk_allocation",               // [M1-11]
+    "vendor_discovery",                          // [M1-5]
+    "vendor_capacity_availability",              // [M1-4]
+    "financial_ledgers_reconciliation",          // [M1-12]
+    "refunds_failed_payments",                   // [M2-4]
+    "csr_module",                                // [M1-7]
+    "volunteer_management",                      // [M1-13]
+    "quality_feedback_complaints_inspections",   // [M2-11]
+    "emergency_disaster_mode",                   // [M2-9]
+    "analytics_dashboard",                       // [M2-8]
+    "public_transparency_dashboard",             // [M1-14]
+    "document_management",                       // [M2-13]
+    "consent_management",                        // [M2-14]
 ] as const;
 export type Feature = (typeof FEATURES)[number];
 
@@ -121,7 +137,7 @@ export const PERMISSION_MATRIX: Record<Feature, Partial<Record<UserRole, Permiss
     },
     vendor_settlement: {
         admin: perm({ create: "all", read: "all", update: "all", delete: "all", caps: ["override"] }), // CRUD + Override
-        compliance: R_ALL,
+        compliance: perm({ read: "all", caps: ["approve"] }), // spec §6: R + Approve
         vendor_manager: R_ALL,
         vendor: perm({ read: "own" }), // Own (view)
     },
@@ -141,5 +157,123 @@ export const PERMISSION_MATRIX: Record<Feature, Partial<Record<UserRole, Permiss
     audit_reports: {
         admin: CRUD_ALL,
         compliance: R_ALL,
+    },
+
+    // === Spec §6 Revision 2 features =========================================
+
+    // [M1-2] Donor Sponsorship Counters — §6 row 2
+    donor_sponsorship_counters: {
+        admin: R_ALL,
+        compliance: R_ALL,
+        donor: perm({ read: "own" }),
+    },
+
+    // [M1-11] Institution Bulk Allocation — §6 row 5
+    institution_bulk_allocation: {
+        admin: CRUD_ALL,
+        compliance: R_ALL,
+        vendor_manager: R_ALL,
+        volunteer: R_ALL,
+        beneficiary: perm({ read: "own" }), // Institution own view
+    },
+
+    // [M1-5] Vendor Discovery — §6 row 7
+    vendor_discovery: {
+        admin: R_ALL,
+        vendor_manager: R_ALL,
+        vendor: perm({ read: "own" }), // Own listing
+        volunteer: R_ALL,
+        beneficiary: R_ALL,
+    },
+
+    // [M1-4] Vendor Capacity & Availability — §6 row 10
+    vendor_capacity_availability: {
+        admin: CRUD_ALL,
+        compliance: R_ALL,
+        vendor_manager: R_ALL,
+        vendor: perm({ create: "own", read: "own", update: "own" }), // Own (CRU)
+        beneficiary: perm({ read: "own" }), // R (status)
+    },
+
+    // [M1-12] Financial Ledgers & Reconciliation — §6 row 14
+    financial_ledgers_reconciliation: {
+        admin: CRUD_ALL,
+        compliance: R_ALL,
+        vendor: perm({ read: "own" }), // Own payable (R)
+    },
+
+    // [M2-4] Refunds / Failed Payments — §6 row 15
+    refunds_failed_payments: {
+        admin: CRUD_ALL,
+        compliance: R_ALL,
+        donor: perm({ read: "own" }), // Own (view/request)
+    },
+
+    // [M1-7] CSR Module — §6 row 16
+    csr_module: {
+        admin: CRUD_ALL,
+        compliance: R_ALL,
+        donor: perm({ create: "own", read: "own", update: "own" }), // Own (corporate)
+    },
+
+    // [M1-13] Volunteer Management — §6 row 17
+    volunteer_management: {
+        admin: CRUD_ALL,
+        compliance: R_ALL,
+        vendor_manager: R_ALL,
+        volunteer: perm({ read: "own" }), // Own profile/activity
+    },
+
+    // [M2-11] Quality: Feedback / Complaints / Inspections — §6 row 18
+    quality_feedback_complaints_inspections: {
+        admin: CRUD_ALL,
+        compliance: R_ALL,
+        vendor_manager: perm({ create: "all", read: "all", update: "all" }), // CRU
+        vendor: perm({ read: "own", update: "own" }), // Own (respond)
+        beneficiary: perm({ create: "own" }), // C (feedback/complaint)
+    },
+
+    // [M2-9] Emergency / Disaster Mode — §6 row 19
+    emergency_disaster_mode: {
+        admin: CRUD_ALL,
+        compliance: R_ALL,
+        vendor_manager: R_ALL,
+        volunteer: R_ALL,
+    },
+
+    // [M2-8] Analytics Dashboard — §6 row 20
+    analytics_dashboard: {
+        admin: R_ALL,
+        compliance: R_ALL,
+        vendor_manager: R_ALL,
+    },
+
+    // [M1-14] Public Transparency Dashboard — §6 row 21
+    public_transparency_dashboard: {
+        admin: R_ALL,
+        compliance: R_ALL,
+        vendor_manager: R_ALL,
+        vendor: R_ALL,
+        volunteer: R_ALL,
+        donor: R_ALL,
+        beneficiary: R_ALL,
+        guest: R_ALL,
+    },
+
+    // [M2-13] Document Management — §6 row 22
+    document_management: {
+        admin: CRUD_ALL,
+        compliance: R_ALL,
+        vendor_manager: R_ALL,
+        vendor: perm({ create: "own", read: "own" }), // Own (upload)
+        beneficiary: perm({ create: "own", read: "own" }), // Own (upload)
+    },
+
+    // [M2-14] Consent Management — §6 row 23
+    consent_management: {
+        admin: CRUD_ALL,
+        compliance: R_ALL,
+        donor: perm({ create: "own", read: "own", update: "own" }), // Own
+        beneficiary: perm({ create: "own", read: "own", update: "own" }), // Own
     },
 };

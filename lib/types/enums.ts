@@ -60,6 +60,7 @@ export const TOKEN_STATUSES = [
     "distributed", // out in the world via volunteer
     "redeemed", // terminal: consumed at vendor
     "expired", // terminal: auto-invalidated at expiry
+    "blocked", // terminal: lost-token blocked instantly — spec §3.2 [M2-5]
 ] as const;
 export type TokenStatus = ValueOf<typeof TOKEN_STATUSES>;
 
@@ -158,7 +159,7 @@ export const SETTLEMENT_CYCLES = ["daily", "twice_weekly", "weekly"] as const;
 export type SettlementCycle = ValueOf<typeof SETTLEMENT_CYCLES>;
 
 /** Settlement record lifecycle (contract §8). */
-export const SETTLEMENT_STATUSES = ["pending", "locked", "reconciled", "paid"] as const;
+export const SETTLEMENT_STATUSES = ["pending", "locked", "approved", "reconciled", "paid", "held"] as const; // spec §3.1 F-2: +approved [M2-4], +held [M1-10]
 export type SettlementStatus = ValueOf<typeof SETTLEMENT_STATUSES>;
 
 /**
@@ -187,6 +188,7 @@ export const FRAUD_FLAG_TYPES = [
     "tampered_qr",
     "beneficiary_duplicate",
     "vendor_anomaly",
+    "duplicate_media", // spec §3.1 F-3, §5 [M1-10]: duplicate photo + bill detection (active P1)
 ] as const;
 export type FraudFlagType = ValueOf<typeof FRAUD_FLAG_TYPES>;
 
