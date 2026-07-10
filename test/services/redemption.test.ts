@@ -3,6 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 /**
  * Tests for the redemption validation engine (lib/services/redemption.ts).
  *
+ * Derived from papama-phase1-spec-rev2.md:
+ *   §3.1 F-9  Meal entitlement model (windows, limits, cooldown)
+ *   §3.2      Hard business rules (meal, vendor, token, co-pay)
+ *   §3.3      Core flows (redemption & validation)
+ *   §7        Configurable defaults
+ *
  * The engine is "pure-ish" — it reads from the DB and system_config but never
  * writes. We mock all DB reads + config reads and verify the check results.
  */
@@ -127,7 +133,30 @@ const BASE_INPUT: ValidateRedemptionInput = {
     menu_item_id: "menu-1",
 };
 
+/** Config defaults per spec §7 */
 function defaultConfigMock() {
+    getBooleanMock.mockImplementation(async (key: string) => {
+        if (key === "city_lock_enabled") return true;                    // spec §7
+        if (key === "meal_window_enforcement_enabled") return true;     // spec §3.1 F-9: first-class
+        if (key === "vendor_capacity_enforcement_enabled") return false;
+        if (key === "emergency_mode_enabled") return false;
+        throw new MissingConfigError(key, "missing");
+    });
+    getNumberMock.mockImplementation(async (key: string) => {
+        if (key === "redemption_radius_km") return 20;                  // spec §7: 20 km
+        if (key === "co_contribution_max") return 10;                   // spec §7: ₹10
+        if (key === "meal_cooldown_hours") return 6;                    // spec §7
+        if (key === "max_meals_per_day") return 1;                      // spec §7: launch at 1
+        throw new MissingConfigError(key, "missing");
+    });
+    getStringMock.mockImplementation(async (key: string) => {
+        if (key === "operating_city") return "Coimbatore";              // spec §3.1 F-11
+        throw new MissingConfigError(key, "missing");
+    });
+}
+
+/** Relaxed config — disables enforcement for tests focusing on other checks */
+function relaxedConfigMock() {
     getBooleanMock.mockImplementation(async (key: string) => {
         if (key === "city_lock_enabled") return false;
         if (key === "meal_window_enforcement_enabled") return false;
@@ -136,14 +165,14 @@ function defaultConfigMock() {
         throw new MissingConfigError(key, "missing");
     });
     getNumberMock.mockImplementation(async (key: string) => {
-        if (key === "redemption_radius_km") return 5;
-        if (key === "co_contribution_max") return 0;
+        if (key === "redemption_radius_km") return 20;
+        if (key === "co_contribution_max") return 10;
         if (key === "meal_cooldown_hours") return 6;
         if (key === "max_meals_per_day") return 3;
         throw new MissingConfigError(key, "missing");
     });
     getStringMock.mockImplementation(async (key: string) => {
-        if (key === "operating_city") return "Komarapalayam";
+        if (key === "operating_city") return "Coimbatore";
         throw new MissingConfigError(key, "missing");
     });
 }
@@ -171,7 +200,7 @@ function defaultAdmin() {
 describe("validateRedemption", () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        defaultConfigMock();
+        relaxedConfigMock(); // most tests focus on individual checks; spec-config tests below
     });
 
     // --- token checks -------------------------------------------------------
@@ -517,10 +546,10 @@ describe("validateRedemption", () => {
             expect(result.value.difference_paid).toBe(0);
         });
 
-        it("clamps co_pay to co_contribution_max", async () => {
+        it("clamps co_pay to co_contribution_max ₹10 (spec §7)", async () => {
             getNumberMock.mockImplementation(async (key: string) => {
-                if (key === "co_contribution_max") return 20;
-                if (key === "redemption_radius_km") return 5;
+                if (key === "co_contribution_max") return 10;   // spec §7: ₹10 max
+                if (key === "redemption_radius_km") return 20;
                 if (key === "meal_cooldown_hours") return 6;
                 if (key === "max_meals_per_day") return 3;
                 throw new MissingConfigError(key, "missing");
@@ -531,7 +560,7 @@ describe("validateRedemption", () => {
 
             const result = await validateRedemption(input, admin);
 
-            expect(result.value.co_pay).toBe(20); // clamped to max 20
+            expect(result.value.co_pay).toBe(10); // clamped to spec max ₹10
         });
 
         it("returns zero value when token or menu is missing", async () => {
@@ -635,12 +664,16 @@ describe("validateRedemption", () => {
             expect(check?.detail).toContain("disabled");
         });
 
-        it("passes when vendor city matches operating city", async () => {
+        it("passes when vendor city matches operating city Coimbatore (spec §3.1 F-11)", async () => {
             getBooleanMock.mockImplementation(async (key: string) => {
                 if (key === "city_lock_enabled") return true;
                 if (key === "meal_window_enforcement_enabled") return false;
                 if (key === "vendor_capacity_enforcement_enabled") return false;
                 if (key === "emergency_mode_enabled") return false;
+                throw new MissingConfigError(key, "missing");
+            });
+            getStringMock.mockImplementation(async (key: string) => {
+                if (key === "operating_city") return "Coimbatore";
                 throw new MissingConfigError(key, "missing");
             });
 
@@ -650,7 +683,7 @@ describe("validateRedemption", () => {
                     { data: VENDOR_STATUS_ROW, error: null },
                     { data: VENDOR_AVAIL_ROW, error: null },
                     { data: VENDOR_GEO_ROW, error: null },
-                    { data: { city: "Komarapalayam" }, error: null },
+                    { data: { city: "Coimbatore" }, error: null },
                 ],
                 vendor_menus: [{ data: MENU_ROW, error: null }],
             });
@@ -773,6 +806,158 @@ describe("validateRedemption", () => {
             expect(check?.pass).toBe(true);
             expect(check?.hard).toBe(false);
             expect(check?.detail).toContain("skipped");
+        });
+    });
+
+    // --- spec §3.2: hard business rules — spec-derived tests ----------------
+
+    describe("spec §3.2 — token rules", () => {
+        it("fails for already-redeemed token — spec: one-time redemption only", async () => {
+            const admin = buildFakeAdmin({
+                tokens: [{ data: { ...TOKEN_ROW, status: "redeemed" }, error: null }],
+                vendors: [
+                    { data: VENDOR_STATUS_ROW, error: null },
+                    { data: VENDOR_AVAIL_ROW, error: null },
+                    { data: VENDOR_GEO_ROW, error: null },
+                    { data: { city: null }, error: null },
+                ],
+                vendor_menus: [{ data: MENU_ROW, error: null }],
+            });
+
+            const result = await validateRedemption(BASE_INPUT, admin);
+
+            expect(result.ok).toBe(false);
+            const tokenCheck = result.checks.find(c => c.name === "token");
+            expect(tokenCheck?.pass).toBe(false);
+        });
+
+        it("fails for expired token — spec: auto-invalidate on expiry", async () => {
+            const admin = buildFakeAdmin({
+                tokens: [{ data: { ...TOKEN_ROW, status: "expired" }, error: null }],
+                vendors: [
+                    { data: VENDOR_STATUS_ROW, error: null },
+                    { data: VENDOR_AVAIL_ROW, error: null },
+                    { data: VENDOR_GEO_ROW, error: null },
+                    { data: { city: null }, error: null },
+                ],
+                vendor_menus: [{ data: MENU_ROW, error: null }],
+            });
+
+            const result = await validateRedemption(BASE_INPUT, admin);
+
+            expect(result.ok).toBe(false);
+        });
+
+        it("tokens are never exchangeable for cash — spec §3.2: forfeited > 0 when token > menu, no cash back", async () => {
+            const admin = buildFakeAdmin({
+                tokens: [{ data: { ...TOKEN_ROW, value_inr: 100 }, error: null }],
+                vendors: [
+                    { data: VENDOR_STATUS_ROW, error: null },
+                    { data: VENDOR_AVAIL_ROW, error: null },
+                    { data: { geo_lat: null, geo_lng: null }, error: null },
+                    { data: { city: null }, error: null },
+                ],
+                vendor_menus: [{ data: MENU_ROW, error: null }], // price=50
+            });
+
+            const result = await validateRedemption(BASE_INPUT, admin);
+
+            // Spec §3.2: "No cash balance returned" — unused value is forfeited
+            expect(result.value.forfeited).toBe(50);
+            // There is no "cash_back" or "refund" field
+            expect(result.value).not.toHaveProperty("cash_back");
+        });
+    });
+
+    describe("spec §3.2 — vendor operating rules", () => {
+        it("vendor serves only admin-approved menu items (spec §3.2)", async () => {
+            const admin = buildFakeAdmin({
+                tokens: [{ data: TOKEN_ROW, error: null }],
+                vendors: [
+                    { data: VENDOR_STATUS_ROW, error: null },
+                    { data: VENDOR_AVAIL_ROW, error: null },
+                    { data: VENDOR_GEO_ROW, error: null },
+                    { data: { city: null }, error: null },
+                ],
+                vendor_menus: [{ data: { ...MENU_ROW, approval_status: "pending" }, error: null }],
+            });
+
+            const result = await validateRedemption(BASE_INPUT, admin);
+
+            const check = result.checks.find(c => c.name === "menu");
+            expect(check?.pass).toBe(false);
+            expect(check?.hard).toBe(true);
+        });
+    });
+
+    describe("spec §3.2 — co-contribution dignity rule", () => {
+        it("₹0 co-contribution is always valid (spec §3.2: ₹0 always available)", async () => {
+            const admin = buildFakeAdmin({
+                tokens: [{ data: TOKEN_ROW, error: null }],
+                vendors: [
+                    { data: VENDOR_STATUS_ROW, error: null },
+                    { data: VENDOR_AVAIL_ROW, error: null },
+                    { data: { geo_lat: null, geo_lng: null }, error: null },
+                    { data: { city: null }, error: null },
+                ],
+                vendor_menus: [{ data: MENU_ROW, error: null }],
+            });
+            const input = { ...BASE_INPUT, co_pay: 0 };
+
+            const result = await validateRedemption(input, admin);
+
+            expect(result.value.co_pay).toBe(0);
+            // No check should fail due to ₹0 co-pay
+            const coPay = result.checks.find(c => c.name === "co_pay" || c.name === "co_contribution");
+            if (coPay) expect(coPay.pass).toBe(true);
+        });
+    });
+
+    describe("spec §3.1 F-1 — special care token restrictions", () => {
+        it("special_care token fails on non-nutritious menu item (spec F-1)", async () => {
+            const admin = buildFakeAdmin({
+                tokens: [{ data: { ...TOKEN_ROW, token_type: "special_care" }, error: null }],
+                vendors: [
+                    { data: VENDOR_STATUS_ROW, error: null },
+                    { data: VENDOR_AVAIL_ROW, error: null },
+                    { data: VENDOR_GEO_ROW, error: null },
+                    { data: { city: null }, error: null },
+                ],
+                vendor_menus: [{
+                    data: {
+                        ...MENU_ROW,
+                        nutrition_category: "standard",
+                        is_special_care_equivalent: false,
+                        special_care_equivalent_approved: false,
+                    },
+                    error: null,
+                }],
+            });
+
+            const result = await validateRedemption(BASE_INPUT, admin);
+
+            const check = result.checks.find(c => c.name === "menu");
+            expect(check?.pass).toBe(false);
+        });
+    });
+
+    describe("spec §3.3 — vendor availability (stock exhausted notification)", () => {
+        it("fails when vendor stock_exhausted — spec M1-4: pauses new redemptions", async () => {
+            const admin = buildFakeAdmin({
+                tokens: [{ data: TOKEN_ROW, error: null }],
+                vendors: [
+                    { data: VENDOR_STATUS_ROW, error: null },
+                    { data: { ...VENDOR_AVAIL_ROW, stock_exhausted: true }, error: null },
+                    { data: VENDOR_GEO_ROW, error: null },
+                    { data: { city: null }, error: null },
+                ],
+                vendor_menus: [{ data: MENU_ROW, error: null }],
+            });
+
+            const result = await validateRedemption(BASE_INPUT, admin);
+
+            const check = result.checks.find(c => c.name === "vendor_availability");
+            expect(check?.pass).toBe(false);
         });
     });
 

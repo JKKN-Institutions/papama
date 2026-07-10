@@ -3,6 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getTransparencyStats } from "@/lib/services/transparency";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+/**
+ * Spec references:
+ * - §3.3 Public transparency dashboard [M1-14]:
+ *   unauthenticated, aggregate-only, no personal data exposed
+ */
+
 function buildClient(rpcResult: unknown, error?: string) {
     return {
         rpc: vi.fn().mockResolvedValue(
@@ -61,5 +67,49 @@ describe("getTransparencyStats", () => {
 
         expect(stats.total_donations_inr).toBe(0);
         expect(stats.meals_served).toBe(0);
+    });
+});
+
+describe("spec §3.3: transparency dashboard required fields", () => {
+    it("result contains all spec-required aggregate fields", async () => {
+        const client = buildClient([{
+            total_donations_inr: 100000,
+            meals_sponsored: 2000,
+            meals_served: 1800,
+            active_vendors: 25,
+            active_beneficiaries: 500,
+            cities_covered: 5,
+        }]);
+
+        const stats = await getTransparencyStats(client);
+
+        // Spec §3.3 M1-14: these six fields are required on the public dashboard
+        expect(stats).toHaveProperty("total_donations_inr");
+        expect(stats).toHaveProperty("meals_sponsored");
+        expect(stats).toHaveProperty("meals_served");
+        expect(stats).toHaveProperty("active_vendors");
+        expect(stats).toHaveProperty("active_beneficiaries");
+        expect(stats).toHaveProperty("cities_covered");
+    });
+
+    it("result contains no PII (no names, emails, or individual IDs)", async () => {
+        const client = buildClient([{
+            total_donations_inr: 100000,
+            meals_sponsored: 2000,
+            meals_served: 1800,
+            active_vendors: 25,
+            active_beneficiaries: 500,
+            cities_covered: 5,
+        }]);
+
+        const stats = await getTransparencyStats(client);
+        const keys = Object.keys(stats);
+
+        // No PII-related keys should be present in aggregate stats
+        const piiPatterns = ["name", "email", "phone", "address", "user_id", "donor_id", "beneficiary_id"];
+        for (const pattern of piiPatterns) {
+            const matchingKeys = keys.filter(k => k.toLowerCase().includes(pattern));
+            expect(matchingKeys, `stats should not contain PII key matching "${pattern}"`).toHaveLength(0);
+        }
     });
 });

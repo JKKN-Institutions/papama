@@ -20,6 +20,13 @@ import { writeAuditLog } from "@/lib/services/audit";
 import { makeUser } from "@test/helpers";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+/**
+ * Spec references:
+ * - §3.3 Disaster & emergency — emergency token minting
+ * - §7 emergency_mode_max_duration_days = 30
+ * - §7.1 — every emergency action must be fully audited
+ */
+
 const getNumberMock = vi.mocked(getNumber);
 
 function buildAdmin(opts: {
@@ -113,5 +120,44 @@ describe("issueEmergencyToken", () => {
         await issueEmergencyToken({ reason: "Cyclone Michaung" }, admin, client);
 
         expect(client.from).toHaveBeenCalledWith("emergency_token_grants");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Spec-derived tests — §7, §7.1
+// ---------------------------------------------------------------------------
+
+describe("issueEmergencyToken — spec-derived", () => {
+    const actor = makeUser("admin", { id: "admin-1" });
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        getNumberMock.mockImplementation(async (key: string) => {
+            if (key === "standard_token_value") return 50;
+            if (key === "token_expiry_days") return 30;
+            throw new MissingConfigError(key, "missing");
+        });
+    });
+
+    it("uses standard_token_value from config for emergency minting (spec §7)", async () => {
+        getNumberMock.mockImplementation(async (key: string) => {
+            if (key === "standard_token_value") return 75;
+            if (key === "token_expiry_days") return 30;
+            throw new MissingConfigError(key, "missing");
+        });
+        const client = buildAdmin({});
+        const result = await issueEmergencyToken({}, actor, client);
+
+        expect(result.value_inr).toBe(75);
+    });
+
+    it("writes audit log for every emergency action (spec §7.1: fully audited)", async () => {
+        const client = buildAdmin({});
+        await issueEmergencyToken({ reason: "Earthquake" }, actor, client);
+
+        expect(writeAuditLog).toHaveBeenCalledTimes(1);
+        expect(writeAuditLog).toHaveBeenCalledWith(expect.objectContaining({
+            action: "emergency.token.grant",
+        }));
     });
 });

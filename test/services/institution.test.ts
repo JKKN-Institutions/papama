@@ -6,6 +6,12 @@ import { bulkAllocateToInstitution } from "@/lib/services/institution";
 import { makeUser } from "@test/helpers";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+/**
+ * Spec references:
+ * - §3.1 F-12 — institutional distribution: orphanages, old-age homes, charity hospitals
+ * - Bulk allocation via RPC (allocate_pooled_tokens_to_institution)
+ */
+
 function buildAdmin(rpcResult: unknown[], rpcError?: string) {
     return {
         rpc: vi.fn().mockResolvedValue(
@@ -24,6 +30,7 @@ describe("bulkAllocateToInstitution", () => {
 
     beforeEach(() => vi.clearAllMocks());
 
+    // Spec §3.1 F-12: bulk allocation via RPC
     it("calls RPC and returns allocation result", async () => {
         const admin = buildAdmin([{ allocation_id: "alloc-1", moved_count: 10 }]);
 

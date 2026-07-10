@@ -11,6 +11,13 @@ import { flagFraud, scanVendorAnomalies, type FraudFlagInput } from "@/lib/servi
 import { getNumber } from "@/lib/system-config";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+/**
+ * Spec references:
+ * - §3.3 Security & fraud — fraud flag types, detection methods
+ * - §3.1 F-3 — duplicate_media detection via phash
+ * - §3.3 — cloned_qr, tampered_qr, beneficiary_duplicate flag types
+ */
+
 const getNumberMock = vi.mocked(getNumber);
 
 // ---------------------------------------------------------------------------
@@ -283,5 +290,63 @@ describe("scanVendorAnomalies", () => {
 
         // flagFraud returns false (dedup) → created stays 0
         expect(result).toBe(0);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Spec-derived tests — §3.1 F-3, §3.3
+// ---------------------------------------------------------------------------
+
+describe("flagFraud — spec-derived flag types", () => {
+    beforeEach(() => vi.clearAllMocks());
+
+    it("accepts duplicate_media detection method (spec §3.1 F-3)", async () => {
+        const admin = buildFakeAdmin({ existingFlags: [] });
+        const input: FraudFlagInput = {
+            flag_type: "duplicate_media",
+            severity: "high",
+            detection_method: "phash_duplicate",
+            entity: { kind: "redemption", id: "r1" },
+        };
+
+        const result = await flagFraud(admin, input);
+        expect(result).toBe(true);
+    });
+
+    it("accepts cloned_qr flag type (spec §3.3)", async () => {
+        const admin = buildFakeAdmin({ existingFlags: [] });
+        const input: FraudFlagInput = {
+            flag_type: "cloned_qr",
+            severity: "high",
+            entity: { kind: "token", id: "t1" },
+        };
+
+        const result = await flagFraud(admin, input);
+        expect(result).toBe(true);
+    });
+
+    it("accepts tampered_qr flag type (spec §3.3)", async () => {
+        const admin = buildFakeAdmin({ existingFlags: [] });
+        const input: FraudFlagInput = {
+            flag_type: "tampered_qr",
+            severity: "high",
+            entity: { kind: "token", id: "t2" },
+        };
+
+        const result = await flagFraud(admin, input);
+        expect(result).toBe(true);
+    });
+
+    it("accepts beneficiary_duplicate flag type (spec §3.3: beneficiary repeat via face-hash)", async () => {
+        const admin = buildFakeAdmin({ existingFlags: [] });
+        const input: FraudFlagInput = {
+            flag_type: "beneficiary_duplicate",
+            severity: "medium",
+            detection_method: "face_hash_match",
+            entity: { kind: "beneficiary", id: "b1" },
+        };
+
+        const result = await flagFraud(admin, input);
+        expect(result).toBe(true);
     });
 });

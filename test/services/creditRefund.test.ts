@@ -3,6 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { refundCredit } from "@/lib/services/creditRefund";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+/**
+ * Spec references:
+ * - §3.1 F-10, §3.2, §3.3 — donations are non-withdrawable
+ * - Refunds only for failed/duplicate payments
+ * - Partial reversal caps at balance
+ */
+
 function buildAdmin(balance: number | null, updateSuccess = true) {
     const chain: Record<string, ReturnType<typeof vi.fn>> = {};
     chain.select = vi.fn().mockReturnValue(chain);
@@ -43,6 +50,7 @@ describe("refundCredit", () => {
         expect(result.partial).toBe(false);
     });
 
+    // Spec §3.2: partial reversal caps at balance
     it("caps reversal at live balance (partial)", async () => {
         const admin = buildAdmin(30);
         const result = await refundCredit({ admin, donorId: "d1", amountInr: 50, reason: "test" });
@@ -68,6 +76,7 @@ describe("refundCredit", () => {
         expect(result.partial).toBe(true);
     });
 
+    // Spec §3.1 F-10: refund amount must be positive
     it("throws when amount is not positive", async () => {
         const admin = buildAdmin(100);
         await expect(refundCredit({ admin, donorId: "d1", amountInr: 0, reason: "test" })).rejects.toThrow("positive");

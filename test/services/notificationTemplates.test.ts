@@ -3,6 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fillTemplate, renderTemplate } from "@/lib/services/notificationTemplates";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+/**
+ * Spec references:
+ * - §3.1 F-7: Notification engine — admin-editable templates per channel/event
+ * - §3.3: Notification channels include in_app, sms, email (client Q3/Q4)
+ */
+
 describe("fillTemplate", () => {
     it("substitutes simple variables", () => {
         expect(fillTemplate("Hello {{name}}!", { name: "Roja" })).toBe("Hello Roja!");
@@ -75,5 +81,33 @@ describe("renderTemplate", () => {
 
         const result = await renderTemplate(client, "redemption", "email", {});
         expect(result).toBeNull();
+    });
+});
+
+describe("spec §3.3: notification channels", () => {
+    beforeEach(() => vi.clearAllMocks());
+
+    function buildClient(templateRow: unknown) {
+        const chain: Record<string, ReturnType<typeof vi.fn>> = {};
+        chain.select = vi.fn().mockReturnValue(chain);
+        chain.eq = vi.fn().mockReturnValue(chain);
+        chain.maybeSingle = vi.fn().mockResolvedValue({ data: templateRow, error: null });
+        return { from: vi.fn().mockReturnValue(chain) } as unknown as SupabaseClient;
+    }
+
+    it("template channels include in_app, sms, email (spec §3.3 + client Q3/Q4)", async () => {
+        const channels = ["in_app", "sms", "email"] as const;
+        const templateRow = {
+            subject: "Test subject",
+            body_template: "Test body",
+        };
+
+        for (const channel of channels) {
+            const client = buildClient(templateRow);
+            const result = await renderTemplate(client, "redemption", channel, {});
+            // Each channel should resolve a template when one exists in the DB
+            expect(result).not.toBeNull();
+            expect(result!.subject).toBe("Test subject");
+        }
     });
 });

@@ -42,6 +42,11 @@ export {
     makeVolunteer,
     makeNotification,
     makeMealWindow,
+    makeInstitution,
+    makeLedgerEntry,
+    makeCampaign,
+    makeConsentRecord,
+    makeDocument,
     makeConfigRow,
     resetFactorySeq,
 } from "./factories";

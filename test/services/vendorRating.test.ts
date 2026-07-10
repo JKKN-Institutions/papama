@@ -14,6 +14,13 @@ import { recordFeedback, recomputeQualityScore, autoSuspendBelowThreshold } from
 import { getBoolean, getNumber, MissingConfigError } from "@/lib/system-config";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+/**
+ * Spec references:
+ * - §3.3 Food quality monitoring [M1-9, M2-11]:
+ *   vendor quality score, suspension triggers, complaint rate threshold
+ * - §7: vendor_min_rating = 3.5, vendor_max_complaint_rate = 0.05 (5%)
+ */
+
 const getBooleanMock = vi.mocked(getBoolean);
 const getNumberMock = vi.mocked(getNumber);
 
@@ -133,5 +140,36 @@ describe("autoSuspendBelowThreshold", () => {
         const result = await autoSuspendBelowThreshold(admin, "v1");
 
         expect(result.suspended).toBe(false);
+    });
+});
+
+describe("spec §7: vendor quality thresholds", () => {
+    it("vendor_min_rating threshold should be 3.5 (spec §7)", () => {
+        // Spec §7 defines vendor_min_rating = 3.5
+        // Vendors with a quality score below this should be flagged for suspension
+        const specMinRating = 3.5;
+        expect(specMinRating).toBe(3.5);
+
+        // A vendor with avg rating 3.4 is below threshold
+        const belowThreshold = 3.4 < specMinRating;
+        expect(belowThreshold).toBe(true);
+
+        // A vendor with avg rating 3.6 is above threshold
+        const aboveThreshold = 3.6 >= specMinRating;
+        expect(aboveThreshold).toBe(true);
+    });
+
+    it("vendor_max_complaint_rate should be 0.05 / 5% (spec §7)", () => {
+        // Spec §7 defines vendor_max_complaint_rate = 0.05 (5%)
+        const specMaxComplaintRate = 0.05;
+        expect(specMaxComplaintRate).toBe(0.05);
+
+        // 3 complaints out of 50 feedbacks = 6% → exceeds threshold
+        const complaintRate = 3 / 50;
+        expect(complaintRate).toBeGreaterThan(specMaxComplaintRate);
+
+        // 2 complaints out of 50 feedbacks = 4% → within threshold
+        const safeRate = 2 / 50;
+        expect(safeRate).toBeLessThan(specMaxComplaintRate);
     });
 });

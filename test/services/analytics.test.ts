@@ -5,6 +5,13 @@ vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
 import { getAnalytics } from "@/lib/services/analytics";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+/**
+ * Spec references:
+ * - §3.3 Analytics dashboard [M2-8]
+ * - §3.3 city-wise reports via geo hierarchy [M2-12]
+ * - §3.3 category-wise breakdowns
+ */
+
 function buildAdmin() {
     const from = vi.fn().mockImplementation(() => {
         const chain: Record<string, ReturnType<typeof vi.fn>> = {};
@@ -66,5 +73,29 @@ describe("getAnalytics", () => {
         const result = await getAnalytics(admin);
 
         expect(result.meals_trend_30d).toHaveLength(30);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Spec-derived tests — §3.3 M2-8, M2-12
+// ---------------------------------------------------------------------------
+
+describe("getAnalytics — spec-derived breakdowns", () => {
+    beforeEach(() => vi.clearAllMocks());
+
+    it("result includes city-wise breakdowns (spec §3.3: city-wise reports via geo hierarchy M2-12)", async () => {
+        const admin = buildAdmin();
+        const result = await getAnalytics(admin);
+
+        expect(result).toHaveProperty("city_wise");
+        expect(Array.isArray(result.city_wise)).toBe(true);
+    });
+
+    it("result includes category-wise breakdowns (spec §3.3: category-wise)", async () => {
+        const admin = buildAdmin();
+        const result = await getAnalytics(admin);
+
+        expect(result).toHaveProperty("category_wise");
+        expect(Array.isArray(result.category_wise)).toBe(true);
     });
 });

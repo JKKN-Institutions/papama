@@ -3,6 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { recordConsent, hasActiveConsent, CURRENT_CONSENT_VERSION } from "@/lib/services/consent";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+/**
+ * Spec references:
+ * - §3.3 consent management, M2-14 Legal & compliance
+ * - DPDP-aligned: versioned so policy change can require re-consent
+ * - Consent types: data_privacy, communications, data_processing
+ */
+
 function buildClient(existing: unknown, insertResult?: { id: string }, insertError?: string) {
     const chain: Record<string, ReturnType<typeof vi.fn>> = {};
     chain.select = vi.fn().mockReturnValue(chain);
@@ -60,5 +67,43 @@ describe("hasActiveConsent", () => {
     it("returns false when no consent exists", async () => {
         const client = buildClient(null);
         expect(await hasActiveConsent(client, "donor", "d1", "data_privacy")).toBe(false);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Spec-derived tests — M2-14, DPDP-aligned
+// ---------------------------------------------------------------------------
+
+describe("consent — spec-derived versioning & types", () => {
+    beforeEach(() => vi.clearAllMocks());
+
+    it("consent is versioned (spec: versioned so policy change can require re-consent)", () => {
+        // CURRENT_CONSENT_VERSION must exist and be a non-empty string
+        expect(typeof CURRENT_CONSENT_VERSION).toBe("string");
+        expect(CURRENT_CONSENT_VERSION.length).toBeGreaterThan(0);
+    });
+
+    it("data_privacy consent type is accepted", async () => {
+        const client = buildClient(null, { id: "c1" });
+        const id = await recordConsent(client, {
+            subjectType: "donor", subjectId: "d1", consentType: "data_privacy",
+        });
+        expect(id).toBe("c1");
+    });
+
+    it("communications consent type is accepted", async () => {
+        const client = buildClient(null, { id: "c2" });
+        const id = await recordConsent(client, {
+            subjectType: "donor", subjectId: "d1", consentType: "communications",
+        });
+        expect(id).toBe("c2");
+    });
+
+    it("data_processing consent type is accepted", async () => {
+        const client = buildClient(null, { id: "c3" });
+        const id = await recordConsent(client, {
+            subjectType: "donor", subjectId: "d1", consentType: "data_processing",
+        });
+        expect(id).toBe("c3");
     });
 });

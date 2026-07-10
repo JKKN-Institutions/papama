@@ -79,10 +79,12 @@ export function makeToken(overrides?: Record<string, unknown>) {
         value: 50,
         qr_hash: `qr-hash-${seq}`,
         created_at: NOW,
-        expires_at: "2026-08-08T10:00:00.000Z",
+        expires_at: "2026-10-07T10:00:00.000Z", // 90 days from NOW per spec §7
         redeemed_at: null,
         vendor_id: null,
         beneficiary_id: null,
+        replacement_for_token_id: null, // spec §3.2: lost-token replacement chain
+        issued_to_binding: null,        // spec §5: non-transferability binding
         ...overrides,
     };
 }
@@ -142,11 +144,13 @@ export function makeVendor(overrides?: Record<string, unknown>) {
         kyc_status: "verified" as KycStatus,
         fssai_license: `FSSAI-${seq}`,
         gst_number: null,
-        geo_lat: 13.08,
-        geo_lng: 80.27,
+        geo_lat: 11.0168,            // Coimbatore coordinates per spec §3.1 F-11
+        geo_lng: 76.9558,
+        geo_unit_id: null,           // spec §3.1 F-11: geo hierarchy FK
         hygiene_rating: 4,
         phone: "+919876543210",
         emergency_contact: "+919876543211",
+        settlement_cycle: "weekly",  // spec §3.1 F-2: vendor-chosen cycle
         created_at: NOW,
         updated_at: NOW,
         ...overrides,
@@ -183,6 +187,8 @@ export function makeRedemption(overrides?: Record<string, unknown>) {
         vendor_amount: 50,
         forfeit_amount: 0,
         co_pay_amount: 0,
+        meal_window: null,              // spec §3.1 F-9: meal window at redemption
+        co_contribution_amount: 0,      // spec §7: co-contribution ₹0–₹10
         ...overrides,
     };
 }
@@ -280,6 +286,79 @@ export function makeMealWindow(overrides?: Record<string, unknown>) {
         end_time: "14:00",
         is_active: true,
         created_at: NOW,
+        ...overrides,
+    };
+}
+
+// --- Institutions (spec §3.1 F-12) ------------------------------------------
+
+export function makeInstitution(overrides?: Record<string, unknown>) {
+    return {
+        id: nextId("inst"),
+        name: "Test Old-Age Home",
+        type: "old_age_home", // spec F-12: orphanages, old-age homes, charity hospitals
+        contact_name: "Warden",
+        contact_phone: "+919876543210",
+        geo_unit_id: null,
+        created_at: NOW,
+        ...overrides,
+    };
+}
+
+// --- Ledger Entries (spec §3.1 F-10) ----------------------------------------
+
+export function makeLedgerEntry(overrides?: Record<string, unknown>) {
+    return {
+        id: nextId("ledger"),
+        ledger: "donation" as "donation" | "vendor_payable" | "revenue",
+        amount: 50,
+        reference_type: "donation",
+        reference_id: nextId("donation"),
+        description: "Donation received",
+        created_at: NOW,
+        ...overrides,
+    };
+}
+
+// --- Campaigns (spec §3.3 emergency) ----------------------------------------
+
+export function makeCampaign(overrides?: Record<string, unknown>) {
+    return {
+        id: nextId("campaign"),
+        type: "emergency",
+        name: "Flood Relief 2026",
+        is_active: true,
+        created_at: NOW,
+        ends_at: null,
+        ...overrides,
+    };
+}
+
+// --- Consent Records (spec M2-14) -------------------------------------------
+
+export function makeConsentRecord(overrides?: Record<string, unknown>) {
+    return {
+        id: nextId("consent"),
+        user_id: nextId("user"),
+        consent_type: "data_privacy",
+        version: 1,
+        granted_at: NOW,
+        revoked_at: null,
+        ...overrides,
+    };
+}
+
+// --- Documents (spec M2-13) -------------------------------------------------
+
+export function makeDocument(overrides?: Record<string, unknown>) {
+    return {
+        id: nextId("doc"),
+        entity_type: "vendor",
+        entity_id: nextId("vendor"),
+        document_type: "fssai_license",
+        file_url: `https://storage.example.com/docs/${seq}.pdf`,
+        expires_at: "2027-07-09T00:00:00.000Z",
+        uploaded_at: NOW,
         ...overrides,
     };
 }

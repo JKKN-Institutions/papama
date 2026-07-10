@@ -3,6 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { logActivity, volunteerActivitySummary, volunteerActivitySummaries } from "@/lib/services/volunteerActivity";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+/**
+ * Spec references:
+ * - §3.3 Volunteer management [M1-13, M2-6]:
+ *   activity tracking (registrations assisted, tokens distributed)
+ */
+
 function buildAdmin(rows: unknown[], insertError?: string) {
     const chain: Record<string, ReturnType<typeof vi.fn>> = {};
     chain.select = vi.fn().mockReturnValue(chain);
@@ -107,5 +113,24 @@ describe("volunteerActivitySummaries", () => {
         const admin = buildAdmin([]);
         const map = await volunteerActivitySummaries([], admin);
         expect(map.size).toBe(0);
+    });
+});
+
+describe("spec §3.3 M1-13: volunteer activity types", () => {
+    beforeEach(() => vi.clearAllMocks());
+
+    it("activity types include token_distributed and registration_assisted (spec M1-13)", async () => {
+        const rows = [
+            { activity_type: "token_distributed", created_at: "2026-07-09T10:00:00Z" },
+            { activity_type: "registration_assisted", created_at: "2026-07-09T11:00:00Z" },
+        ];
+        const admin = buildAdmin(rows);
+
+        const summary = await volunteerActivitySummary("vol-1", admin);
+
+        // Spec M1-13 requires tracking these two activity types
+        expect(summary.tokens_distributed).toBe(1);
+        expect(summary.registrations_assisted).toBe(1);
+        expect(summary.total).toBe(2);
     });
 });

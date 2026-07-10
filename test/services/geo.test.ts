@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { getGreatCircleDistanceKm } from "@/lib/services/geo";
 
+/**
+ * Spec references:
+ * - §3.1 F-11: Geographic hierarchy — city -> district -> state
+ * - §7: redemption_radius_km = 20 km (default geofence radius)
+ */
+
 describe("getGreatCircleDistanceKm", () => {
     it("returns 0 for identical points", () => {
         expect(getGreatCircleDistanceKm(13.08, 80.27, 13.08, 80.27)).toBe(0);
@@ -44,5 +50,18 @@ describe("getGreatCircleDistanceKm", () => {
         const dist = getGreatCircleDistanceKm(0, 0, 0, 1);
         expect(dist).toBeGreaterThan(110);
         expect(dist).toBeLessThan(112);
+    });
+
+    // Spec §7: default geofence radius is 20 km (redemption_radius_km)
+    it("spec §7: 20 km radius correctly distinguishes within/outside geofence", () => {
+        const SPEC_DEFAULT_RADIUS_KM = 20;
+
+        // ~15 km apart — within default geofence
+        const withinDist = getGreatCircleDistanceKm(13.08, 80.27, 13.22, 80.27);
+        expect(withinDist).toBeLessThan(SPEC_DEFAULT_RADIUS_KM);
+
+        // ~120 km apart — outside default geofence
+        const outsideDist = getGreatCircleDistanceKm(13.08, 80.27, 14.1, 80.27);
+        expect(outsideDist).toBeGreaterThan(SPEC_DEFAULT_RADIUS_KM);
     });
 });

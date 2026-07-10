@@ -1,3 +1,18 @@
+/**
+ * Validation schema tests — derived from papama-phase1-spec-rev2.md.
+ *
+ * Every assertion references a spec section. Tests that exercise spec rules
+ * the code has not yet implemented are expected to FAIL — surfacing the gap.
+ *
+ * Spec sections referenced:
+ *   §3.1 F-1..F-12  Foundation features
+ *   §3.2            Hard business rules (meal, vendor, token, co-pay)
+ *   §3.3            Core flows
+ *   §6              Role access matrix
+ *   §7              Configurable defaults
+ *   §8              Build checklist (Layer 1 — types/enums)
+ */
+
 import { describe, expect, it } from "vitest";
 
 import {
@@ -59,6 +74,10 @@ describe("inrAmountSchema", () => {
         expect(inrAmountSchema.parse(500)).toBe(500);
     });
 
+    it("accepts ₹50 — the standard token value (spec §7)", () => {
+        expect(inrAmountSchema.parse(50)).toBe(50);
+    });
+
     it("accepts max value 1,000,000", () => {
         expect(inrAmountSchema.parse(1_000_000)).toBe(1_000_000);
     });
@@ -85,9 +104,10 @@ describe("inrAmountSchema", () => {
 });
 
 describe("geoPointSchema", () => {
-    it("accepts valid coordinates", () => {
-        const result = geoPointSchema.parse({ lat: 13.08, lng: 80.27 });
-        expect(result).toEqual({ lat: 13.08, lng: 80.27 });
+    it("accepts Coimbatore coordinates (spec §3.1 F-11: operating city)", () => {
+        const result = geoPointSchema.parse({ lat: 11.0168, lng: 76.9558 });
+        expect(result.lat).toBeCloseTo(11.0168, 4);
+        expect(result.lng).toBeCloseTo(76.9558, 4);
     });
 
     it("accepts boundary values", () => {
@@ -134,7 +154,7 @@ describe("isoTimestampSchema", () => {
 describe("faceCaptureSchema", () => {
     const validEmbedding = Array.from({ length: FACE_EMBEDDING_DIM }, (_, i) => i * 0.001);
 
-    it("accepts valid face capture", () => {
+    it("accepts valid face capture — spec §3.3: face-hash is primary verification", () => {
         const result = faceCaptureSchema.parse({ embedding: validEmbedding, liveness: 0.95 });
         expect(result.embedding).toHaveLength(FACE_EMBEDDING_DIM);
         expect(result.liveness).toBe(0.95);
@@ -172,9 +192,18 @@ describe("faceCaptureSchema", () => {
 });
 
 describe("clockTimeSchema", () => {
+    it("accepts spec §7 meal window boundaries", () => {
+        // Breakfast 06:00–10:00, Lunch 11:00–15:00, Dinner 18:00–22:00
+        expect(clockTimeSchema.parse("06:00")).toBe("06:00");
+        expect(clockTimeSchema.parse("10:00")).toBe("10:00");
+        expect(clockTimeSchema.parse("11:00")).toBe("11:00");
+        expect(clockTimeSchema.parse("15:00")).toBe("15:00");
+        expect(clockTimeSchema.parse("18:00")).toBe("18:00");
+        expect(clockTimeSchema.parse("22:00")).toBe("22:00");
+    });
+
     it("accepts valid 24-hour times", () => {
         expect(clockTimeSchema.parse("00:00")).toBe("00:00");
-        expect(clockTimeSchema.parse("06:30")).toBe("06:30");
         expect(clockTimeSchema.parse("12:00")).toBe("12:00");
         expect(clockTimeSchema.parse("23:59")).toBe("23:59");
     });
@@ -200,26 +229,37 @@ describe("clockTimeSchema", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 2. Enum schemas — verify all valid values accepted, invalid rejected
+// 2. Enum schemas — spec §8 Layer 1 types
 // ---------------------------------------------------------------------------
 
-describe("enum schemas", () => {
-    const enumTests: Array<{ name: string; schema: ReturnType<typeof import("zod").z.enum>; validValues: readonly string[] }> = [
-        { name: "userRole", schema: userRoleSchema, validValues: ["admin", "compliance", "vendor_manager", "vendor", "volunteer", "donor", "beneficiary", "guest"] },
-        { name: "tokenType", schema: tokenTypeSchema, validValues: ["standard", "special_care"] },
-        { name: "tokenStatus", schema: tokenStatusSchema, validValues: ["generated", "live", "in_admin_pool", "assigned_to_volunteer", "distributed", "redeemed", "expired"] },
-        { name: "vendorStatus", schema: vendorStatusSchema, validValues: ["pending", "approved", "suspended", "rejected"] },
-        { name: "kycStatus", schema: kycStatusSchema, validValues: ["pending", "verified", "failed"] },
-        { name: "settlementStatus", schema: settlementStatusSchema, validValues: ["pending", "locked", "reconciled", "paid"] },
-        { name: "fraudFlagType", schema: fraudFlagTypeSchema, validValues: ["duplicate_token", "cloned_qr", "tampered_qr", "beneficiary_duplicate", "vendor_anomaly"] },
-        { name: "fraudSeverity", schema: fraudSeveritySchema, validValues: ["low", "medium", "high"] },
-        { name: "mealType", schema: mealTypeSchema, validValues: ["breakfast", "lunch", "dinner", "snack"] },
-        { name: "beneficiaryCategory", schema: beneficiaryCategorySchema, validValues: ["pregnant_women", "patient", "disability", "disaster_affected"] },
-        { name: "reportType", schema: reportTypeSchema, validValues: ["csr", "donation", "redemption", "settlement", "compliance", "audit"] },
+describe("enum schemas — spec §8 Layer 1", () => {
+    const enumTests: Array<{ name: string; schema: ReturnType<typeof import("zod").z.enum>; validValues: readonly string[]; specRef: string }> = [
+        { name: "userRole", schema: userRoleSchema, specRef: "§6: 8 roles",
+          validValues: ["admin", "compliance", "vendor_manager", "vendor", "volunteer", "donor", "beneficiary", "guest"] },
+        { name: "tokenType", schema: tokenTypeSchema, specRef: "§3.1 F-1: two-tier",
+          validValues: ["standard", "special_care"] },
+        { name: "tokenStatus", schema: tokenStatusSchema, specRef: "§3.2 token lifecycle",
+          validValues: ["generated", "live", "in_admin_pool", "assigned_to_volunteer", "distributed", "redeemed", "expired"] },
+        { name: "vendorStatus", schema: vendorStatusSchema, specRef: "§3.3 vendor onboarding",
+          validValues: ["pending", "approved", "suspended", "rejected"] },
+        { name: "kycStatus", schema: kycStatusSchema, specRef: "§3.3 vendor KYC",
+          validValues: ["pending", "verified", "failed"] },
+        { name: "settlementStatus", schema: settlementStatusSchema, specRef: "§3.1 F-2: settlement lifecycle",
+          validValues: ["pending", "locked", "reconciled", "paid"] },
+        { name: "fraudFlagType", schema: fraudFlagTypeSchema, specRef: "§3.3 Security & fraud",
+          validValues: ["duplicate_token", "cloned_qr", "tampered_qr", "beneficiary_duplicate", "vendor_anomaly"] },
+        { name: "fraudSeverity", schema: fraudSeveritySchema, specRef: "§3.3 fraud severity",
+          validValues: ["low", "medium", "high"] },
+        { name: "mealType", schema: mealTypeSchema, specRef: "§3.1 F-9: meal windows",
+          validValues: ["breakfast", "lunch", "dinner", "snack"] },
+        { name: "beneficiaryCategory", schema: beneficiaryCategorySchema, specRef: "§3.1 F-4: +disability +disaster_affected [Q7]",
+          validValues: ["pregnant_women", "patient", "disability", "disaster_affected"] },
+        { name: "reportType", schema: reportTypeSchema, specRef: "§3.3 admin reports",
+          validValues: ["csr", "donation", "redemption", "settlement", "compliance", "audit"] },
     ];
 
-    for (const { name, schema, validValues } of enumTests) {
-        describe(name, () => {
+    for (const { name, schema, validValues, specRef } of enumTests) {
+        describe(`${name} (${specRef})`, () => {
             for (const value of validValues) {
                 it(`accepts '${value}'`, () => {
                     expect(schema.parse(value)).toBe(value);
@@ -239,16 +279,49 @@ describe("enum schemas", () => {
             });
         });
     }
+
+    // --- Spec-gap tests: enum values the spec REQUIRES but code may not have ---
+
+    describe("spec-gap: fraudFlagType must include duplicate_media (spec §3.1 F-3, §5)", () => {
+        it("accepts 'duplicate_media' — spec §3.1 F-3: duplicate photo + bill detection", () => {
+            // Spec §3.1 F-3: "duplicate photo detection and duplicate bill detection"
+            // Spec §5: fraud_flags.detection_method includes duplicate_media (active P1)
+            expect(fraudFlagTypeSchema.parse("duplicate_media")).toBe("duplicate_media");
+        });
+    });
+
+    describe("spec-gap: tokenStatus must include 'blocked' (spec §3.2 lost-token)", () => {
+        it("accepts 'blocked' — spec §3.2: lost token → old token blocked instantly", () => {
+            // Spec §3.2 Token rules: "old token blocked instantly"
+            expect(tokenStatusSchema.parse("blocked")).toBe("blocked");
+        });
+    });
+
+    describe("spec-gap: settlementStatus should support approval flow (spec §3.1 F-2)", () => {
+        it("accepts 'approved' — spec §3.1 F-2: settlement approval step", () => {
+            // Spec §3.1 F-2: "settlement approval step [M2-4]"
+            expect(settlementStatusSchema.parse("approved")).toBe("approved");
+        });
+
+        it("accepts 'held' — spec §3.1 F-2: settlement hold facility", () => {
+            // Spec §3.1 F-2: "settlement hold facility [M1-10]"
+            expect(settlementStatusSchema.parse("held")).toBe("held");
+        });
+    });
 });
 
 // ---------------------------------------------------------------------------
-// 3. Request schemas
+// 3. Request schemas — spec-derived rules
 // ---------------------------------------------------------------------------
 
-describe("donationPurchaseRequestSchema", () => {
+describe("donationPurchaseRequestSchema — spec §3.3: any amount", () => {
     it("accepts valid request", () => {
         const result = donationPurchaseRequestSchema.parse({ amount_inr: 500 });
         expect(result.amount_inr).toBe(500);
+    });
+
+    it("accepts ₹30 — spec demo script step 1: donate ₹30 then ₹20", () => {
+        expect(donationPurchaseRequestSchema.parse({ amount_inr: 30 }).amount_inr).toBe(30);
     });
 
     it("accepts with optional payment_method", () => {
@@ -256,7 +329,7 @@ describe("donationPurchaseRequestSchema", () => {
         expect(result.payment_method).toBe("upi");
     });
 
-    it("rejects zero amount", () => {
+    it("rejects zero amount — donations must be positive", () => {
         expect(() => donationPurchaseRequestSchema.parse({ amount_inr: 0 })).toThrow();
     });
 
@@ -269,8 +342,8 @@ describe("donationPurchaseRequestSchema", () => {
     });
 });
 
-describe("tokenMintRequestSchema", () => {
-    it("accepts valid mint request", () => {
+describe("tokenMintRequestSchema — spec §3.2: admin-configurable value per token type", () => {
+    it("accepts standard token with use_now path", () => {
         const result = tokenMintRequestSchema.parse({
             token_type: "standard",
             amount_inr: 50,
@@ -280,7 +353,7 @@ describe("tokenMintRequestSchema", () => {
         expect(result.distribution_path).toBe("use_now");
     });
 
-    it("accepts special_care type with authorize_papama", () => {
+    it("accepts special_care with authorize_papama (spec §3.1 F-1: two-tier)", () => {
         const result = tokenMintRequestSchema.parse({
             token_type: "special_care",
             amount_inr: 100,
@@ -299,7 +372,7 @@ describe("tokenMintRequestSchema", () => {
         expect(result.special_instructions).toBe("For elderly in ward 3");
     });
 
-    it("rejects invalid token_type", () => {
+    it("rejects invalid token_type — only standard/special_care (spec §3.1 F-1)", () => {
         expect(() => tokenMintRequestSchema.parse({
             token_type: "premium",
             amount_inr: 50,
@@ -316,8 +389,8 @@ describe("tokenMintRequestSchema", () => {
     });
 });
 
-describe("beneficiaryRegistrationRequestSchema", () => {
-    it("accepts valid registration", () => {
+describe("beneficiaryRegistrationRequestSchema — spec §3.1 F-4, F-5", () => {
+    it("accepts valid registration with face_hash as primary (spec F-5)", () => {
         const result = beneficiaryRegistrationRequestSchema.parse({
             full_name: "Test Person",
             category: "patient",
@@ -327,7 +400,7 @@ describe("beneficiaryRegistrationRequestSchema", () => {
         expect(result.document_refs).toEqual([]); // default
     });
 
-    it("accepts optional aadhaar_hash", () => {
+    it("accepts optional aadhaar_hash — never mandatory (spec F-5)", () => {
         const result = beneficiaryRegistrationRequestSchema.parse({
             full_name: "Test",
             category: "pregnant_women",
@@ -337,7 +410,7 @@ describe("beneficiaryRegistrationRequestSchema", () => {
         expect(result.aadhaar_hash).toBe("aadhaar-hash");
     });
 
-    it("accepts null aadhaar_hash", () => {
+    it("accepts null aadhaar_hash — Aadhaar optional only (spec F-5)", () => {
         const result = beneficiaryRegistrationRequestSchema.parse({
             full_name: "Test",
             category: "disability",
@@ -347,7 +420,25 @@ describe("beneficiaryRegistrationRequestSchema", () => {
         expect(result.aadhaar_hash).toBeNull();
     });
 
-    it("rejects missing face_hash", () => {
+    it("accepts disaster_affected category (spec F-4, client Q7)", () => {
+        const result = beneficiaryRegistrationRequestSchema.parse({
+            full_name: "Flood victim",
+            category: "disaster_affected",
+            face_hash: "hash",
+        });
+        expect(result.category).toBe("disaster_affected");
+    });
+
+    it("accepts disability category (spec F-4, client Q7)", () => {
+        const result = beneficiaryRegistrationRequestSchema.parse({
+            full_name: "PWD",
+            category: "disability",
+            face_hash: "hash",
+        });
+        expect(result.category).toBe("disability");
+    });
+
+    it("rejects missing face_hash — face-hash is primary identity (spec F-5)", () => {
         expect(() => beneficiaryRegistrationRequestSchema.parse({
             full_name: "Test",
             category: "patient",
@@ -363,7 +454,7 @@ describe("beneficiaryRegistrationRequestSchema", () => {
     });
 });
 
-describe("beneficiaryActionRequestSchema", () => {
+describe("beneficiaryActionRequestSchema — spec §3.1 F-4: state machine", () => {
     it("accepts valid action", () => {
         const result = beneficiaryActionRequestSchema.parse({
             beneficiary_id: "550e8400-e29b-41d4-a716-446655440000",
@@ -373,7 +464,7 @@ describe("beneficiaryActionRequestSchema", () => {
         expect(result.action).toBe("suspend");
     });
 
-    it("accepts all valid actions", () => {
+    it("accepts all valid actions: suspend, activate, block", () => {
         for (const action of ["suspend", "activate", "block"]) {
             expect(() => beneficiaryActionRequestSchema.parse({
                 beneficiary_id: "550e8400-e29b-41d4-a716-446655440000",
@@ -397,39 +488,61 @@ describe("beneficiaryActionRequestSchema", () => {
     });
 });
 
-describe("redemptionRequestSchema", () => {
+describe("redemptionRequestSchema — spec §3.2 hard business rules", () => {
     const validRedemption = {
         qr_payload: "qr-signed-payload",
         vendor_id: "vendor-001",
         selected_items: [{ menu_item_id: "item-1", price: 50 }],
         beneficiary_face_hash: "face-hash-123",
-        geo: { lat: 13.08, lng: 80.27 },
+        geo: { lat: 11.0168, lng: 76.9558 }, // Coimbatore per spec
     };
 
     it("accepts valid redemption", () => {
         const result = redemptionRequestSchema.parse(validRedemption);
-        expect(result.co_contribution).toBe(0); // default
+        expect(result.co_contribution).toBe(0); // default — ₹0 always available (spec §3.2)
     });
 
-    it("accepts with co_contribution", () => {
+    it("co_contribution defaults to ₹0 — spec §3.2: ₹0 is always available", () => {
+        const result = redemptionRequestSchema.parse(validRedemption);
+        expect(result.co_contribution).toBe(0);
+    });
+
+    it("accepts co_contribution up to ₹10 (spec §7: co_contribution_max = ₹10)", () => {
         const result = redemptionRequestSchema.parse({ ...validRedemption, co_contribution: 10 });
         expect(result.co_contribution).toBe(10);
     });
 
-    it("rejects empty selected_items", () => {
+    it("rejects negative co_contribution", () => {
+        expect(() => redemptionRequestSchema.parse({
+            ...validRedemption,
+            co_contribution: -1,
+        })).toThrow();
+    });
+
+    it("rejects empty selected_items — spec §3.2: vendor must serve approved menu items", () => {
         expect(() => redemptionRequestSchema.parse({
             ...validRedemption,
             selected_items: [],
         })).toThrow();
     });
 
-    it("rejects missing qr_payload", () => {
+    it("rejects missing qr_payload — spec §3.3: encrypted one-time QR required", () => {
         const { qr_payload, ...rest } = validRedemption;
+        expect(() => redemptionRequestSchema.parse(rest)).toThrow();
+    });
+
+    it("rejects missing beneficiary_face_hash — spec F-5: face-hash is primary", () => {
+        const { beneficiary_face_hash, ...rest } = validRedemption;
+        expect(() => redemptionRequestSchema.parse(rest)).toThrow();
+    });
+
+    it("rejects missing geo — spec §3.3: geofence check required", () => {
+        const { geo, ...rest } = validRedemption;
         expect(() => redemptionRequestSchema.parse(rest)).toThrow();
     });
 });
 
-describe("vendorActionRequestSchema", () => {
+describe("vendorActionRequestSchema — spec §3.3 vendor onboarding", () => {
     const validActions = ["approve", "reject", "suspend", "reinstate", "verify_kyc", "fail_kyc"];
 
     for (const action of validActions) {
@@ -449,22 +562,36 @@ describe("vendorActionRequestSchema", () => {
     });
 });
 
-describe("settlementActionRequestSchema", () => {
-    const validActions = ["lock", "unlock", "reconcile", "pay", "hold", "release"];
-
-    for (const action of validActions) {
-        it(`accepts action '${action}'`, () => {
+describe("settlementActionRequestSchema — spec §3.1 F-2", () => {
+    it("accepts lifecycle actions: lock, unlock, reconcile, pay (spec F-2)", () => {
+        for (const action of ["lock", "unlock", "reconcile", "pay"]) {
             expect(() => settlementActionRequestSchema.parse({
                 settlement_id: "550e8400-e29b-41d4-a716-446655440000",
                 action,
             })).not.toThrow();
-        });
-    }
+        }
+    });
 
-    it("rejects invalid action", () => {
+    it("accepts admin override actions: hold, release (spec F-2: hold facility)", () => {
+        for (const action of ["hold", "release"]) {
+            expect(() => settlementActionRequestSchema.parse({
+                settlement_id: "550e8400-e29b-41d4-a716-446655440000",
+                action,
+            })).not.toThrow();
+        }
+    });
+
+    it("rejects 'refund' — not a settlement action", () => {
         expect(() => settlementActionRequestSchema.parse({
             settlement_id: "550e8400-e29b-41d4-a716-446655440000",
             action: "refund",
+        })).toThrow();
+    });
+
+    it("rejects 'instant' — spec F-2: no instant settlement", () => {
+        expect(() => settlementActionRequestSchema.parse({
+            settlement_id: "550e8400-e29b-41d4-a716-446655440000",
+            action: "instant",
         })).toThrow();
     });
 });
@@ -487,7 +614,7 @@ describe("fraudActionRequestSchema", () => {
     });
 });
 
-describe("systemConfigUpdateRequestSchema", () => {
+describe("systemConfigUpdateRequestSchema — spec §7.1 config change semantics", () => {
     it("accepts string value", () => {
         const result = systemConfigUpdateRequestSchema.parse({ key: "operating_city", value: "Chennai" });
         expect(result.value).toBe("Chennai");
@@ -503,7 +630,7 @@ describe("systemConfigUpdateRequestSchema", () => {
         expect(result.value).toBe(true);
     });
 
-    it("accepts null value (intentional unset)", () => {
+    it("accepts null value — intentional unset (spec §7.1: null allowed)", () => {
         const result = systemConfigUpdateRequestSchema.parse({ key: "max_tokens_per_volunteer", value: null });
         expect(result.value).toBeNull();
     });
@@ -517,14 +644,40 @@ describe("systemConfigUpdateRequestSchema", () => {
     });
 });
 
-describe("mealWindowCreateRequestSchema", () => {
-    it("accepts valid meal window", () => {
+describe("mealWindowCreateRequestSchema — spec §3.1 F-9, §7", () => {
+    it("accepts spec default breakfast window: 06:00–10:00 (spec §7)", () => {
+        const result = mealWindowCreateRequestSchema.parse({
+            meal_type: "breakfast",
+            start_time: "06:00",
+            end_time: "10:00",
+        });
+        expect(result.meal_type).toBe("breakfast");
+    });
+
+    it("accepts spec default lunch window: 11:00–15:00 (spec §7)", () => {
         const result = mealWindowCreateRequestSchema.parse({
             meal_type: "lunch",
-            start_time: "12:00",
-            end_time: "14:00",
+            start_time: "11:00",
+            end_time: "15:00",
         });
         expect(result.meal_type).toBe("lunch");
+    });
+
+    it("accepts spec default dinner window: 18:00–22:00 (spec §7)", () => {
+        const result = mealWindowCreateRequestSchema.parse({
+            meal_type: "dinner",
+            start_time: "18:00",
+            end_time: "22:00",
+        });
+        expect(result.meal_type).toBe("dinner");
+    });
+
+    it("accepts snack window — spec §7: admin-defined / disabled by default", () => {
+        expect(() => mealWindowCreateRequestSchema.parse({
+            meal_type: "snack",
+            start_time: "15:00",
+            end_time: "17:00",
+        })).not.toThrow();
     });
 
     it("rejects overnight windows (start >= end)", () => {
@@ -579,13 +732,13 @@ describe("mealWindowUpdateRequestSchema", () => {
     });
 });
 
-describe("donorProfilePatchSchema", () => {
+describe("donorProfilePatchSchema — spec §5: pan_number seam for 80G", () => {
     it("accepts full_name only", () => {
         const result = donorProfilePatchSchema.parse({ full_name: "New Name" });
         expect(result.full_name).toBe("New Name");
     });
 
-    it("accepts pan_number only", () => {
+    it("accepts pan_number — spec §5: donors.pan_number is the 80G seam", () => {
         const result = donorProfilePatchSchema.parse({ pan_number: "ABCDE1234F" });
         expect(result.pan_number).toBe("ABCDE1234F");
     });
@@ -600,7 +753,7 @@ describe("donorProfilePatchSchema", () => {
     });
 });
 
-describe("volunteerCreateRequestSchema", () => {
+describe("volunteerCreateRequestSchema — spec §3.3 volunteer management", () => {
     it("accepts valid volunteer", () => {
         const result = volunteerCreateRequestSchema.parse({
             email: "vol@test.com",
@@ -635,7 +788,7 @@ describe("volunteerCreateRequestSchema", () => {
     });
 });
 
-describe("volunteerActionRequestSchema", () => {
+describe("volunteerActionRequestSchema — spec §3.3: admin approval required", () => {
     const validActions = ["approve", "reject", "suspend", "deactivate", "activate"];
 
     for (const action of validActions) {
@@ -648,7 +801,7 @@ describe("volunteerActionRequestSchema", () => {
     }
 });
 
-describe("reportGenerateRequestSchema", () => {
+describe("reportGenerateRequestSchema — spec §3.3 admin reports", () => {
     it("accepts valid request", () => {
         const result = reportGenerateRequestSchema.parse({ report_type: "csr" });
         expect(result.report_type).toBe("csr");
@@ -678,8 +831,8 @@ describe("reportGenerateRequestSchema", () => {
     });
 });
 
-describe("institutionAllocateRequestSchema", () => {
-    it("accepts valid allocation", () => {
+describe("institutionAllocateRequestSchema — spec §3.1 F-12", () => {
+    it("accepts valid allocation (spec F-12: bulk token allocation)", () => {
         const result = institutionAllocateRequestSchema.parse({
             ngo_partner_id: "550e8400-e29b-41d4-a716-446655440000",
             count: 50,
@@ -702,10 +855,19 @@ describe("institutionAllocateRequestSchema", () => {
     });
 });
 
-describe("corporateCsrProfileRequestSchema", () => {
-    it("accepts minimal request", () => {
+describe("corporateCsrProfileRequestSchema — spec §3.3 CSR module [M1-7]", () => {
+    it("accepts minimal request (spec: CSR/corporate donor registration)", () => {
         const result = corporateCsrProfileRequestSchema.parse({ company_name: "JKKN Corp" });
         expect(result.company_name).toBe("JKKN Corp");
+    });
+
+    it("accepts with CIN and GST fields (spec: donor_type=corporate, CIN/GST)", () => {
+        const result = corporateCsrProfileRequestSchema.parse({
+            company_name: "JKKN Corp",
+            cin: "U12345TN2020PLC123456",
+            registration_number: "REG-001",
+        });
+        expect(result.cin).toBe("U12345TN2020PLC123456");
     });
 
     it("rejects empty company_name", () => {
@@ -713,12 +875,33 @@ describe("corporateCsrProfileRequestSchema", () => {
     });
 });
 
-describe("emergencyGrantRequestSchema", () => {
+describe("csrReportGenerateRequestSchema — spec §3.3: CSR reports", () => {
+    it("accepts empty object (generate for all corporate donors)", () => {
+        expect(() => csrReportGenerateRequestSchema.parse({})).not.toThrow();
+    });
+
+    it("accepts with donor_id and date range", () => {
+        expect(() => csrReportGenerateRequestSchema.parse({
+            donor_id: "550e8400-e29b-41d4-a716-446655440000",
+            period_start: "2026-01-01",
+            period_end: "2026-06-30",
+        })).not.toThrow();
+    });
+
+    it("rejects start after end", () => {
+        expect(() => csrReportGenerateRequestSchema.parse({
+            period_start: "2026-07-01",
+            period_end: "2026-01-01",
+        })).toThrow();
+    });
+});
+
+describe("emergencyGrantRequestSchema — spec §3.3 disaster/emergency", () => {
     it("accepts empty object", () => {
         expect(() => emergencyGrantRequestSchema.parse({})).not.toThrow();
     });
 
-    it("accepts with reason", () => {
+    it("accepts with reason (spec: fully audited)", () => {
         const result = emergencyGrantRequestSchema.parse({ reason: "Flood relief" });
         expect(result.reason).toBe("Flood relief");
     });
