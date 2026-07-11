@@ -446,6 +446,21 @@ Create reversible migrations with DOWN scripts before applying.
 
 ---
 
+## Known Gaps (found during testing — 2026-07-11)
+
+### Face capture optional at registration but mandatory at redemption
+
+**Problem:** All 3 registration routes (`/api/beneficiary/register`, `/api/admin/beneficiary-registrations`, `/api/volunteer/beneficiary-registrations`) mark `face_capture` as `.optional()`. But the redemption route (`/api/vendor/redemptions`) requires it and uses `match_beneficiary_face` RPC to verify identity 1:1 against the enrolled vector. If a beneficiary registers without a face, redemption still succeeds but treats them as **anonymous** — no identity verification, only cooldown/meal-limit via face signal.
+
+**Fix options (awaiting client decision):**
+1. Make face capture mandatory at registration — remove `.optional()` from all 3 routes
+2. Block redemption if the beneficiary has no enrolled `face_embedding`
+3. Allow late enrolment — capture + store on first redemption, verify on subsequent ones
+
+**Files affected:** `app/api/beneficiary/register/route.ts`, `app/api/admin/beneficiary-registrations/route.ts`, `app/api/volunteer/beneficiary-registrations/route.ts`, `lib/services/redemption.ts`
+
+---
+
 ## Open Questions for Client (spec §11.2)
 
 | # | Question | Affects Feature | Suggested Default |
@@ -459,6 +474,7 @@ Create reversible migrations with DOWN scripts before applying.
 | 7 | Disaster-affected definition/proof requirements? | Beneficiary registration | Relaxed docs (ASSUMPTIONS.md) |
 | 8 | Email provider for notifications/alerts? | #19 Document management, notifications | Client-procured |
 | 9 | Payment provider for donations? | Payment routes | Placeholder (ASSUMPTIONS.md) |
+| 10 | Face capture at registration — mandatory or optional? | Face verification at redemption | See "Known Gaps" section above |
 
 ---
 
