@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import {
     bulkAllocateToInstitution,
+    institutionAllocationReport,
     institutionRedemptionReport,
 } from "@/lib/services/institution";
 import {
@@ -27,10 +28,20 @@ const reportQuerySchema = z.object({
     end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
+const allocationReportQuerySchema = z.object({
+    report: z.literal("allocation"),
+    ngo_partner_id: z.string().uuid(),
+});
+
 /**
  * GET /api/admin/institutions
  *   - default: list bulk-allocation ledger rows (newest first), institution name joined.
- *   - ?report=redemption&ngo_partner_id=…[&start=&end=]: per-institution meals-served report.
+ *   - ?report=redemption&ngo_partner_id=…[&start=&end=]: per-institution meals-served report
+ *     (beneficiaries.institution_id-keyed).
+ *   - ?report=allocation&ngo_partner_id=…: per-institution bulk-allocation trace
+ *     (token_distribution_records.ngo_partner_id-keyed — spec §3.1 F-12,
+ *     addon #15; independent of the redemption report above, see
+ *     lib/services/institution.ts::institutionAllocationReport).
  */
 export const GET = defineRoute({ feature: "institution_bulk_allocation", action: "read" }, async ({ req, user }) => {
     const url = new URL(req.url);
@@ -44,6 +55,13 @@ export const GET = defineRoute({ feature: "institution_bulk_allocation", action:
             { start: q.start ?? null, end: q.end ?? null },
             user
         );
+        return { report };
+    }
+
+    if (url.searchParams.get("report") === "allocation") {
+        const q = parseQuery(url.searchParams, allocationReportQuerySchema);
+        const admin = createAdminClient();
+        const report = await institutionAllocationReport(admin, q.ngo_partner_id);
         return { report };
     }
 

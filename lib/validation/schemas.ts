@@ -28,6 +28,8 @@ import {
     fraudStatusSchema,
     kycStatusSchema,
     mealTypeSchema,
+    paymentFailureReasonSchema,
+    refundStatusSchema,
     registrationStatusSchema,
     reportTypeSchema,
     settlementCycleSchema,
@@ -171,6 +173,20 @@ export const tokenMintRequestSchema = z.object({
     special_instructions: z.string().trim().max(500).optional(),
 });
 export type TokenMintRequest = z.infer<typeof tokenMintRequestSchema>;
+
+/**
+ * POST /api/{admin,donor}/tokens/[id]/report-loss — spec §3.2 [M2-5]: lost
+ * token blocked instantly, replacement issued referencing
+ * `replacement_for_token_id`.
+ */
+export const tokenReportLossRequestSchema = z.object({
+    reason: z.string().trim().max(500).optional(),
+});
+export type TokenReportLossRequest = z.infer<typeof tokenReportLossRequestSchema>;
+
+/** POST /api/admin/tokens/[id]/revalidate — spec §3.2/§7 [M2-5]. No body. */
+export const tokenRevalidateRequestSchema = z.object({}).strict();
+export type TokenRevalidateRequest = z.infer<typeof tokenRevalidateRequestSchema>;
 
 /**
  * PATCH /api/donor/profile — the signed-in donor edits their own profile
@@ -353,6 +369,7 @@ export type SettlementResponse = z.infer<typeof settlementResponseSchema>;
 export const settlementActionSchema = z.enum([
     "lock",
     "unlock",
+    "approve",
     "reconcile",
     "pay",
     "hold",
@@ -523,6 +540,73 @@ export const emergencyGrantRequestSchema = z
     })
     .strict();
 export type EmergencyGrantRequest = z.infer<typeof emergencyGrantRequestSchema>;
+
+/**
+ * POST /api/admin/emergency/overrides — activate a time-boxed config override
+ * during emergency mode (spec §3.3 [M1-8, M2-9], addon #9).
+ */
+export const emergencyOverrideActivateRequestSchema = z
+    .object({
+        config_key: z.string().trim().min(1),
+        override_value: z.string().trim().min(1),
+        reason: z.string().trim().max(500).optional(),
+    })
+    .strict();
+export type EmergencyOverrideActivateRequest = z.infer<typeof emergencyOverrideActivateRequestSchema>;
+
+/**
+ * POST /api/admin/payment-failures — admin-logged failed/duplicate payment
+ * (spec §3.1 F-10 [M2-4], addon #14). Phase 1 has no live gateway webhook, so
+ * this is a manual reconciliation entry point, not an auto-detected one.
+ */
+export const paymentFailureCreateRequestSchema = z
+    .object({
+        donation_id: z.string().uuid().optional(),
+        donor_id: z.string().uuid(),
+        amount_inr: inrAmountSchema.positive(),
+        reason: paymentFailureReasonSchema,
+        max_retries: z.number().int().min(0).optional(),
+        notes: z.string().trim().max(1000).optional(),
+    })
+    .strict();
+export type PaymentFailureCreateRequest = z.infer<typeof paymentFailureCreateRequestSchema>;
+
+/** POST /api/donor/refund-request — donor self-initiates against an open payment_failures row. */
+export const refundRequestSchema = z
+    .object({
+        payment_failure_id: z.string().uuid(),
+        amount_inr: inrAmountSchema.positive(),
+        reason: z.string().trim().min(1).max(1000),
+    })
+    .strict();
+export type RefundRequest = z.infer<typeof refundRequestSchema>;
+
+/** PATCH /api/admin/refunds/[id] — admin approve/reject decision. */
+export const refundDecisionRequestSchema = z
+    .object({
+        decision: z.enum(["approve", "reject"]),
+        note: z.string().trim().max(500).optional(),
+    })
+    .strict()
+    .refine((b) => b.decision !== "reject" || (b.note && b.note.length > 0), {
+        message: "a note is required to reject a refund",
+        path: ["note"],
+    });
+export type RefundDecisionRequest = z.infer<typeof refundDecisionRequestSchema>;
+
+/** POST /api/admin/campaigns — minimal emergency campaign creation (addon #9). */
+export const campaignCreateRequestSchema = z
+    .object({
+        title: z.string().trim().min(1).max(200),
+        description: z.string().trim().max(2000).optional(),
+        organization_name: z.string().trim().min(1).max(200),
+        category: z.string().trim().min(1).max(50),
+        location: z.string().trim().max(200).optional(),
+        target_tokens: z.number().int().min(0).optional(),
+        token_price_inr: z.number().int().positive(),
+    })
+    .strict();
+export type CampaignCreateRequest = z.infer<typeof campaignCreateRequestSchema>;
 
 // ===========================================================================
 // Admin-only response schemas — net-new Dev-2 tables (M07–M13). Field names &

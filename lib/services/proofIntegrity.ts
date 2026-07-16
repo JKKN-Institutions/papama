@@ -102,6 +102,31 @@ export interface DuplicateProofMatch {
     distance: number;
 }
 
+export interface RecordMediaFingerprintInput {
+    redemptionId: string;
+    vendorId: string;
+    type: "photo" | "bill";
+    hash: string;
+}
+
+/**
+ * Append a durable fingerprint row for a proof media upload (addon #12). Photo
+ * rows are populated/checked now; 'bill' is a forward-compat type for #13
+ * (bill-fingerprint detection), held — not called with type:'bill' yet.
+ */
+export async function recordMediaFingerprint(
+    admin: SupabaseClient,
+    input: RecordMediaFingerprintInput
+): Promise<void> {
+    const { error } = await admin.from("media_fingerprints").insert({
+        redemption_id: input.redemptionId,
+        vendor_id: input.vendorId,
+        type: input.type,
+        hash: input.hash,
+    });
+    if (error) throw new Error(error.message);
+}
+
 /**
  * Find an existing redemption whose stored proof phash is within
  * `proof_phash_dup_distance` Hamming distance of `phash`. Soft-skips (returns

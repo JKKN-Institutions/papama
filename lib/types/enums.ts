@@ -296,3 +296,22 @@ export const CONSENT_TYPES = [
     "data_processing",
 ] as const;
 export type ConsentType = ValueOf<typeof CONSENT_TYPES>;
+
+// --- payment failures & refunds (Phase-1 batch 2026-07-16) -----------------
+
+/** Why a payment was logged as failed (spec §3.1 F-10 [M2-4], addon #14). */
+export const PAYMENT_FAILURE_REASONS = [
+    "gateway_failed",
+    "duplicate_charge",
+    "chargeback",
+    "other",
+] as const;
+export type PaymentFailureReason = ValueOf<typeof PAYMENT_FAILURE_REASONS>;
+
+/**
+ * Refund request lifecycle (addon #14/#20). `completed` = credit reversed via
+ * refundCredit(); refunds never leave donations withdrawable — see
+ * lib/services/creditRefund.ts.
+ */
+export const REFUND_STATUSES = ["pending", "approved", "rejected", "completed"] as const;
+export type RefundStatus = ValueOf<typeof REFUND_STATUSES>;

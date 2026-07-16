@@ -234,3 +234,66 @@ export async function autoSuspendBelowThreshold(
 
     return { suspended: true, reason };
 }
+
+export interface InspectionOutcomeResult {
+    penalized: boolean;
+    new_quality_score: number | null;
+}
+
+/**
+ * Apply a surprise-inspection outcome to a vendor's quality score (addon #16,
+ * spec §3.3 [M1-9, M2-11]). Only a FAILED inspection (`passed === false`)
+ * penalizes — a pass or a not-yet-scored inspection (`null`) is a no-op.
+ * Gated by `vendor_inspection_fail_penalty` (soft-skip when unset — same
+ * discipline as the other quality thresholds). Never auto-suspends: the spec
+ * treats a failed inspection as "manual suspension review," so the admin must
+ * separately call the existing vendor-suspend action after reviewing.
+ */
+export async function applyInspectionOutcome(
+    admin: SupabaseClient,
+    vendorId: string,
+    passed: boolean | null
+): Promise<InspectionOutcomeResult> {
+    if (passed !== false) return { penalized: false, new_quality_score: null };
+
+    let penalty: number | null = null;
+    try {
+        penalty = await getNumber("vendor_inspection_fail_penalty", admin as never);
+    } catch {
+        penalty = null;
+    }
+    if (penalty == null) return { penalized: false, new_quality_score: null };
+
+    const { data, error } = await admin
+        .from("vendors")
+        .select("quality_score, name")
+        .eq("id", vendorId)
+        .maybeSingle();
+    if (error) throw new Error(error.message);
+    const vendor = data as { quality_score: number | null; name: string } | null;
+    if (!vendor || vendor.quality_score == null) {
+        return { penalized: false, new_quality_score: null };
+    }
+
+    const nextScore = Math.max(0, Math.round((vendor.quality_score - penalty) * 100) / 100);
+
+    const { error: updateError } = await admin
+        .from("vendors")
+        .update({ quality_score: nextScore, updated_at: new Date().toISOString() })
+        .eq("id", vendorId);
+    if (updateError) throw new Error(updateError.message);
+
+    await writeAuditLog(
+        {
+            actor: null, // system-derived from an admin-recorded inspection, not a direct admin action
+            action: "vendor.inspection.quality_penalty",
+            entity_table: "vendors",
+            entity_id: vendorId,
+            summary: `${vendor.name} quality_score reduced by ${penalty} after a failed surprise inspection`,
+            metadata: { penalty, previous_quality_score: vendor.quality_score, new_quality_score: nextScore },
+        },
+        admin
+    );
+
+    return { penalized: true, new_quality_score: nextScore };
+}

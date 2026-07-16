@@ -44,7 +44,15 @@ export type SystemConfigKey =
     | "volunteer_zones_enabled"
     | "transparency_dashboard_enabled"
     // --- addon2 tunables ---
-    | "audit_log_retention_days";
+    | "audit_log_retention_days"
+    // --- Phase-1 batch 2026-07-16 tunables ---
+    | "token_revalidation_allowed"
+    | "vendor_inspection_fail_penalty"
+    | "meal_cooldown_hours_pregnant_women"
+    | "meal_cooldown_hours_patient"
+    | "meal_cooldown_hours_disability"
+    | "meal_cooldown_hours_disaster_affected"
+    | "emergency_mode_max_duration_days";
 
 type ValueType = "number" | "boolean" | "string";
 

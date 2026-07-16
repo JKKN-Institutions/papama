@@ -305,7 +305,7 @@ describe("flagFraud — spec-derived flag types", () => {
         const input: FraudFlagInput = {
             flag_type: "duplicate_media",
             severity: "high",
-            detection_method: "phash_duplicate",
+            detection_method: "pattern_analysis",
             entity: { kind: "redemption", id: "r1" },
         };
 
@@ -342,7 +342,7 @@ describe("flagFraud — spec-derived flag types", () => {
         const input: FraudFlagInput = {
             flag_type: "beneficiary_duplicate",
             severity: "medium",
-            detection_method: "face_hash_match",
+            detection_method: "face_hash_repeat",
             entity: { kind: "beneficiary", id: "b1" },
         };
 

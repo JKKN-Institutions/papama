@@ -14,7 +14,11 @@ vi.mock("@/lib/services/audit", () => ({
     AuditError: class AuditError extends Error { name = "AuditError"; },
 }));
 
-import { issueEmergencyToken } from "@/lib/services/emergency";
+import {
+    issueEmergencyToken,
+    activateEmergencyOverride,
+    revertEmergencyOverride,
+} from "@/lib/services/emergency";
 import { getNumber, MissingConfigError } from "@/lib/system-config";
 import { writeAuditLog } from "@/lib/services/audit";
 import { makeUser } from "@test/helpers";
@@ -159,5 +163,197 @@ describe("issueEmergencyToken — spec-derived", () => {
         expect(writeAuditLog).toHaveBeenCalledWith(expect.objectContaining({
             action: "emergency.token.grant",
         }));
+    });
+});
+
+// ---------------------------------------------------------------------------
+// activateEmergencyOverride / revertEmergencyOverride — addon #9
+// ---------------------------------------------------------------------------
+
+function buildOverrideAdmin(opts: {
+    cfgRow?: { value: string | null } | null;
+    insertResult?: { id: string };
+    insertError?: string;
+}) {
+    const from = vi.fn().mockImplementation((table: string) => {
+        if (table === "system_config") {
+            return {
+                select: vi.fn().mockReturnValue({
+                    eq: vi.fn().mockReturnValue({
+                        maybeSingle: vi.fn().mockResolvedValue({
+                            data: opts.cfgRow === undefined ? { value: "6" } : opts.cfgRow,
+                            error: null,
+                        }),
+                    }),
+                }),
+                update: vi.fn().mockReturnValue({
+                    eq: vi.fn().mockResolvedValue({ error: null }),
+                }),
+            };
+        }
+        if (table === "emergency_overrides") {
+            return {
+                insert: vi.fn().mockReturnValue({
+                    select: vi.fn().mockReturnValue({
+                        single: vi.fn().mockResolvedValue(
+                            opts.insertError
+                                ? { data: null, error: { message: opts.insertError } }
+                                : { data: opts.insertResult ?? { id: "ov-1" }, error: null }
+                        ),
+                    }),
+                }),
+            };
+        }
+        return {};
+    });
+    return { from } as unknown as SupabaseClient;
+}
+
+describe("activateEmergencyOverride", () => {
+    const actor = makeUser("admin", { id: "admin-1" });
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
+    it("computes expires_at from emergency_mode_max_duration_days when set", async () => {
+        getNumberMock.mockResolvedValue(30);
+        const admin = buildOverrideAdmin({});
+        const result = await activateEmergencyOverride(
+            { configKey: "emergency_max_meals_per_day", overrideValue: "5" },
+            actor,
+            admin
+        );
+        expect(result.id).toBe("ov-1");
+        expect(result.expires_at).not.toBeNull();
+    });
+
+    it("leaves expires_at null when the duration config is unset (no auto-revert)", async () => {
+        getNumberMock.mockRejectedValue(new MissingConfigError("emergency_mode_max_duration_days", "missing"));
+        const admin = buildOverrideAdmin({});
+        const result = await activateEmergencyOverride(
+            { configKey: "emergency_max_meals_per_day", overrideValue: "5" },
+            actor,
+            admin
+        );
+        expect(result.expires_at).toBeNull();
+    });
+
+    it("writes an audit log capturing the previous value", async () => {
+        getNumberMock.mockResolvedValue(30);
+        const admin = buildOverrideAdmin({ cfgRow: { value: "3" } });
+        await activateEmergencyOverride(
+            { configKey: "emergency_max_meals_per_day", overrideValue: "5", reason: "flood" },
+            actor,
+            admin
+        );
+        expect(writeAuditLog).toHaveBeenCalledWith(
+            expect.objectContaining({
+                action: "emergency.override.activate",
+                metadata: expect.objectContaining({ from: "3", to: "5" }),
+            }),
+            admin
+        );
+    });
+
+    it("throws when recording the override fails", async () => {
+        getNumberMock.mockResolvedValue(30);
+        const admin = buildOverrideAdmin({ insertError: "insert failed" });
+        await expect(
+            activateEmergencyOverride({ configKey: "x", overrideValue: "5" }, actor, admin)
+        ).rejects.toThrow("insert failed");
+    });
+});
+
+function buildRevertAdmin(opts: {
+    overrideRow?: Record<string, unknown> | null;
+    revertUpdatedRows?: Array<{ id: string }>;
+}) {
+    const from = vi.fn().mockImplementation((table: string) => {
+        if (table === "emergency_overrides") {
+            return {
+                select: vi.fn().mockReturnValue({
+                    eq: vi.fn().mockReturnValue({
+                        maybeSingle: vi.fn().mockResolvedValue({
+                            data: opts.overrideRow === undefined
+                                ? {
+                                      id: "ov-1",
+                                      config_key: "emergency_max_meals_per_day",
+                                      override_value: "5",
+                                      previous_value: "3",
+                                      is_active: true,
+                                  }
+                                : opts.overrideRow,
+                            error: null,
+                        }),
+                    }),
+                }),
+                update: vi.fn().mockReturnValue({
+                    eq: vi.fn().mockReturnValue({
+                        eq: vi.fn().mockReturnValue({
+                            select: vi.fn().mockResolvedValue({
+                                data: opts.revertUpdatedRows ?? [{ id: "ov-1" }],
+                                error: null,
+                            }),
+                        }),
+                    }),
+                }),
+            };
+        }
+        if (table === "system_config") {
+            return {
+                update: vi.fn().mockReturnValue({
+                    eq: vi.fn().mockReturnValue({
+                        eq: vi.fn().mockResolvedValue({ error: null }),
+                    }),
+                }),
+            };
+        }
+        return {};
+    });
+    return { from } as unknown as SupabaseClient;
+}
+
+describe("revertEmergencyOverride", () => {
+    const actor = makeUser("admin", { id: "admin-1" });
+
+    beforeEach(() => vi.clearAllMocks());
+
+    it("reverts an active override and restores the previous value", async () => {
+        const admin = buildRevertAdmin({});
+        const result = await revertEmergencyOverride("ov-1", actor, admin);
+        expect(result).toEqual({ id: "ov-1", reverted: true });
+    });
+
+    it("is a no-op when the override is already inactive", async () => {
+        const admin = buildRevertAdmin({
+            overrideRow: {
+                id: "ov-1", config_key: "x", override_value: "5", previous_value: "3", is_active: false,
+            },
+        });
+        const result = await revertEmergencyOverride("ov-1", actor, admin);
+        expect(result).toEqual({ id: "ov-1", reverted: false });
+    });
+
+    it("throws when the override is not found", async () => {
+        const admin = buildRevertAdmin({ overrideRow: null });
+        await expect(revertEmergencyOverride("missing", actor, admin)).rejects.toThrow(
+            "emergency override not found"
+        );
+    });
+
+    it("returns reverted:false when the CAS update loses the race", async () => {
+        const admin = buildRevertAdmin({ revertUpdatedRows: [] });
+        const result = await revertEmergencyOverride("ov-1", actor, admin);
+        expect(result).toEqual({ id: "ov-1", reverted: false });
+    });
+
+    it("writes an audit log on a successful revert", async () => {
+        const admin = buildRevertAdmin({});
+        await revertEmergencyOverride("ov-1", actor, admin);
+        expect(writeAuditLog).toHaveBeenCalledWith(
+            expect.objectContaining({ action: "emergency.override.revert" }),
+            admin
+        );
     });
 });

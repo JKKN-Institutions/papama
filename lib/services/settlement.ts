@@ -98,9 +98,18 @@ async function sampleSettlementsForAudit(
     return toQueue.length;
 }
 
-/** Platform-owed amount for one redemption (menu value minus beneficiary's over-pay). */
+/**
+ * Platform-owed amount for one redemption (menu value minus beneficiary's
+ * over-pay). Exported as `payoutAmount` so other callers (e.g. the proof-approve
+ * route posting the vendor_payable ledger credit, addon #18) reuse this exact
+ * formula instead of duplicating it.
+ */
+export function payoutAmount(menuValueInr: number, differencePaidInr: number): number {
+    return Math.max(0, menuValueInr - differencePaidInr);
+}
+
 function payout(r: ReleasedRedemption): number {
-    return Math.max(0, r.menu_value_inr - r.difference_paid_inr);
+    return payoutAmount(r.menu_value_inr, r.difference_paid_inr);
 }
 
 /**

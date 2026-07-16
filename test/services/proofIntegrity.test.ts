@@ -6,7 +6,12 @@ vi.mock("@/lib/system-config", async (importActual) => {
     return { ...actual, getConfig: vi.fn() };
 });
 
-import { computePhash, hammingDistanceHex, findDuplicateProof } from "@/lib/services/proofIntegrity";
+import {
+    computePhash,
+    hammingDistanceHex,
+    findDuplicateProof,
+    recordMediaFingerprint,
+} from "@/lib/services/proofIntegrity";
 import { getConfig } from "@/lib/system-config";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -199,5 +204,49 @@ describe("proofIntegrity — spec §3.1 F-3 dual detection requirement", () => {
         const dist = hammingDistanceHex("abcdef0123456789", "abcdef012345678a");
         expect(dist).toBeLessThanOrEqual(4); // at most 4 bits difference per hex digit
         expect(dist).toBeGreaterThanOrEqual(0);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// recordMediaFingerprint — addon #12 (durable evidence trail)
+// ---------------------------------------------------------------------------
+
+describe("recordMediaFingerprint", () => {
+    function buildAdmin(opts: { error?: string }) {
+        const insert = vi.fn().mockResolvedValue(
+            opts.error ? { error: { message: opts.error } } : { error: null }
+        );
+        const from = vi.fn().mockReturnValue({ insert });
+        return { client: { from } as unknown as SupabaseClient, insert, from };
+    }
+
+    it("inserts a photo fingerprint row", async () => {
+        const { client, from, insert } = buildAdmin({});
+        await recordMediaFingerprint(client, {
+            redemptionId: "r1",
+            vendorId: "v1",
+            type: "photo",
+            hash: "abcdef0123456789",
+        });
+
+        expect(from).toHaveBeenCalledWith("media_fingerprints");
+        expect(insert).toHaveBeenCalledWith({
+            redemption_id: "r1",
+            vendor_id: "v1",
+            type: "photo",
+            hash: "abcdef0123456789",
+        });
+    });
+
+    it("throws when the insert fails", async () => {
+        const { client } = buildAdmin({ error: "insert failed" });
+        await expect(
+            recordMediaFingerprint(client, {
+                redemptionId: "r1",
+                vendorId: "v1",
+                type: "photo",
+                hash: "abcdef0123456789",
+            })
+        ).rejects.toThrow("insert failed");
     });
 });

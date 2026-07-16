@@ -128,3 +128,102 @@ export async function institutionRedemptionReport(
         beneficiaries: beneficiarySet.size,
     };
 }
+
+export interface InstitutionAllocationReport {
+    ngo_partner_id: string;
+    /** sum(institution_token_allocations.token_count) where status = 'allocated'. */
+    tokens_allocated: number;
+    /** Of the tokens traced via token_distribution_records.ngo_partner_id: */
+    tokens_redeemed: number;
+    tokens_pending: number;
+    tokens_expired: number;
+    tokens_blocked: number;
+    /** Meals served broken down by beneficiary category (addon #15). */
+    meals_by_category: Record<string, number>;
+}
+
+const REDEEMED = "redeemed";
+const EXPIRED = "expired";
+const BLOCKED = "blocked";
+
+/**
+ * Per-institution bulk-allocation report (spec §3.1 F-12 [M1-11], addon #15).
+ *
+ * `tokens_allocated` reads the institution_token_allocations summary ledger
+ * (header counts). `tokens_redeemed`/`pending`/`expired`/`blocked` are traced
+ * precisely via `token_distribution_records.ngo_partner_id` (added addon #15)
+ * joined to the current `tokens.status` — this is INDEPENDENT of
+ * `meals_by_category`, which comes from `beneficiaries.institution_id` (a
+ * beneficiary registered under this institution can be fed by a token NOT
+ * drawn from this institution's bulk batch, so the two figures can
+ * legitimately diverge; do not conflate them).
+ */
+export async function institutionAllocationReport(
+    admin: Admin,
+    ngoPartnerId: string
+): Promise<InstitutionAllocationReport> {
+    const { data: allocRows, error: allocError } = await admin
+        .from("institution_token_allocations")
+        .select("token_count")
+        .eq("ngo_partner_id", ngoPartnerId)
+        .eq("status", "allocated");
+    if (allocError) throw new Error(allocError.message);
+    const tokensAllocated = ((allocRows ?? []) as { token_count: number }[]).reduce(
+        (sum, r) => sum + (Number(r.token_count) || 0),
+        0
+    );
+
+    const { data: tdrRows, error: tdrError } = await admin
+        .from("token_distribution_records")
+        .select("token_id")
+        .eq("ngo_partner_id", ngoPartnerId);
+    if (tdrError) throw new Error(tdrError.message);
+    const tokenIds = [
+        ...new Set(((tdrRows ?? []) as { token_id: string }[]).map((r) => r.token_id)),
+    ];
+
+    let tokensRedeemed = 0;
+    let tokensPending = 0;
+    let tokensExpired = 0;
+    let tokensBlocked = 0;
+
+    if (tokenIds.length > 0) {
+        const { data: tokenRows, error: tokenError } = await admin
+            .from("tokens")
+            .select("status")
+            .in("id", tokenIds);
+        if (tokenError) throw new Error(tokenError.message);
+        for (const t of (tokenRows ?? []) as { status: string }[]) {
+            if (t.status === REDEEMED) tokensRedeemed++;
+            else if (t.status === EXPIRED) tokensExpired++;
+            else if (t.status === BLOCKED) tokensBlocked++;
+            else tokensPending++;
+        }
+    }
+
+    // Meals served broken down by category — same join pattern as
+    // institutionRedemptionReport, grouped by beneficiaries.category instead
+    // of just counted.
+    const { data: mealRows, error: mealError } = await admin
+        .from("token_redemptions")
+        .select("beneficiaries!inner(institution_id, category)")
+        .eq("beneficiaries.institution_id", ngoPartnerId)
+        .returns<{ beneficiaries: { category: string | null } }[]>();
+    if (mealError) throw new Error(mealError.message);
+
+    const mealsByCategory: Record<string, number> = {};
+    for (const r of mealRows ?? []) {
+        const category = r.beneficiaries?.category ?? "unknown";
+        mealsByCategory[category] = (mealsByCategory[category] ?? 0) + 1;
+    }
+
+    return {
+        ngo_partner_id: ngoPartnerId,
+        tokens_allocated: tokensAllocated,
+        tokens_redeemed: tokensRedeemed,
+        tokens_pending: tokensPending,
+        tokens_expired: tokensExpired,
+        tokens_blocked: tokensBlocked,
+        meals_by_category: mealsByCategory,
+    };
+}

@@ -10,6 +10,7 @@ import { embeddingFingerprint, toVectorLiteral } from "@/lib/face/embedding";
 import { faceCaptureSchema } from "@/lib/validation/schemas";
 import { dispatchNotification } from "@/lib/notifications/dispatch";
 import { incrementUsage } from "@/lib/services/vendorCapacity";
+import { postLedgerEntry } from "@/lib/services/ledger";
 
 /**
  * POST /api/vendor/redemptions — commit a redemption (RED-1..7, PROOF-4).
@@ -179,6 +180,22 @@ export const POST = defineRoute(
             if (forfeitError) {
                 console.error("redemption.create: forfeited-balance insert failed", forfeitError);
                 secondaryWriteWarnings.push({ step: "forfeited_balances", error: forfeitError.message });
+            } else {
+                // Triple-ledger financial trail (addon #18): a forfeited remainder
+                // is platform revenue. Best-effort, same non-blocking discipline
+                // as the rest of this step.
+                try {
+                    await postLedgerEntry({
+                        admin,
+                        ledger: "revenue",
+                        amountInr: value.forfeited,
+                        referenceType: "redemption",
+                        referenceId: redemption.id,
+                        description: `forfeited balance on redemption ${redemption.id}`,
+                    });
+                } catch (e) {
+                    console.error("redemption.create: revenue ledger posting failed", e);
+                }
             }
         }
 

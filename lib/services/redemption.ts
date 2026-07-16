@@ -129,6 +129,51 @@ const ZERO_VALUE: RedemptionValue = {
     forfeited: 0,
 };
 
+interface ResolvedCooldown {
+    hours: number;
+    source: "emergency" | "category" | "global" | "none";
+    /** True when the check must never HARD-block (emergency relief, unset override). */
+    relaxed: boolean;
+}
+
+/**
+ * Multi-level cooldown resolution (spec §3.1 F-9, §7.1 rule 5, addon #21).
+ * Resolution order: emergency (when ON) > category > global — most-specific
+ * applicable value wins. Each level soft-skips independently when unset;
+ * falling through from an unset emergency override to category/global marks
+ * the result `relaxed` (never hard-blocks), matching the single-level
+ * emergency-relief discipline this replaces.
+ */
+async function resolveCooldownHours(
+    admin: SupabaseClient,
+    category: string | null,
+    emergencyMode: boolean
+): Promise<ResolvedCooldown> {
+    if (emergencyMode) {
+        try {
+            const hours = await getNumber("emergency_meal_cooldown_hours", admin as never);
+            return { hours, source: "emergency", relaxed: false };
+        } catch {
+            /* emergency cooldown unset — fall through to category/global for the
+               VALUE, but the result stays relaxed since emergency mode is on. */
+        }
+    }
+    if (category) {
+        try {
+            const hours = await getNumber(`meal_cooldown_hours_${category}`, admin as never);
+            return { hours, source: "category", relaxed: emergencyMode };
+        } catch {
+            /* no category override — fall through to global */
+        }
+    }
+    try {
+        const hours = await getNumber("meal_cooldown_hours", admin as never);
+        return { hours, source: "global", relaxed: emergencyMode };
+    } catch {
+        return { hours: 0, source: "none", relaxed: emergencyMode };
+    }
+}
+
 /**
  * Run all redemption checks + compute value. Reads only; never writes. Designed
  * so the preview route can call it dry and the create route can re-call it
@@ -716,14 +761,8 @@ export async function validateRedemption(
         // Either signal tripping blocks. The previous version ran ONLY (a) inside
         // `if (threshold != null)`, so a non-matching face escaped both checks.
         {
-            let cooldownHours = 0;
             let maxPerDay = 0;
             let dedupHours = 0;
-            try {
-                cooldownHours = await getNumber("meal_cooldown_hours", admin as never);
-            } catch {
-                /* unset — skip below */
-            }
             try {
                 maxPerDay = await getNumber("max_meals_per_day", admin as never);
             } catch {
@@ -747,14 +786,21 @@ export async function validateRedemption(
             } catch {
                 emergencyMode = false; // unset → not in emergency
             }
-            let cooldownRelax = false;
+
+            // --- multi-level cooldown resolution (spec §3.1 F-9, §7.1 rule 5) --
+            // Resolution order: emergency > category > global, each independently
+            // editable and soft-skip-on-unset. Falling through from an unset
+            // emergency override to category/global relaxes the check to SOFT
+            // (relief applied without inventing a number) — same discipline the
+            // single-level version used.
+            const {
+                hours: cooldownHours,
+                relaxed: cooldownRelax,
+                source: cooldownSource,
+            } = await resolveCooldownHours(admin, beneficiary?.category ?? null, emergencyMode);
+
             let mealLimitRelax = false;
             if (emergencyMode) {
-                try {
-                    cooldownHours = await getNumber("emergency_meal_cooldown_hours", admin as never);
-                } catch {
-                    cooldownRelax = true; // no emergency cooldown set → relax to soft
-                }
                 try {
                     maxPerDay = await getNumber("emergency_max_meals_per_day", admin as never);
                 } catch {
@@ -846,7 +892,9 @@ export async function validateRedemption(
                         detail:
                             (within
                                 ? `last meal ${(sinceMs / 3_600_000).toFixed(1)}h ago (< ${cooldownHours}h)`
-                                : `last meal ≥ ${cooldownHours}h ago`) + emTag,
+                                : `last meal ≥ ${cooldownHours}h ago`) +
+                            emTag +
+                            ` [source: ${cooldownSource}]`,
                     });
                 } else {
                     checks.push({

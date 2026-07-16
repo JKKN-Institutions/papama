@@ -11,6 +11,15 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getNumber } from "@/lib/system-config";
 
 /**
+ * activateEmergencyOverride (addon #9) — a time-boxed system_config override
+ * activated during emergency mode (e.g. temporarily raising the meal limit).
+ * The toggle for `emergency_mode_enabled` itself is NOT here — that's the
+ * existing generic PATCH /api/admin/system-config route (already admin-only
+ * and audited, satisfying spec §11.2 #5's single-admin-authority default; no
+ * new authorization surface was added for it).
+ */
+
+/**
  * Emergency / disaster-relief service (addon #8).
  *
  * Issues a relief food token during an emergency (flood, cyclone, accident, …):
@@ -138,4 +147,159 @@ export async function issueEmergencyToken(
         value_inr: value,
         grant_id: grant.id,
     };
+}
+
+export interface ActivateOverrideInput {
+    configKey: string;
+    overrideValue: string;
+    reason?: string | null;
+}
+
+export interface ActivateOverrideResult {
+    id: string;
+    expires_at: string | null;
+}
+
+/**
+ * Activate a time-boxed config override during emergency mode. Applies the
+ * override to `system_config` immediately (same write the generic admin
+ * route makes) and records it in `emergency_overrides` with a computed
+ * `expires_at` — NULL when `emergency_mode_max_duration_days` is unset, i.e.
+ * the override never auto-reverts until an admin sets a duration (soft-skip,
+ * never invented — AGENTS.md discipline).
+ */
+export async function activateEmergencyOverride(
+    input: ActivateOverrideInput,
+    actor: AppUser,
+    client?: Client
+): Promise<ActivateOverrideResult> {
+    const admin = client ?? (createAdminClient() as unknown as Client);
+
+    let maxDays: number | null = null;
+    try {
+        maxDays = await getNumber("emergency_mode_max_duration_days", admin as never);
+    } catch {
+        maxDays = null; // no auto-revert window configured
+    }
+    const expiresAt = maxDays != null ? new Date(Date.now() + maxDays * 86_400_000).toISOString() : null;
+
+    const { data: cfgRow } = await admin
+        .from("system_config")
+        .select("value")
+        .eq("key", input.configKey)
+        .maybeSingle();
+    const previousValue = (cfgRow as { value: string | null } | null)?.value ?? null;
+
+    const { error: cfgError } = await admin
+        .from("system_config")
+        .update({ value: input.overrideValue, updated_by: actor.id, updated_at: new Date().toISOString() })
+        .eq("key", input.configKey);
+    if (cfgError) throw new Error(cfgError.message);
+
+    const { data: row, error } = await admin
+        .from("emergency_overrides")
+        .insert({
+            config_key: input.configKey,
+            override_value: input.overrideValue,
+            previous_value: previousValue,
+            reason: input.reason ?? null,
+            activated_by: actor.id,
+            expires_at: expiresAt,
+        })
+        .select("id")
+        .single();
+    if (error || !row) throw new Error(error?.message ?? "failed to record emergency override");
+
+    await writeAuditLog(
+        {
+            actor,
+            action: "emergency.override.activate",
+            entity_table: "emergency_overrides",
+            entity_id: row.id,
+            summary: `${input.configKey} overridden to '${input.overrideValue}'${
+                expiresAt ? ` until ${expiresAt}` : " (no auto-revert configured)"
+            }`,
+            metadata: {
+                config_key: input.configKey,
+                from: previousValue,
+                to: input.overrideValue,
+                expires_at: expiresAt,
+            },
+        },
+        admin
+    );
+
+    return { id: row.id, expires_at: expiresAt };
+}
+
+export interface RevertOverrideResult {
+    id: string;
+    reverted: boolean;
+}
+
+/**
+ * Manually revert an active emergency override before its auto-revert window
+ * elapses. Restores the original `system_config` value ONLY if it still
+ * holds the override's value unchanged (CAS-style) — skips the restore
+ * silently if an admin already changed it since, so a stale revert can never
+ * clobber a newer intentional change.
+ */
+export async function revertEmergencyOverride(
+    overrideId: string,
+    actor: AppUser,
+    client?: Client
+): Promise<RevertOverrideResult> {
+    const admin = client ?? (createAdminClient() as unknown as Client);
+
+    const { data: row, error: fetchError } = await admin
+        .from("emergency_overrides")
+        .select("id, config_key, override_value, previous_value, is_active")
+        .eq("id", overrideId)
+        .maybeSingle();
+    if (fetchError) throw new Error(fetchError.message);
+    if (!row) throw new Error("emergency override not found");
+    const override = row as {
+        id: string;
+        config_key: string;
+        override_value: string;
+        previous_value: string | null;
+        is_active: boolean;
+    };
+    if (!override.is_active) return { id: overrideId, reverted: false };
+
+    const { data: updated, error: updateError } = await admin
+        .from("emergency_overrides")
+        .update({ is_active: false, reverted_at: new Date().toISOString(), reverted_by: actor.id })
+        .eq("id", overrideId)
+        .eq("is_active", true)
+        .select("id");
+    if (updateError) throw new Error(updateError.message);
+    if (!updated || updated.length === 0) return { id: overrideId, reverted: false };
+
+    // CAS restore to the PRE-override value: only touches system_config if it
+    // still holds the override's value unchanged — an admin's newer intentional
+    // change since activation is never clobbered.
+    await admin
+        .from("system_config")
+        .update({
+            value: override.previous_value,
+            updated_by: actor.id,
+            updated_at: new Date().toISOString(),
+        })
+        .eq("key", override.config_key)
+        .eq("value", override.override_value);
+
+    await writeAuditLog(
+        {
+            actor,
+            action: "emergency.override.revert",
+            entity_table: "emergency_overrides",
+            entity_id: overrideId,
+            summary: `emergency override on ${override.config_key} manually reverted`,
+            metadata: { config_key: override.config_key },
+        },
+        admin
+    );
+
+    return { id: overrideId, reverted: true };
 }

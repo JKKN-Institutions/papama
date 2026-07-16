@@ -2,6 +2,8 @@ import { z } from "zod";
 
 import { BadRequestError, NotFoundError, defineRoute, parseBody } from "@/lib/api/handler";
 import { dispatchNotification } from "@/lib/notifications/dispatch";
+import { postLedgerEntry } from "@/lib/services/ledger";
+import { payoutAmount } from "@/lib/services/settlement";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -40,7 +42,7 @@ export const PATCH = defineRoute<{ id: string }>(
         const { data: current, error: fetchError } = await admin
             .from("token_redemptions")
             .select(
-                "id, vendor_id, proof_status, payment_status, token_id, beneficiary_id, menu_value_inr, redeemed_at, proof_photo_ref"
+                "id, vendor_id, proof_status, payment_status, token_id, beneficiary_id, menu_value_inr, difference_paid_inr, redeemed_at, proof_photo_ref"
             )
             .eq("id", params.id)
             .maybeSingle();
@@ -96,6 +98,28 @@ export const PATCH = defineRoute<{ id: string }>(
                 vendor_id: current.vendor_id,
             },
         });
+
+        // Triple-ledger financial trail (addon #18) — an approval releases the
+        // payment, which is exactly when the platform's payable to the vendor
+        // becomes real. Best-effort: a ledger-posting failure must never undo
+        // the approval/payment release above.
+        if (body.decision === "approve") {
+            try {
+                await postLedgerEntry({
+                    admin,
+                    ledger: "vendor_payable",
+                    amountInr: payoutAmount(
+                        current.menu_value_inr as number,
+                        (current.difference_paid_inr as number | null) ?? 0
+                    ),
+                    referenceType: "redemption",
+                    referenceId: params.id,
+                    description: `payout accrued on proof approval for redemption ${params.id}`,
+                });
+            } catch (e) {
+                console.error("[proofs] ledger posting failed:", e);
+            }
+        }
 
         // Donor transparency (addon2 A5): once the proof is APPROVED the meal photo
         // is verified, so notify the funding donor with a signed photo URL + the

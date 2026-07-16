@@ -338,6 +338,10 @@ describe("spec §6 — missing features (expect failures until code catches up)"
         it("donor can view/request own (spec §6: Own view/request)", () => {
             expect(can("donor", "refunds_failed_payments" as Feature, "read", "own")).toBe(true);
         });
+
+        it("donor can self-initiate a refund request (addon #20: create own)", () => {
+            expect(can("donor", "refunds_failed_payments" as Feature, "create", "own")).toBe(true);
+        });
     });
 
     // Spec §6: CSR Module [M1-7]

@@ -1,4 +1,6 @@
 import { BadRequestError, NotFoundError, defineRoute, parseBody } from "@/lib/api/handler";
+import { ForbiddenError, userHasCapability } from "@/lib/permissions";
+import { postLedgerEntry } from "@/lib/services/ledger";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { SettlementStatus } from "@/lib/types/enums";
@@ -55,13 +57,16 @@ export const GET = defineRoute({ feature: "vendor_settlement", action: "read" },
 });
 
 /**
- * PATCH /api/admin/settlements — admin settlement lifecycle (contract §8).
+ * PATCH /api/admin/settlements — admin settlement lifecycle (contract §8, spec
+ * §3.1 F-2 [M2-4] approval step).
  *
- * Gated by `vendor_settlement/update` — admin only (matches the
- * `vendor_settlements_update_admin` RLS policy; admin also holds the matrix
- * `override` capability). Forward cycle lock → reconcile → pay; `unlock` is the
- * override returning a locked row to pending. `pay` stamps `settled_at`. Illegal
- * transition → 400, missing → 404. Audited.
+ * Gated by `vendor_settlement/read` at the route level (both admin and
+ * compliance hold `read:"all"`) — the real authorization is enforced per
+ * action below via capability checks, because compliance's matrix cell has
+ * `update:"none"` (only `caps:["approve"]`). Lifecycle: lock → approve →
+ * reconcile → pay; `unlock` is the override returning a locked row to
+ * pending. `pay` stamps `settled_at`. Illegal transition → 400, missing →
+ * 404. Audited.
  */
 type SettlementActionRule = {
     to: SettlementStatus;
@@ -73,20 +78,35 @@ type SettlementActionRule = {
 const SETTLEMENT_ACTION_RULES: Record<string, SettlementActionRule> = {
     lock: { to: "locked", from: ["pending"], verb: "settlement.lock" },
     unlock: { to: "pending", from: ["locked"], verb: "settlement.unlock" },
-    reconcile: { to: "reconciled", from: ["locked"], verb: "settlement.reconcile" },
+    approve: { to: "approved", from: ["locked"], verb: "settlement.approve" },
+    reconcile: { to: "reconciled", from: ["approved"], verb: "settlement.reconcile" },
     pay: { to: "paid", from: ["reconciled"], verb: "settlement.pay", stampsSettledAt: true },
 };
 
 export const PATCH = defineRoute(
-    { feature: "vendor_settlement", action: "update" },
-    async ({ req, audit }) => {
+    { feature: "vendor_settlement", action: "read" },
+    async ({ req, user, audit }) => {
         const body = await parseBody(req, settlementActionRequestSchema);
+
+        // `approve` is compliance's capability (spec §6: "R + Approve"); admin's
+        // `override` capability covers every other lifecycle/hold action. Neither
+        // role gets a blanket pass — each action is checked explicitly.
+        const isAdminOverride = userHasCapability(user, "vendor_settlement", "override");
+        if (body.action === "approve") {
+            const canApprove =
+                isAdminOverride || userHasCapability(user, "vendor_settlement", "approve");
+            if (!canApprove) {
+                throw new ForbiddenError(`role '${user.role}' cannot approve settlements`);
+            }
+        } else if (!isAdminOverride) {
+            throw new ForbiddenError(`role '${user.role}' cannot ${body.action} settlements`);
+        }
 
         const admin = createAdminClient();
 
         const { data, error: fetchError } = await admin
             .from("vendor_settlements")
-            .select("id, status, on_hold")
+            .select("id, status, on_hold, amount")
             .eq("id", body.settlement_id)
             .single();
 
@@ -95,6 +115,7 @@ export const PATCH = defineRoute(
             id: string;
             status: SettlementStatus;
             on_hold: boolean;
+            amount: number;
         };
         const nowIso = new Date().toISOString();
 
@@ -144,6 +165,24 @@ export const PATCH = defineRoute(
             .eq("id", body.settlement_id);
 
         if (updateError) throw new Error(updateError.message);
+
+        // Triple-ledger financial trail (addon #18): paying a settlement clears
+        // the platform's payable to this vendor — post the debit. Best-effort:
+        // a ledger-posting failure must never undo the payout itself.
+        if (body.action === "pay") {
+            try {
+                await postLedgerEntry({
+                    admin,
+                    ledger: "vendor_payable",
+                    amountInr: -Number(settlement.amount),
+                    referenceType: "settlement",
+                    referenceId: body.settlement_id,
+                    description: `settlement paid (${body.settlement_id})`,
+                });
+            } catch (e) {
+                console.error("[settlements] ledger posting failed:", e);
+            }
+        }
 
         await audit({
             action: rule.verb,

@@ -34,8 +34,19 @@ owner-confirmed decisions and preserved placeholders. **No open values invented.
 - **Multi-city/district/state hierarchy = DEFERRED.** City-level model kept
   (`operating_city` + `city_lock_enabled`). A region hierarchy + region-scoped RLS is a
   designed-for Phase-2 seam; building it now would be a large cross-cutting RLS rewrite.
-- **Lost-token handling & token revalidation = DEFERRED (Phase-2).** `tokens.replacement_for_token_id`
-  seam only; revalidation would tension with the auto-invalidate-on-expiry hard rule.
+- ~~**Lost-token handling & token revalidation = DEFERRED (Phase-2).**~~ **STALE — superseded
+  2026-07-16.** `papama-phase1-spec-rev2.md` §3.2/§4/§11.2 and the 2026-07-10 developer-todo/
+  feature-build-tracker/test-handover docs all confirm both are pulled into Phase 1. Built:
+  `lib/services/token.ts::reportTokenLost()` (blocks the old token instantly — `token_status`
+  enum gained `blocked` — and mints a same-value replacement via `replacement_for_token_id`,
+  continuing the original expiry window) and `::revalidateToken()` (admin-only, audited,
+  gated by `token_revalidation_allowed`, only `expired` tokens eligible). The 2026-07-02
+  reasoning ("revalidation tensions with auto-invalidate-on-expiry") was never a real
+  conflict — the spec treats revalidation as an explicit, audited admin override of that
+  default, not a change to it. Actor mapping for report-loss: spec says "beneficiary or
+  distributor," but neither role has a mutating permission cell on `token_generation`/
+  `token_distribution` — mapped instead to donor (self-service, own Path-A token) + admin
+  (on behalf of), a documented interpretation, not a client-specified route.
 - **Notification templates ship editable but conservative.** `notification_templates`
   seeds the two live donor alerts (redemption / thank_you). `dispatch.ts` falls back to
   the caller's hard-coded copy when no active template exists, so behaviour is unchanged
@@ -127,6 +138,101 @@ provider behind a marked placeholder. **No open values were invented.**
   — from every other error, which should surface as a distinct transient/DB error
   type so the liveness gates **block** (fail-closed) instead of skipping. No behaviour
   change intended for the genuinely-unset path.
+
+## Phase-1 batch 2026-07-16 — 11 spec features built (holding #13, #10, #19)
+
+Built per `docs/developer-todo.md`'s Phase A/B split, holding **#13 (bill
+fingerprint), #10 (CSR module), #19 (document management)**. The live DB was
+queried directly before building because `docs/developer-todo.md`'s "missing
+tables" list was stale (same pattern as the earlier addon2 staleness) —
+`vendor_capacity_usage`, `volunteer_activity_log`, `surprise_inspections`, and
+`vendor_feedback`'s complaint columns already existed under different names
+than the doc assumed; only `media_fingerprints`, `ledger_entries`,
+`emergency_overrides`, `payment_failures`, and `refunds` were genuinely new.
+
+- **Emergency-mode authority (client Q7/§11.2 #5): single admin, no
+  two-person rule.** This was already true of the existing generic
+  `PATCH /api/admin/system-config` route (admin-only, audited) — no new
+  authorization surface was added for the toggle itself. New:
+  `emergency_overrides` gives time-boxed `system_config` overrides
+  (`lib/services/emergency.ts::activateEmergencyOverride`/
+  `revertEmergencyOverride`), auto-reverting via the
+  `revert_emergency_overrides()` pg_cron job when
+  `emergency_mode_max_duration_days` is set (seeded NULL — soft-skip, an
+  override never auto-reverts until an admin sets a duration). **Disaster-
+  affected proof/eligibility gating (fast-track vendor onboarding, relaxed
+  beneficiary docs) remains OUT of scope pending client Q7** — do not build
+  ad hoc rules for it.
+- **Refund policy boundary (client Q3/§11.2 #3): confirmed default
+  applied — refunds ONLY for failed/duplicate payment-gateway cases, never
+  voluntary withdrawal.** Enforced at the **schema level**, not just app
+  logic: `refunds.payment_failure_id` is `NOT NULL` (`ON DELETE RESTRICT`) —
+  there is no code path that creates a refund without an existing open
+  `payment_failures` row. Phase 1 has no live payment-gateway webhook, so
+  `payment_failures` rows are admin-logged via manual reconciliation
+  (`POST /api/admin/payment-failures`), not auto-detected — ties to the
+  still-open payment-provider question (client Q17). Approval reverses
+  credit via the existing `refundCredit()` (still internal-only, no donor
+  money-back — see the addon2 entry above) and posts the reversal to the
+  `donation` ledger.
+- **Multi-level cooldown key naming.** Category-level overrides are named
+  `meal_cooldown_hours_<category>` (one per `BENEFICIARY_CATEGORIES` value),
+  seeded NULL. Resolution order is **emergency > category > global**, all
+  soft-skip-on-unset; falling through from an unset emergency override to
+  category/global relaxes the check to soft (never hard-blocks), matching the
+  prior single-level emergency-relief discipline. `max_meals_per_day` was
+  NOT given the same per-category treatment — spec §3.1 F-9 only requires
+  multi-level *cooldown*.
+- **Duplicate-photo detection now raises the real `duplicate_media` flag
+  type**, not the `vendor_anomaly` workaround it used while the enum value
+  didn't exist yet. `media_fingerprints` is a new durable evidence table
+  (photo rows populated/checked now); `bill_number`/`bill_amount_inr` are
+  nullable forward-compat columns for **#13 (bill-fingerprint detection),
+  still held**.
+- **Institution allocation tracing.** `token_distribution_records` gained a
+  nullable `ngo_partner_id` column so `institutionAllocationReport()` can
+  precisely bucket a bulk allocation's tokens into redeemed/pending/expired/
+  blocked. This is independent of the existing `institutionRedemptionReport()`
+  (keyed by `beneficiaries.institution_id`, not the allocation batch) — a
+  beneficiary can be fed by a token NOT drawn from this institution's bulk
+  batch, so the two figures can legitimately diverge. `institution_token_
+  allocations` itself still has no FK to individual tokens (count-only header
+  row, by design, matching the original addon #11 migration's model).
+- **Failed-inspection quality penalty** (`vendor_inspection_fail_penalty`)
+  seeded NULL — soft-skip until an admin sets a value, same discipline as
+  `vendor_min_rating`. Failed inspections never auto-suspend (manual review
+  only, per spec — `applyInspectionOutcome()` only adjusts `quality_score`).
+- **Triple-ledger reconciliation invariant:** `donation == vendor_payable +
+  revenue`, checked by `lib/services/ledger.ts::reconcileLedgers()`.
+  `ledger_entries` is append-only (no update/delete RLS policy, matching
+  `audit_logs`'s discipline) — a correction is a new offsetting entry, never
+  an edit. Four integration points post to it: donation creation, proof
+  approval (`vendor_payable` credit via the newly-exported
+  `settlement.ts::payoutAmount()`), a forfeited remainder at redemption
+  creation (`revenue` credit), settlement `pay` (`vendor_payable` debit), and
+  `refundCredit()` (`donation` reversal).
+- **Flagged, NOT built — `settlement_random_audit_rate` vs
+  `settlement_audit_sample_pct` drift.** `test/helpers/mockConfig.ts` already
+  uses the spec §7 renamed key `settlement_audit_sample_pct`, but
+  `lib/services/settlement.ts` still reads the old `settlement_random_audit_rate`
+  key. This is unrelated to the 11 features above — flagging it here so the
+  rename isn't silently lost as a follow-up.
+- **Flagged decision point — `token_revalidation_allowed` seed value.**
+  Seeded **`false`**, matching this codebase's convention that every addon
+  boolean ships OFF until an admin opts in — even though the spec's §7 table
+  suggests a launch default of `true`. One-line SQL change either way;
+  confirm with the client/spec owner if `true`-at-seed is actually required.
+- **Permission-matrix change (the only one across all 11 features):**
+  `refunds_failed_payments.donor` gained `create:"own"` (previously
+  `read:"own"` only) so a donor can self-initiate a refund request via the
+  new `POST /api/donor/refund-request`.
+- **Route-level authorization bug fixed as part of #11:**
+  `PATCH /api/admin/settlements` was gated with `{feature:"vendor_settlement",
+  action:"update"}`, but `compliance`'s matrix cell has `update:"none"` (only
+  `caps:["approve"]`) — compliance could never call this route at all,
+  blocking the spec's own approval step. Fixed by loosening the route guard to
+  `action:"read"` (both admin and compliance hold `read:"all"`) and enforcing
+  the real authorization per action via `userHasCapability` in-handler.
 
 ## Schema decisions to confirm
 

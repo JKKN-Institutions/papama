@@ -1006,3 +1006,151 @@ describe("validateRedemption", () => {
         });
     });
 });
+
+// ---------------------------------------------------------------------------
+// Multi-level cooldown resolution — addon #21 (spec §3.1 F-9, §7.1 rule 5)
+// ---------------------------------------------------------------------------
+
+describe("validateRedemption — multi-level cooldown (emergency > category > global)", () => {
+    const BENEFICIARY_ROW = {
+        id: "benef-1",
+        face_hash: "hash-1",
+        category: "patient",
+        eligibility_status: "verified",
+        status: "active",
+        eligibility_expires_at: null,
+    };
+
+    /** A matched beneficiary, one prior meal ~1h ago (within any cooldown tested here). */
+    function buildAdminWithMatchedBeneficiary() {
+        const admin = buildFakeAdmin({
+            tokens: [{ data: TOKEN_ROW, error: null }],
+            vendors: [
+                { data: VENDOR_STATUS_ROW, error: null },
+                { data: VENDOR_AVAIL_ROW, error: null },
+                { data: VENDOR_GEO_ROW, error: null },
+                { data: { city: null }, error: null },
+            ],
+            vendor_menus: [{ data: MENU_ROW, error: null }],
+            meal_windows: [{ data: [], error: null }],
+            beneficiaries: [{ data: BENEFICIARY_ROW, error: null }],
+            redemption_cooldown_log: [{ data: [], error: null }],
+        });
+        const oneHourAgo = new Date(Date.now() - 3_600_000).toISOString();
+        (admin.rpc as ReturnType<typeof vi.fn>).mockImplementation(async (fn: string) => {
+            if (fn === "match_beneficiary_face") {
+                return { data: [{ beneficiary_id: "benef-1" }], error: null };
+            }
+            if (fn === "recent_face_matches") {
+                return { data: [{ redeemed_at: oneHourAgo }], error: null };
+            }
+            return { data: [], error: null };
+        });
+        return admin;
+    }
+
+    function cooldownCheck(checks: { name: string; detail?: string }[]) {
+        return checks.find((c) => c.name === "cooldown") as
+            | { name: string; pass: boolean; hard: boolean; detail?: string }
+            | undefined;
+    }
+
+    // Identity/cooldown only runs when a face capture is present (the no-face
+    // branch is preview-only — see lib/services/redemption.ts).
+    const INPUT_WITH_FACE: ValidateRedemptionInput = {
+        ...BASE_INPUT,
+        face: { embedding: [0.1, 0.2, 0.3], liveness: 0.99 },
+    };
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
+    it("category override wins over global when no emergency mode", async () => {
+        getBooleanMock.mockImplementation(async (key: string) => {
+            if (key === "emergency_mode_enabled") return false;
+            throw new MissingConfigError(key, "missing");
+        });
+        getNumberMock.mockImplementation(async (key: string) => {
+            if (key === "face_match_threshold") return 0.5;
+            if (key === "meal_cooldown_hours") return 6;
+            if (key === "meal_cooldown_hours_patient") return 2;
+            throw new MissingConfigError(key, "missing");
+        });
+
+        const admin = buildAdminWithMatchedBeneficiary();
+        const result = await validateRedemption(INPUT_WITH_FACE, admin);
+        const check = cooldownCheck(result.checks);
+
+        expect(check).toBeDefined();
+        expect(check!.detail).toContain("[source: category]");
+        expect(check!.detail).toContain("< 2h");
+        expect(check!.hard).toBe(true);
+        expect(check!.pass).toBe(false); // 1h ago < 2h category cooldown → blocked
+    });
+
+    it("emergency override wins over category when both are set", async () => {
+        getBooleanMock.mockImplementation(async (key: string) => {
+            if (key === "emergency_mode_enabled") return true;
+            throw new MissingConfigError(key, "missing");
+        });
+        getNumberMock.mockImplementation(async (key: string) => {
+            if (key === "face_match_threshold") return 0.5;
+            if (key === "meal_cooldown_hours") return 6;
+            if (key === "meal_cooldown_hours_patient") return 2;
+            if (key === "emergency_meal_cooldown_hours") return 3;
+            throw new MissingConfigError(key, "missing");
+        });
+
+        const admin = buildAdminWithMatchedBeneficiary();
+        const result = await validateRedemption(INPUT_WITH_FACE, admin);
+        const check = cooldownCheck(result.checks);
+
+        expect(check!.detail).toContain("[source: emergency]");
+        expect(check!.detail).toContain("< 3h");
+        expect(check!.hard).toBe(true); // emergency override explicitly set → still hard
+    });
+
+    it("falls through to category (relaxed/soft) when emergency mode is on but its override is unset", async () => {
+        getBooleanMock.mockImplementation(async (key: string) => {
+            if (key === "emergency_mode_enabled") return true;
+            throw new MissingConfigError(key, "missing");
+        });
+        getNumberMock.mockImplementation(async (key: string) => {
+            if (key === "face_match_threshold") return 0.5;
+            if (key === "meal_cooldown_hours") return 6;
+            if (key === "meal_cooldown_hours_patient") return 2;
+            // emergency_meal_cooldown_hours intentionally unset
+            throw new MissingConfigError(key, "missing");
+        });
+
+        const admin = buildAdminWithMatchedBeneficiary();
+        const result = await validateRedemption(INPUT_WITH_FACE, admin);
+        const check = cooldownCheck(result.checks);
+
+        expect(check!.detail).toContain("[source: category]");
+        expect(check!.detail).toContain("< 2h");
+        expect(check!.hard).toBe(false); // emergency mode ON but unset override → relaxed to soft
+    });
+
+    it("falls through to global when neither emergency nor category overrides are set", async () => {
+        getBooleanMock.mockImplementation(async (key: string) => {
+            if (key === "emergency_mode_enabled") return false;
+            throw new MissingConfigError(key, "missing");
+        });
+        getNumberMock.mockImplementation(async (key: string) => {
+            if (key === "face_match_threshold") return 0.5;
+            if (key === "meal_cooldown_hours") return 6;
+            // no category override
+            throw new MissingConfigError(key, "missing");
+        });
+
+        const admin = buildAdminWithMatchedBeneficiary();
+        const result = await validateRedemption(INPUT_WITH_FACE, admin);
+        const check = cooldownCheck(result.checks);
+
+        expect(check!.detail).toContain("[source: global]");
+        expect(check!.detail).toContain("< 6h");
+        expect(check!.hard).toBe(true);
+    });
+});

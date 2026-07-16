@@ -2,6 +2,8 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { postLedgerEntry } from "@/lib/services/ledger";
+
 /**
  * Internal credit-refund / reversal (addon2 A6).
  *
@@ -28,6 +30,10 @@ export interface RefundCreditArgs {
     amountInr: number;
     /** Human-readable reason stored on the ledger row + used in the audit trail. */
     reason: string;
+    /** Triple-ledger reference (addon #18) — defaults to a credit_transaction
+     *  self-reference when the caller doesn't have a more specific one (e.g.
+     *  a refund request, addon #14/#20). */
+    ledgerReference?: { referenceType: string; referenceId: string };
 }
 
 export interface RefundCreditResult {
@@ -46,6 +52,7 @@ export async function refundCredit({
     donorId,
     amountInr,
     reason,
+    ledgerReference,
 }: RefundCreditArgs): Promise<RefundCreditResult> {
     if (!(amountInr > 0)) {
         throw new Error("refund amount must be positive");
@@ -99,13 +106,33 @@ export async function refundCredit({
     // Ledger entry — a DEBIT (negative), typed refund_reversal so it is distinct
     // from a token_conversion debit or a purchase/donation credit.
     if (reversed > 0) {
-        const { error: txError } = await admin.from("credit_transactions").insert({
-            donor_id: donorId,
-            amount_inr: -reversed,
-            type: "refund_reversal",
-            description: reason,
-        });
+        const { data: txRow, error: txError } = await admin
+            .from("credit_transactions")
+            .insert({
+                donor_id: donorId,
+                amount_inr: -reversed,
+                type: "refund_reversal",
+                description: reason,
+            })
+            .select("id")
+            .single();
         if (txError) throw new Error(txError.message);
+
+        // Triple-ledger financial trail (addon #18) — a credit reversal debits
+        // the `donation` ledger. Best-effort: a ledger-posting failure must
+        // never undo the reversal itself.
+        try {
+            await postLedgerEntry({
+                admin,
+                ledger: "donation",
+                amountInr: -reversed,
+                referenceType: ledgerReference?.referenceType ?? "credit_transaction",
+                referenceId: ledgerReference?.referenceId ?? (txRow as { id: string } | null)?.id ?? donorId,
+                description: reason,
+            });
+        } catch (e) {
+            console.error("[refundCredit] ledger posting failed:", e);
+        }
     }
 
     return {

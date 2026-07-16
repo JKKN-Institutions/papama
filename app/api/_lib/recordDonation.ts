@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getNumber } from "@/lib/system-config";
 import { dispatchNotification } from "@/lib/notifications/dispatch";
+import { postLedgerEntry } from "@/lib/services/ledger";
 
 /**
  * Shared donation-recording primitive used by BOTH the guest donation route and
@@ -76,6 +77,22 @@ export async function recordDonation({
         throw new Error(donationError?.message ?? "failed to record donation");
     }
     const donationId = (donation as { id: string }).id;
+
+    // Triple-ledger financial trail (addon #18) — every donation, guest or
+    // donor-linked, posts a credit to the `donation` ledger. Best-effort: a
+    // ledger-posting failure must never undo an already-recorded donation.
+    try {
+        await postLedgerEntry({
+            admin,
+            ledger: "donation",
+            amountInr: amountInr,
+            referenceType: "donation",
+            referenceId: donationId,
+            description: `donation via ${method}`,
+        });
+    } catch (e) {
+        console.error("[recordDonation] ledger posting failed:", e);
+    }
 
     // Threshold (for the "you can mint now" hint); unset → not reached.
     let threshold: number | null = null;

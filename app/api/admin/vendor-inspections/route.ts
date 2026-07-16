@@ -1,6 +1,8 @@
 import { z } from "zod";
 
 import { BadRequestError, NotFoundError, defineRoute, parseBody } from "@/lib/api/handler";
+import { applyInspectionOutcome } from "@/lib/services/vendorRating";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -105,6 +107,16 @@ export const POST = defineRoute(
                 passed: body.passed ?? null,
             },
         });
+
+        // Failed-inspection quality penalty (addon #16) — best-effort, never
+        // blocks the inspection record. quality_score is a staff-only guarded
+        // column, so this specific write goes through the admin (service-role)
+        // client rather than the session client used above.
+        try {
+            await applyInspectionOutcome(createAdminClient(), body.vendor_id, body.passed ?? null);
+        } catch (e) {
+            console.error("[vendor-inspections] quality penalty failed:", e);
+        }
 
         return { id: row.id, inspection_date: row.inspection_date };
     }

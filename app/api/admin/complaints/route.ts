@@ -41,6 +41,19 @@ export const GET = defineRoute({ feature: "quality_feedback_complaints_inspectio
     return { complaints };
 });
 
+/**
+ * Legal triage transitions (addon #16). `open -> investigating -> resolved |
+ * dismissed`, but `open` may also resolve/dismiss directly (a trivial
+ * complaint doesn't require an investigating step). Both terminal states are
+ * final — no transition out of them.
+ */
+const COMPLAINT_TRANSITIONS: Record<string, ReadonlyArray<string>> = {
+    open: ["investigating", "resolved", "dismissed"],
+    investigating: ["resolved", "dismissed"],
+    resolved: [],
+    dismissed: [],
+};
+
 const decideSchema = z
     .object({
         id: z.string().uuid(),
@@ -68,6 +81,13 @@ export const PATCH = defineRoute(
             .maybeSingle();
         if (fetchError) throw new Error(fetchError.message);
         if (!existing || !existing.is_complaint) throw new NotFoundError("complaint not found");
+
+        const from = existing.complaint_status ?? "open";
+        if (!COMPLAINT_TRANSITIONS[from]?.includes(body.complaint_status)) {
+            throw new BadRequestError(
+                `cannot move a '${from}' complaint to '${body.complaint_status}'`
+            );
+        }
 
         const terminal = body.complaint_status === "resolved" || body.complaint_status === "dismissed";
         const { error: updateError } = await admin

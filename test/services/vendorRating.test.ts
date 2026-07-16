@@ -10,7 +10,12 @@ vi.mock("@/lib/system-config", async (importActual) => {
     return { ...actual, getBoolean: vi.fn(), getNumber: vi.fn() };
 });
 
-import { recordFeedback, recomputeQualityScore, autoSuspendBelowThreshold } from "@/lib/services/vendorRating";
+import {
+    recordFeedback,
+    recomputeQualityScore,
+    autoSuspendBelowThreshold,
+    applyInspectionOutcome,
+} from "@/lib/services/vendorRating";
 import { getBoolean, getNumber, MissingConfigError } from "@/lib/system-config";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -171,5 +176,98 @@ describe("spec §7: vendor quality thresholds", () => {
         // 2 complaints out of 50 feedbacks = 4% → within threshold
         const safeRate = 2 / 50;
         expect(safeRate).toBeLessThan(specMaxComplaintRate);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// applyInspectionOutcome — addon #16 (spec §3.3 [M1-9, M2-11])
+// ---------------------------------------------------------------------------
+
+function buildInspectionAdmin(opts: {
+    vendorRow?: { quality_score: number | null; name: string } | null;
+    updateError?: string;
+}) {
+    const update = vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({
+            error: opts.updateError ? { message: opts.updateError } : null,
+        }),
+    });
+    const from = vi.fn().mockImplementation((table: string) => {
+        if (table === "vendors") {
+            return {
+                select: vi.fn().mockReturnValue({
+                    eq: vi.fn().mockReturnValue({
+                        maybeSingle: vi.fn().mockResolvedValue({
+                            data: opts.vendorRow === undefined
+                                ? { quality_score: 80, name: "Test Vendor" }
+                                : opts.vendorRow,
+                            error: null,
+                        }),
+                    }),
+                }),
+                update,
+            };
+        }
+        return {};
+    });
+    return { client: { from } as unknown as SupabaseClient, update };
+}
+
+describe("applyInspectionOutcome", () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
+    it("is a no-op when the inspection passed", async () => {
+        getNumberMock.mockResolvedValue(10);
+        const { client } = buildInspectionAdmin({});
+        const result = await applyInspectionOutcome(client, "v1", true);
+        expect(result).toEqual({ penalized: false, new_quality_score: null });
+    });
+
+    it("is a no-op when the inspection has no outcome yet (null)", async () => {
+        getNumberMock.mockResolvedValue(10);
+        const { client } = buildInspectionAdmin({});
+        const result = await applyInspectionOutcome(client, "v1", null);
+        expect(result).toEqual({ penalized: false, new_quality_score: null });
+    });
+
+    it("soft-skips when vendor_inspection_fail_penalty is unset", async () => {
+        getNumberMock.mockRejectedValue(new MissingConfigError("vendor_inspection_fail_penalty", "missing"));
+        const { client } = buildInspectionAdmin({});
+        const result = await applyInspectionOutcome(client, "v1", false);
+        expect(result).toEqual({ penalized: false, new_quality_score: null });
+    });
+
+    it("deducts the configured penalty from quality_score on a failed inspection", async () => {
+        getNumberMock.mockResolvedValue(10);
+        const { client } = buildInspectionAdmin({ vendorRow: { quality_score: 80, name: "Test Vendor" } });
+        const result = await applyInspectionOutcome(client, "v1", false);
+        expect(result).toEqual({ penalized: true, new_quality_score: 70 });
+    });
+
+    it("floors quality_score at 0", async () => {
+        getNumberMock.mockResolvedValue(50);
+        const { client } = buildInspectionAdmin({ vendorRow: { quality_score: 20, name: "Test Vendor" } });
+        const result = await applyInspectionOutcome(client, "v1", false);
+        expect(result.new_quality_score).toBe(0);
+    });
+
+    it("is a no-op when the vendor has no quality_score yet", async () => {
+        getNumberMock.mockResolvedValue(10);
+        const { client } = buildInspectionAdmin({ vendorRow: { quality_score: null, name: "Test Vendor" } });
+        const result = await applyInspectionOutcome(client, "v1", false);
+        expect(result).toEqual({ penalized: false, new_quality_score: null });
+    });
+
+    it("never auto-suspends — only adjusts quality_score (spec: manual review)", async () => {
+        getNumberMock.mockResolvedValue(10);
+        const { client, update } = buildInspectionAdmin({ vendorRow: { quality_score: 80, name: "Test Vendor" } });
+        await applyInspectionOutcome(client, "v1", false);
+        // No 'status' field is ever written by this function.
+        for (const call of update.mock.calls) {
+            expect(call[0]).not.toHaveProperty("status");
+        }
+        expect(update).toHaveBeenCalled();
     });
 });

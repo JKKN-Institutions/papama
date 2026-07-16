@@ -2,6 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import type { FraudDetectionMethod, FraudFlagType, FraudSeverity } from "@/lib/types/enums";
 import { getNumber } from "@/lib/system-config";
 
 /**
@@ -14,28 +15,14 @@ import { getNumber } from "@/lib/system-config";
  * Flags land in `fraud_flags` (status 'open'); the admin console resolves/dismisses.
  */
 
-type FlagType =
-    | "duplicate_token"
-    | "cloned_qr"
-    | "tampered_qr"
-    | "beneficiary_duplicate"
-    | "vendor_anomaly";
-type Severity = "low" | "medium" | "high";
-type DetectionMethod =
-    | "face_hash_repeat"
-    | "vendor_volume_anomaly"
-    | "token_duplication"
-    | "cloned_qr"
-    | "tampered_qr"
-    | "geofence_violation"
-    | "gps_integrity"
-    | "pattern_analysis";
-
 export interface FraudFlagInput {
-    flag_type: FlagType;
-    severity: Severity;
-    detection_method?: DetectionMethod;
-    entity: { kind: string; id: string };
+    flag_type: FraudFlagType;
+    severity: FraudSeverity;
+    detection_method?: FraudDetectionMethod;
+    /** Extra keys ride along freely — fraud_flags.entity is jsonb with only a
+     *  shape CHECK (has 'kind' and 'id'), so a flag can carry e.g. vendor_id /
+     *  matched_redemption_id alongside the primary kind/id pair (addon #12). */
+    entity: { kind: string; id: string } & Record<string, unknown>;
     blocked?: boolean;
 }
 

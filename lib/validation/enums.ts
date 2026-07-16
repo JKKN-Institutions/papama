@@ -26,8 +26,10 @@ import {
     MEAL_TYPES,
     NOTIFICATION_CHANNELS,
     NOTIFICATION_STATUSES,
+    PAYMENT_FAILURE_REASONS,
     PAYMENT_STATUSES,
     PROOF_STATUSES,
+    REFUND_STATUSES,
     REGISTRATION_STATUSES,
     REPORT_TYPES,
     SETTLEMENT_CYCLES,
@@ -75,3 +77,6 @@ export const reportTypeSchema = z.enum(REPORT_TYPES);
 
 export const mealTypeSchema = z.enum(MEAL_TYPES);
 export const volunteerActivityTypeSchema = z.enum(VOLUNTEER_ACTIVITY_TYPES);
+
+export const paymentFailureReasonSchema = z.enum(PAYMENT_FAILURE_REASONS);
+export const refundStatusSchema = z.enum(REFUND_STATUSES);

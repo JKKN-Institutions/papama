@@ -563,13 +563,20 @@ describe("vendorActionRequestSchema — spec §3.3 vendor onboarding", () => {
 });
 
 describe("settlementActionRequestSchema — spec §3.1 F-2", () => {
-    it("accepts lifecycle actions: lock, unlock, reconcile, pay (spec F-2)", () => {
-        for (const action of ["lock", "unlock", "reconcile", "pay"]) {
+    it("accepts lifecycle actions: lock, unlock, approve, reconcile, pay (spec F-2)", () => {
+        for (const action of ["lock", "unlock", "approve", "reconcile", "pay"]) {
             expect(() => settlementActionRequestSchema.parse({
                 settlement_id: "550e8400-e29b-41d4-a716-446655440000",
                 action,
             })).not.toThrow();
         }
+    });
+
+    it("accepts 'approve' — spec §3.1 F-2 [M2-4]: settlement approval step (compliance capability)", () => {
+        expect(settlementActionRequestSchema.parse({
+            settlement_id: "550e8400-e29b-41d4-a716-446655440000",
+            action: "approve",
+        }).action).toBe("approve");
     });
 
     it("accepts admin override actions: hold, release (spec F-2: hold facility)", () => {

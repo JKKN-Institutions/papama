@@ -206,7 +206,7 @@ export const PERMISSION_MATRIX: Record<Feature, Partial<Record<UserRole, Permiss
     refunds_failed_payments: {
         admin: CRUD_ALL,
         compliance: R_ALL,
-        donor: perm({ read: "own" }), // Own (view/request)
+        donor: perm({ create: "own", read: "own" }), // Own (view/request) — addon #20: donor self-initiates
     },
 
     // [M1-7] CSR Module — §6 row 16

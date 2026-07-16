@@ -1,7 +1,7 @@
 import { BadRequestError, NotFoundError, defineRoute } from "@/lib/api/handler";
 import { resolveVendorId } from "@/lib/vendor/server-identity";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { computePhash, findDuplicateProof } from "@/lib/services/proofIntegrity";
+import { computePhash, findDuplicateProof, recordMediaFingerprint } from "@/lib/services/proofIntegrity";
 import { flagFraud } from "@/lib/services/fraud";
 
 /**
@@ -158,14 +158,31 @@ export const POST = defineRoute<{ id: string }>(
             },
         });
 
-        // DUPLICATE-PROOF DETECTION (addon #10) — best-effort, never blocks the
-        // upload. Soft-skips entirely when proof_phash_dup_distance is unset. If
-        // the plate photo matches an existing proof within the configured Hamming
-        // distance, we (1) HOLD any settlement(s) already covering either
+        // Durable fingerprint history (addon #12) — best-effort, never blocks the
+        // upload. media_fingerprints is the evidence trail alongside the existing
+        // proof_photo_phash scan below (which stays the live duplicate-detection
+        // path); this row is what a future bill-fingerprint pass (#13, held) would
+        // also write to.
+        try {
+            await recordMediaFingerprint(admin, {
+                redemptionId,
+                vendorId,
+                type: "photo",
+                hash: photoPhash,
+            });
+        } catch (e) {
+            console.error("[proof] media fingerprint recording failed:", e);
+        }
+
+        // DUPLICATE-PROOF DETECTION (addon #10/#12) — best-effort, never blocks
+        // the upload. Soft-skips entirely when proof_phash_dup_distance is unset.
+        // If the plate photo matches an existing proof within the configured
+        // Hamming distance, we (1) HOLD any settlement(s) already covering either
         // redemption so the suspect payout can't be released before review, and
-        // (2) raise a fraud flag (REUSING flag_type 'vendor_anomaly' — adding a
-        // fraud enum value would be irreversible). The proof itself still goes to
-        // admin review; this only adds guard-rails around the money.
+        // (2) raise a `duplicate_media` fraud flag (spec §3.1 F-3 [M1-10] — the
+        // enum value now exists; this replaces the old 'vendor_anomaly' reuse
+        // workaround). The proof itself still goes to admin review; this only
+        // adds guard-rails around the money.
         let duplicateProof = false;
         try {
             const match = await findDuplicateProof(photoPhash, admin, redemptionId);
@@ -193,10 +210,16 @@ export const POST = defineRoute<{ id: string }>(
                 }
 
                 await flagFraud(admin, {
-                    flag_type: "vendor_anomaly",
+                    flag_type: "duplicate_media",
                     severity: "high",
                     detection_method: "pattern_analysis",
-                    entity: { kind: "vendor", id: vendorId },
+                    entity: {
+                        kind: "redemption",
+                        id: redemptionId,
+                        vendor_id: vendorId,
+                        matched_redemption_id: match.redemption_id,
+                        media_type: "photo",
+                    },
                     blocked: false,
                 });
 
