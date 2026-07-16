@@ -113,7 +113,8 @@ function req(url = "http://localhost/api/donor/test") {
 
 interface RouteSpec {
     name: string;
-    handler: (req: NextRequest, ctx?: unknown) => Promise<Response>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test harness accepts any defineRoute handler shape
+    handler: (req: NextRequest, ctx?: any) => Promise<Response>;
     method: "GET" | "POST";
     body?: Record<string, unknown>;
 }

@@ -166,7 +166,8 @@ function req(url = "http://localhost/api/admin/test") {
 
 interface RouteSpec {
     name: string;
-    handler: (req: NextRequest, ctx?: unknown) => Promise<Response>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test harness accepts any defineRoute handler shape
+    handler: (req: NextRequest, ctx?: any) => Promise<Response>;
     method: "GET" | "POST";
     /** URL to construct the NextRequest with (some routes parse query params). */
     url?: string;
@@ -182,7 +183,7 @@ const adminRoutes: RouteSpec[] = [
     { name: "admin/beneficiaries GET", handler: beneficiariesGET, method: "GET" },
     {
         name: "admin/beneficiaries/[id] GET",
-        handler: beneficiaryIdGET as (req: NextRequest, ctx?: unknown) => Promise<Response>,
+        handler: beneficiaryIdGET,
         method: "GET",
         ctx: { params: Promise.resolve({ id: "00000000-0000-0000-0000-000000000099" }) },
     },

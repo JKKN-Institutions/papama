@@ -30,7 +30,9 @@ export function makeRequest(
         }
     }
 
-    const init: RequestInit = { method: options?.method ?? "GET" };
+    const init: { method: string; body?: string; headers?: Record<string, string> } = {
+        method: options?.method ?? "GET",
+    };
 
     if (options?.body) {
         init.method = options.method ?? "POST";
